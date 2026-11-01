@@ -1,0 +1,4 @@
+<resources><style name="Theme.SocialPilot" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+  <item name="colorPrimary">#176B61</item><item name="colorPrimaryVariant">#104D46</item>
+  <item name="colorSecondary">#176B61</item>
+</style></resources>

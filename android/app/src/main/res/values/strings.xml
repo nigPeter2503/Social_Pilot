@@ -1,0 +1,13 @@
+<resources>
+  <string name="app_name">SocialPilot</string>
+  <string name="title">Bắt đầu một ý tưởng mới</string>
+  <string name="intro">Lưu topic thành bản nháp trên thiết bị để tiếp tục phát triển nội dung.</string>
+  <string name="topic_hint">Nhập topic hoặc ý tưởng</string>
+  <string name="save">Lưu bản nháp</string>
+  <string name="drafts">Bản nháp gần đây</string>
+  <string name="empty">Chưa có bản nháp.</string>
+  <string name="required">Vui lòng nhập topic.</string>
+  <string name="saved">Đã lưu bản nháp.</string>
+  <string name="save_error">Chưa lưu được. Vui lòng thử lại.</string>
+  <string name="integration_status">Facebook, LinkedIn và AI đang chờ cấu hình tích hợp.</string>
+</resources>

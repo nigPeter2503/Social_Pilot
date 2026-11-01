@@ -1,0 +1,13 @@
+<resources>
+  <string name="app_name">SocialPilot</string>
+  <string name="title">Start a new idea</string>
+  <string name="intro">Save a topic as a draft on this device to develop later.</string>
+  <string name="topic_hint">Enter a topic or idea</string>
+  <string name="save">Save draft</string>
+  <string name="drafts">Recent drafts</string>
+  <string name="empty">No drafts yet.</string>
+  <string name="required">Please enter a topic.</string>
+  <string name="saved">Draft saved.</string>
+  <string name="save_error">Could not save. Please retry.</string>
+  <string name="integration_status">Facebook, LinkedIn and AI integrations are awaiting configuration.</string>
+</resources>
