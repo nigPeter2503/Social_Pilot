@@ -2,7 +2,7 @@
 
 SocialPilot là ứng dụng Android sử dụng AI Agent để hỗ trợ xây dựng nội dung và quản lý kênh mạng xã hội. Từ một ý tưởng chung, ứng dụng hướng đến việc tạo nội dung riêng cho **Facebook Page và LinkedIn**, cho phép người dùng chỉnh sửa, duyệt và đăng bài, sau đó theo dõi bình luận và hiệu quả hoạt động.
 
-Dự án được thực hiện dưới hình thức đồ án môn học bởi nhóm **4 thành viên** trong **7 tuần**. Ngôn ngữ phát triển chính là **Java** cho ứng dụng Android và backend OAuth.
+Dự án được thực hiện dưới hình thức đồ án môn học bởi nhóm **4 thành viên** trong **6 tuần**. Ngôn ngữ phát triển chính là **Java** cho ứng dụng Android và backend OAuth.
 
 ## Bối cảnh và đối tượng sử dụng
 
@@ -91,16 +91,34 @@ SocialPilot/
 
 Các lệnh build, kiểm thử, cấu hình và xử lý lỗi nằm trong [hướng dẫn phát triển](docs/development.md).
 
+Trước khi nhận task hoặc tạo nhánh, đọc [quy tắc và convention chung](CONTRIBUTING.md): đặt tên nhánh/commit, quy trình PR và review, ranh giới phối hợp, kiểm thử và điều kiện hoàn tất.
+
+Theo hướng dẫn giảng viên do nhóm cung cấp, bắt buộc dùng **GitHub Project + Repo**; mỗi ticket triển khai có assignee, nhánh riêng và PR về `main`, được ít nhất **2 thành viên khác review và approve** trước khi merge. Báo cáo tuần trên Slack channel `2024_31_md_<ma_nhom>` gồm Current tasks, Next plan, Blockers và người phụ trách. Nhóm tạm chọn gửi trước cuối thứ Bảy, chờ làm rõ mốc thứ Bảy/Chủ nhật trong hướng dẫn. Xem chi tiết và mẫu báo cáo trong CONTRIBUTING.
+
+Giảng viên cho lựa chọn các mục `[N]`; 11 mục nâng cao trong phạm vi 44 yêu cầu là phần nhóm đã chọn cam kết. Backend OAuth là lựa chọn kỹ thuật của nhóm, không phải yêu cầu bắt buộc của môn học.
+
 ## Kế hoạch và phân công
+
+Kế hoạch nội bộ gồm 6 tuần, tuần 1 là 02–08/11/2026 (thứ Hai–Chủ nhật). Demo tích hợp cuối tuần 5 (06/12/2026); tuần 6 (07–13/12/2026) kiểm thử, sửa lỗi, nghiệm thu và hoàn thiện bàn giao. Mỗi người cam kết 24 giờ/tuần, gồm thiết kế, lập trình, review, họp, tích hợp, kiểm thử và tài liệu: 96 giờ/nhóm/tuần, 480 giờ đến demo và 576 giờ toàn đợt. Demo không thay nghiệm thu 44 yêu cầu; hạn nộp/bảo vệ chính thức theo thông báo giảng viên.
+
+Không lên kế hoạch hai Optional trong đợt 6 tuần này.
 
 | Thành viên | Trách nhiệm chính |
 |---|---|
-| TV1 | F1, F5, backend OAuth, cấu hình và tích hợp bản phát hành |
-| TV2 | F2, F8, AI Agent, BYOK và hợp đồng AI dùng chung |
-| TV3 | F3, F4, F9, soạn thảo và trải nghiệm sử dụng |
-| TV4 | F6, F7, bình luận và phân tích tăng trưởng |
+| TV1 — Ngô Gia Minh | F1, F5, backend OAuth; hợp đồng kết nối mạng xã hội và điều phối tích hợp kỹ thuật |
+| TV2 — Nguyễn Đức Đạt | F2, F8; nền tảng AI, BYOK, ngân sách, hợp đồng gọi AI dùng chung và điều phối schema Room/migration chung |
+| TV3 — Đỗ Phước Thiện | F3, F4; điều phối F9; giao diện/ViewModel F7.B1, F7.B2, F7.B3, F7.N1, F7.N3; vận hành CI và đóng gói Android |
+| TV4 — Tô Lãng Nghị | F6; dữ liệu, đồng bộ, tính toán và báo cáo F7; API comment/số liệu của hai nền tảng |
 
-Tuần 1 kiểm chứng stack và quyền API; tuần 2–3 hoàn thiện luồng tạo, duyệt và đăng; tuần 4–5 triển khai tương tác, dữ liệu và các yêu cầu nâng cao; tuần 6 nghiệm thu; tuần 7 ổn định, báo cáo và bảo vệ. Chi tiết trong [proposal](docs/SocialPilot_Proposal_Java.docx).
+Mỗi người triển khai giao diện, nghiệp vụ, lưu offline, VI/EN, kiểm thử và tài liệu cho phần mình nhận. TV3 điều phối trải nghiệm chung, không làm toàn bộ giao diện hoặc offline của nhóm. TV3 và TV4 tự xây dựng nghiệp vụ AI của module mình qua dịch vụ TV2 cung cấp; TV4 trực tiếp làm API comment/số liệu trên hợp đồng thống nhất với TV1. TV1 điều phối tích hợp, mỗi chủ task chịu trách nhiệm tích hợp và sửa lỗi phần mình.
+
+Tuần 1 kiểm chứng stack, quyền API và chốt hợp đồng dùng chung; tuần 2–3 hoàn thiện luồng tạo–duyệt–đăng, đồng thời TV4 xây dựng dữ liệu/đồng bộ và TV3 dựng khung dashboard; tuần 4–5 hoàn thiện tương tác, analytics và các yêu cầu nâng cao; demo cuối tuần 5; tuần 6 kiểm thử, sửa lỗi và nghiệm thu. Snapshot thật bắt đầu từ tuần 2–3 khi có quyền API, tuần 4 dùng lịch sử đã tích lũy; thiếu quyền ghi blocker. Chi tiết về ranh giới, bàn giao và việc chung trong [proposal, mục 4](docs/SocialPilot_Proposal_Java.md#4-kế-hoạch-triển-khai-và-phân-công).
+
+TV4 — Tô Lãng Nghị sở hữu API, snapshot, repository, công thức, lưu mục tiêu/tính tiến độ và F7.N2 (nghiệp vụ cùng giao diện báo cáo AI). TV3 — Đỗ Phước Thiện sở hữu XML/ViewModel F7.B1 (số liệu từng bài), F7.B2 (đường tăng trưởng), F7.B3 (dashboard), F7.N1 (phân tích theo nhóm), F7.N3 (mục tiêu); không tính lại chỉ số trong UI. Snapshot thật bắt đầu từ tuần 2–3 khi có quyền API, tuần 4 dùng lịch sử đã tích lũy; thiếu quyền phải ghi blocker, giữ khoảng trống dữ liệu.
+
+Đạt điều phối schema/migration theo CONTRIBUTING mục 6; các owner vẫn thiết kế entity/DAO và kiểm thử phần mình.
+
+Có thể chuyển task theo tải thực tế mà không đổi phạm vi 44 yêu cầu bắt buộc. Mỗi task có một người chịu trách nhiệm chính, người review, đầu ra và hạn bàn giao; cập nhật bảng task cùng báo cáo đóng góp khi thay đổi. Phân công không yêu cầu chia đều tuyệt đối, nhưng phải tính cả tích hợp, kiểm thử và tài liệu để tránh dồn việc vào một số vai trò.
 
 ## Nguyên tắc bảo vệ dữ liệu
 

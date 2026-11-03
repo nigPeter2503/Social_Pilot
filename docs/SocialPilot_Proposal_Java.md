@@ -4,17 +4,17 @@
 
 **Loại dự án:** Đồ án môn học, nhóm 4 thành viên.
 
-**Thời gian:** 7 tuần, hướng đến hoàn thiện chức năng trong 6 tuần và dành tuần cuối cho kiểm thử, sửa lỗi, báo cáo và bảo vệ.
+**Thời gian:** Kế hoạch nội bộ gồm 6 tuần, tuần 1 là 02–08/11/2026 (thứ Hai–Chủ nhật). Demo tích hợp cuối tuần 5 (06/12/2026); tuần 6 (07–13/12/2026) kiểm thử, sửa lỗi, nghiệm thu và hoàn thiện bàn giao. Mỗi người cam kết 24 giờ/tuần, gồm thiết kế, lập trình, review, họp, tích hợp, kiểm thử và tài liệu: 96 giờ/nhóm/tuần, 480 giờ đến demo và 576 giờ toàn đợt. Demo không thay nghiệm thu 44 yêu cầu; hạn nộp/bảo vệ chính thức theo thông báo giảng viên.
 
-**Nguồn lực:** 15–20 giờ/người/tuần, tương đương 420–560 giờ công trong 7 tuần.
+**Nguồn lực:** 24 giờ/người/tuần; mỗi người có 120 giờ đến demo và 144 giờ trong 6 tuần.
 
 Nền tảng: Android native bằng Java, giao diện XML Views và Material Components; backend OAuth bằng Java với Spring Boot.
 
 **Mạng xã hội tích hợp:** Facebook Page và LinkedIn.
 
-Phiên bản rà soát ngày 30 tháng 10 năm 2026\. Phạm vi bắt buộc gồm 44 yêu cầu: 33 mục \[B\] và 11 mục \[N\] không có tag Optional đã được lựa chọn. Chỉ hai mục có tag Optional là mở rộng: nhập topic bằng ảnh và thông báo comment mới kèm mở đúng comment. Ma trận tại mục 5.1 quy định cách kiểm chứng từng yêu cầu.
+Phiên bản rà soát ngày 03 tháng 11 năm 2026\. Phạm vi bắt buộc gồm 44 yêu cầu: 33 mục \[B\] và 11 mục \[N\] không có tag Optional đã được lựa chọn. Chỉ hai mục có tag Optional là mở rộng: nhập topic bằng ảnh và thông báo comment mới kèm mở đúng comment. Ma trận tại mục 5.1 quy định cách kiểm chứng từng yêu cầu.
 
-Quyết định công nghệ: Java phù hợp với các chức năng F1–F9 khi nhóm nắm vững Java và Android Views. Bộ công nghệ được đồng bộ cho Android và backend OAuth; khả năng hoàn thành trong 7 tuần vẫn phải được kiểm chứng bằng bản mẫu kỹ thuật, ước lượng công việc và quyền API thực tế ở tuần 1\.
+Quyết định công nghệ: Java phù hợp với các chức năng F1–F9 khi nhóm nắm vững Java và Android Views. Bộ công nghệ được đồng bộ cho Android và backend OAuth; khả năng hoàn thành trong 6 tuần vẫn phải được kiểm chứng bằng bản mẫu kỹ thuật, ước lượng công việc và quyền API thực tế ở tuần 1\.
 
 # **1 Tổng quan dự án**
 
@@ -44,7 +44,7 @@ Bản đồ án phục vụ **một người dùng trên mỗi bản cài đặt
 ## **1 4 Nguyên tắc xác định phạm vi**
 
 * \[B\] là yêu cầu bắt buộc theo tài liệu yêu cầu chức năng. Cả 33 yêu cầu \[B\] phải có bằng chứng nghiệm thu; thiếu quyền API không tự động miễn yêu cầu.  
-* \[N\] là nhãn chức năng nâng cao, không đồng nghĩa tùy chọn. Cả 11 yêu cầu \[N\] không có tag Optional đã được lựa chọn và là phần bắt buộc của dự án, có cùng trách nhiệm triển khai và nghiệm thu như 33 yêu cầu \[B\].  
+* Theo hướng dẫn giảng viên, \[N\] là chức năng nâng cao được lựa chọn làm thêm. Nhóm đã chọn 11 yêu cầu \[N\] không có tag Optional trong proposal này làm cam kết dự án; các mục đã chọn có cùng trách nhiệm triển khai và nghiệm thu như 33 yêu cầu \[B\]. Không diễn giải rằng giảng viên bắt buộc toàn bộ mục nâng cao.
 * Nhập topic bằng ảnh là hạng mục \[N\] được ghi Optional và chỉ thực hiện khi đủ điều kiện mở rộng.  
 * Thông báo comment mới và mở đúng comment là hạng mục \[N\] có tag Optional, thuộc phần mở rộng. Nếu triển khai, chọn đồng bộ nền kết hợp thông báo cục bộ; không đưa chức năng này vào điều kiện nghiệm thu 44 yêu cầu bắt buộc.  
 * Không bổ sung iOS, video/Reels, quảng cáo trả phí, phân quyền nhóm hoặc đồng bộ nhiều thiết bị trong phiên bản đồ án.
@@ -257,6 +257,8 @@ Tuần 1 chọn bản ổn định tương thích và khóa phiên bản JDK, An
 
 Backend Java với Spring Boot và Spring Web chỉ hỗ trợ luồng OAuth cần giữ client secret ngoài ứng dụng, bao gồm trao đổi mã và làm mới token khi được hỗ trợ. Triển khai một dịch vụ HTTPS nhỏ; Spring Boot không chạy trong APK.
 
+Theo bản tổng hợp hướng dẫn giảng viên do nhóm cung cấp ngày 03/11/2026, môn học tập trung mobile/frontend và không bắt buộc tự xây backend. Dịch vụ OAuth này là lựa chọn kiến trúc của nhóm; lần đồng bộ quy trình không thay đổi kiến trúc đã chọn.
+
 * Không lưu hoặc xử lý API key LLM của người dùng.  
 * Không đóng gói social client secret trong APK.  
 * Không đưa access token vào đường dẫn điều hướng về ứng dụng.  
@@ -311,7 +313,7 @@ API key và token không nằm trong các bảng dữ liệu thông thường; d
 
 Java đáp ứng Android native, lưu trữ offline, OAuth, HTTP streaming và điều phối hai nhánh AI của SocialPilot. Lợi ích chính là thống nhất ngôn ngữ và tận dụng kỹ năng nhóm. Đánh đổi là UI Views/XML và callback cần nhiều mã hơn, đồng thời nhóm phải tự quản lý vòng đời, hủy tác vụ và đồng bộ trạng thái. Tính khả thi đến từ năng lực triển khai đã kiểm chứng, không phải bản thân tên ngôn ngữ.
 
-Các thay đổi đồng bộ gồm XML Views thay Compose, LiveData thay StateFlow, ExecutorService/callback thay Coroutines/Flow, cài đặt trong Room thay DataStore, Spring Boot thay Ktor và Espresso thay Compose UI Test. Phạm vi 44 yêu cầu bắt buộc và hai mục Optional được giữ nguyên. Nếu đã có mã nguồn cũ, cần kiểm kê màn hình, luồng bất đồng bộ, dữ liệu và bài kiểm thử trước khi ước lượng chuyển đổi; lịch 7 tuần phải tính cả phần công việc này.
+Các thay đổi đồng bộ gồm XML Views thay Compose, LiveData thay StateFlow, ExecutorService/callback thay Coroutines/Flow, cài đặt trong Room thay DataStore, Spring Boot thay Ktor và Espresso thay Compose UI Test. Phạm vi 44 yêu cầu bắt buộc và hai mục Optional được giữ nguyên. Nếu đã có mã nguồn cũ, cần kiểm kê màn hình, luồng bất đồng bộ, dữ liệu và bài kiểm thử trước khi ước lượng chuyển đổi; lịch 6 tuần phải tính cả phần công việc này.
 
 ## **3 8 Quy tắc triển khai và kiểm chứng Java**
 
@@ -339,52 +341,85 @@ Bản mẫu cuối tuần 1 phải build được Android Java/XML và backend S
 
 ## **4 1 Phân công nhóm 4 người**
 
-Mỗi thành viên chịu trách nhiệm một luồng xuyên suốt, gồm giao diện, nghiệp vụ và kiểm thử của phần được giao.
+Phân công theo luồng chức năng, có thể chuyển các task cụ thể theo tải thực tế và kỹ năng. Không yêu cầu số task bằng nhau; cần tính cả độ khó, phụ thuộc, tích hợp, kiểm thử và tài liệu. Mỗi task có đúng một người chịu trách nhiệm chính, chịu trách nhiệm bàn giao hoàn chỉnh phần được giao. Người điều phối module theo dõi tính nhất quán, không mặc nhiên phải tự làm hoặc sửa mọi phần trong module.
 
 | Thành viên | Trách nhiệm chính | Sản phẩm phụ trách |
 | :---- | :---- | :---- |
-| TV1 — Điều phối và tích hợp mạng xã hội | F1, F5, backend OAuth Java/Spring Boot; cấu hình Gradle/JDK, CI và tích hợp bản phát hành | Kết nối hai nền tảng; hàng đợi đăng; chống trùng; xử lý token |
-| TV2 — AI Agent và BYOK | F2, F8; hợp đồng Java, ExecutorService, stream/callback và hủy tác vụ dùng chung | Orchestrator; hai sub-agent; hai provider; sinh ảnh; log; ngân sách |
-| TV3 — Soạn thảo và trải nghiệm sử dụng | F3, F4, F9; XML Views, Material Components, View Binding, ViewModel/LiveData | Nhập topic/URL; nhận chia sẻ; editor; preview; phiên bản; VI/EN; offline |
-| TV4 — Comment và phân tích | F6, F7; DAO Java, WorkManager, truy vấn tổng hợp và dashboard | Inbox; trả lời; snapshot; dashboard; báo cáo; mục tiêu. Thông báo chỉ triển khai nếu thực hiện phần mở rộng Optional. |
+| TV1 — Ngô Gia Minh — Kết nối và xuất bản | F1, F5, backend OAuth Java/Spring Boot; hợp đồng SocialConnector và điều phối tích hợp kỹ thuật | OAuth/token; kết nối hai nền tảng; hàng đợi đăng, chống trùng và đối soát; cấu hình/triển khai backend |
+| TV2 — Nguyễn Đức Đạt — Nền tảng AI và BYOK | F2, F8; điều phối schema Room chung; hợp đồng AiProvider, điều phối song song, stream/callback và hủy dùng chung | Orchestrator; hai sub-agent; hai provider; sinh ảnh/template; log; kho key và ngân sách dùng chung |
+| TV3 — Đỗ Phước Thiện — Soạn thảo và trải nghiệm | F3, F4; điều phối F9; giao diện/ViewModel F7.B1, F7.B2, F7.B3, F7.N1, F7.N3; CI và đóng gói Android | Topic/URL/RSS; editor, preview, phiên bản; nghiệp vụ viết lại/hook/alt text; màn hình số liệu bài, đường tăng trưởng, dashboard, phân tích theo nhóm, mục tiêu và ViewModel; kiểm tra VI/EN và trải nghiệm offline toàn luồng |
+| TV4 — Tô Lãng Nghị — Tương tác và dữ liệu tăng trưởng | F6; điều phối F7 và phụ trách tầng dữ liệu; phần API comment/số liệu trong SocialConnector | Inbox và trả lời; phân trang/đồng bộ; quy tắc tự trả lời; snapshot, tổng hợp số liệu, lưu mục tiêu/tính tiến độ và báo cáo AI. Thông báo vẫn là Optional. |
 
-**Phối hợp bắt buộc:**
+**Ranh giới và bàn giao bắt buộc:**
 
-* TV1 cung cấp bộ tích hợp mạng xã hội để TV4 sử dụng.  
-* TV2 cung cấp dịch vụ AI để TV3 và TV4 tích hợp.  
-* TV3 hỗ trợ giao diện và kiểm thử cho TV4 ở tuần 5–6.  
-* TV1 và TV2 cùng rà soát bảo mật, hàng đợi, ngân sách và xử lý lỗi.  
-* Mỗi thay đổi quan trọng được ít nhất một thành viên khác review.
+| Phần phối hợp | Người chịu trách nhiệm và ranh giới | Mốc bàn giao |
+| :---- | :---- | :---- |
+| Kết nối mạng xã hội | TV1 chốt hợp đồng, OAuth/token, khả năng kênh và API đăng. TV4 trực tiếp làm API đọc/trả lời comment, follower và số liệu cho cả hai nền tảng; dùng cơ chế xác thực/lỗi chung, không chờ TV1 viết toàn bộ adapter. | Tuần 1 chốt hợp đồng và kiểm chứng quyền; tuần 2 có mẫu dữ liệu/lỗi cho phát triển; tuần 2–3 triển khai đồng bộ ban đầu. |
+| AI dùng chung | TV2 cung cấp gọi model, stream/hủy, sinh ảnh, usage, ngân sách và lỗi chuẩn hóa. TV3 sở hữu prompt, kiểm tra đầu ra và nghiệp vụ AI của F3/F4; TV4 sở hữu phân loại, gợi ý trả lời, quy tắc tự gửi và báo cáo F6/F7. Mọi lệnh AI đều đi qua dịch vụ và ngân sách chung. | Tuần 1 chốt hợp đồng; tuần 2 có luồng văn bản tối thiểu và mẫu phản hồi; tuần 3 tích hợp stream/ảnh/hủy; ngân sách và dự phòng hoàn thiện tuần 5. |
+| Dashboard và mục tiêu | TV4 sở hữu repository, snapshot, công thức, múi giờ, dữ liệu thiếu, lưu mục tiêu và tính tiến độ. TV3 sở hữu XML/ViewModel, biểu đồ, bộ lọc, form mục tiêu và trạng thái giao diện; không tính lại chỉ số trong UI. TV4 làm nghiệp vụ và giao diện báo cáo tuần. | Tuần 2 chốt dữ liệu và ca rỗng/thiếu quyền; tuần 3 TV3 dựng khung với dữ liệu mẫu có nhãn; tuần 4 nối dữ liệu thật; tuần 5 hoàn thiện mục tiêu và kiểm thử. |
+| Gợi ý topic từ hiệu quả bài | TV4 cung cấp truy vấn bài hiệu quả và định nghĩa chỉ số; TV3 kết hợp với RSS/Atom, tạo gợi ý và hiển thị nguồn/lý do. | Tuần 2 chốt hợp đồng; tuần 4 bàn giao truy vấn; tuần 5 hoàn thiện F3.N4. |
+| VI/EN và offline | Mỗi chủ task làm tài nguyên VI/EN, lưu cục bộ, trạng thái mạng/dữ liệu cũ và kiểm thử cho phần mình. TV1 giữ hàng đợi; TV2 giữ checkpoint/log; TV3 giữ bản nháp và lựa chọn ngôn ngữ; TV4 giữ comment/snapshot. TV3 tổng hợp kiểm tra F9, lỗi thuộc module nào do chủ task đó sửa. | Triển khai cùng từng chức năng từ tuần 2; tuần 6 kiểm thử liên thông, không đợi tuần 6 mới bổ sung lưu offline. |
+| Ngắt kênh và dữ liệu dùng chung | TV1 điều phối F1.B4 và hợp đồng hủy/xóa theo kênh. TV2, TV3, TV4 tự triển khai và kiểm thử hủy/xóa dữ liệu phần mình, giữ dữ liệu chung và chặn kết quả về muộn. Mỗi người đề xuất entity/DAO, migration và kiểm thử phần mình; Nguyễn Đức Đạt (TV2) điều phối schema Room chung, phiên bản và tích hợp migration theo CONTRIBUTING mục 6. | Tuần 2 chốt hợp đồng; tích hợp khi từng module hoàn thành; tuần 6 kiểm thử xóa xuyên suốt. |
 
-## **4 2 Lịch trình 7 tuần**
+**Phân công F7 theo feature:**
+
+TV4 — Tô Lãng Nghị sở hữu API, snapshot, repository, công thức, lưu mục tiêu/tính tiến độ và F7.N2 (nghiệp vụ cùng giao diện báo cáo AI). TV3 — Đỗ Phước Thiện sở hữu XML/ViewModel F7.B1 (số liệu từng bài), F7.B2 (đường tăng trưởng), F7.B3 (dashboard), F7.N1 (phân tích theo nhóm), F7.N3 (mục tiêu); không tính lại chỉ số trong UI. Snapshot thật bắt đầu từ tuần 2–3 khi có quyền API, tuần 4 dùng lịch sử đã tích lũy; thiếu quyền phải ghi blocker, giữ khoảng trống dữ liệu.
+
+**Việc chung được phân công cụ thể:**
+
+* TV1 chốt cấu hình nền tảng cùng nhóm ở tuần 1, phụ trách triển khai backend và điều phối mốc tích hợp. Mỗi chủ task tự tích hợp, cung cấp bằng chứng và xử lý lỗi phần mình; TV1 không là người sửa lỗi mặc định của cả nhóm.
+* TV3 vận hành workflow CI và đóng gói APK; TV1 cung cấp lệnh/cấu hình backend, TV2 hỗ trợ lỗi build Android. Lỗi mã nguồn hoặc kiểm thử do chủ task sửa. Không giao toàn bộ build, CI và phát hành cho TV1.
+* Mỗi PR cần ít nhất **2 thành viên khác người tạo PR review và approve**. Ưu tiên một reviewer am hiểu phần thay đổi (TV2/TV1 cho bảo mật, token/key, hàng đợi, ngân sách; TV3/TV4 cho dữ liệu/giao diện) và một thành viên còn lại, luân phiên để phân bổ tải. Người review không thay chủ task thực hiện kiểm thử; AI review không được tính thay approval của thành viên.
+* Mỗi thành viên viết tài liệu và bằng chứng nghiệm thu phần mình. TV4 tổng hợp ma trận nghiệm thu; TV2 tổng hợp báo cáo và đóng góp; TV3 tổng hợp slide; TV1 tổng hợp kịch bản demo, TV4 ghi video dự phòng. Tổng hợp là ghép và kiểm tra phần đã bàn giao, không viết thay cả nhóm.
+
+**Schema chung:** Nguyễn Đức Đạt điều phối quy tắc thiết kế và thứ tự migration; chủ module tự chuẩn bị thay đổi và kiểm thử. Quy trình tại CONTRIBUTING mục 6; không giao toàn bộ tầng dữ liệu cho Đạt.
+
+**Quy tắc điều chỉnh task:**
+
+Tại hai buổi họp ngắn mỗi tuần, rà tải theo số giờ còn lại, độ khó, phụ thuộc và hạn bàn giao. Khi có nguy cơ trễ, chuyển một đầu việc có ranh giới rõ trước khi giao thêm chức năng mới; không mặc định chuyển mọi việc dư sang TV3. Mỗi task ghi mã yêu cầu, đầu ra/điều kiện hoàn thành, một người chịu trách nhiệm chính, người review, ước lượng gồm kiểm thử/tài liệu, phụ thuộc và hạn bàn giao. Khi đổi người làm, cập nhật bảng task, mã nguồn/bằng chứng đã có, phần còn thiếu và báo cáo đóng góp; nếu đổi trách nhiệm module, cập nhật cả bảng phân công.
+
+Chuyển người thực hiện không làm thay đổi 44 yêu cầu bắt buộc hoặc tiêu chí nghiệm thu. Hai mục Optional chỉ thực hiện khi đủ điều kiện tại mục 5.3. Không đánh giá cân bằng chỉ bằng số mã F hoặc số task; dùng ước lượng và tiến độ thực tế để tránh quá tải kéo dài ở một số vai trò.
+
+## **4 2 Lịch trình 6 tuần**
+
+| Tuần | Khoảng ngày (Asia/Bangkok) |
+|---|---|
+| 1 | 02–08/11/2026 |
+| 2 | 09–15/11/2026 |
+| 3 | 16–22/11/2026 |
+| 4 | 23–29/11/2026 |
+| 5 | 30/11–06/12/2026 — demo cuối tuần |
+| 6 | 07–13/12/2026 — kiểm thử và sửa lỗi |
 
 | Tuần | Công việc trọng tâm | Kết quả phải đạt |
 | :---- | :---- | :---- |
 | 1 — Phân tích và kiểm chứng | Lập ma trận yêu cầu; wireframe; tạo dự án; thiết kế dữ liệu; đăng ký ứng dụng mạng xã hội; thử OAuth, đăng bài, comment và số liệu; thử hai nhà cung cấp AI; kiểm kê mã cũ nếu có; bản mẫu Java/XML, stream/hủy, Room, WorkManager và Spring Boot | Khung Android Java và backend Spring Boot build/test được; bản mẫu kỹ thuật đạt; bảng quyền API thực tế; khóa phiên bản và ước lượng cả chi phí chuyển đổi |
-| 2 — Luồng chức năng đầu tiên | Kết nối kênh; Room và secure storage; nhập brief; kiểm tra BYOK; sinh văn bản; lưu/duyệt bản nháp; đăng bài qua bộ tích hợp; ViewModel/LiveData và cài đặt trong Room | Chạy được luồng brief → AI → sửa → duyệt → đăng trên ít nhất một kênh; tiếp tục kiểm chứng kênh thứ hai |
-| 3 — Tạo và xuất bản đa kênh | Hai sub-agent song song; stream, hủy, chạy lại; sinh ảnh/template; log; preview hai kênh; hàng đợi offline; retry; chống trùng | Luồng tạo và đăng đa kênh hoàn chỉnh; kiểm thử mất mạng và lỗi từng kênh |
+| 2 — Luồng chức năng đầu tiên | Kết nối kênh; Room và secure storage; nhập brief; kiểm tra BYOK; sinh văn bản; lưu/duyệt bản nháp; đăng bài qua bộ tích hợp; TV4 triển khai dữ liệu comment/snapshot và đồng bộ ban đầu, chốt hợp đồng dashboard với TV3; TV3 vận hành CI | Chạy được luồng brief → AI → sửa → duyệt → đăng trên ít nhất một kênh; tiếp tục kiểm chứng kênh thứ hai; có hợp đồng dữ liệu F7 và kiểm thử lưu/đọc dữ liệu |
+| 3 — Tạo và xuất bản đa kênh | Hai sub-agent song song; stream, hủy, chạy lại; sinh ảnh/template; log; preview hai kênh; hàng đợi offline; retry; chống trùng; TV4 tiếp tục API comment/số liệu, TV3 dựng khung dashboard theo hợp đồng | Luồng tạo và đăng đa kênh hoàn chỉnh; kiểm thử mất mạng và lỗi từng kênh; có khung dashboard dùng dữ liệu mẫu có nhãn, tiếp tục thu thập snapshot thật bắt đầu từ tuần 2–3 khi quyền API cho phép |
 | 4 — Tương tác và dữ liệu | Inbox; đồng bộ; phân loại; gợi ý trả lời; snapshot; dashboard nền tảng; nhập URL và nhận link chia sẻ | Đọc/trả lời comment; có dữ liệu tăng trưởng được lưu thực tế. Thông báo thuộc phần Optional, không phải điều kiện đạt tuần 4\. |
-| 5 — Hoàn thiện các yêu cầu nâng cao | Gợi ý topic; lịch sử phiên bản; ba hook; alt text; tự trả lời giới hạn; phân tích; báo cáo tuần; mục tiêu; ngân sách; provider dự phòng | Toàn bộ 44 yêu cầu bắt buộc có luồng sử dụng và có thể kiểm thử; không tính hai mục Optional vào mốc này. |
-| 6 — Nghiệm thu phạm vi chính | Kiểm thử liên thông; token hết hạn; rate limit; timeout; phục hồi ứng dụng; VI/EN; offline; sửa lỗi; hoàn thiện hướng dẫn và báo cáo; Espresso, Room migration, WorkManager và Spring Boot Test/MockMvc | Bản ứng viên phát hành; ma trận yêu cầu có kết quả kiểm chứng; không còn lỗi nghiêm trọng |
-| 7 — Ổn định và bảo vệ | Chạy thử trên thiết bị; sửa lỗi còn lại; video dự phòng; slide; luyện demo; đóng gói bàn giao | APK cuối, source code, tài liệu, video và kịch bản bảo vệ |
+| 5 — Hoàn thiện các yêu cầu nâng cao | Gợi ý topic; lịch sử phiên bản; ba hook; alt text; tự trả lời giới hạn; phân tích; báo cáo tuần; mục tiêu; ngân sách; provider dự phòng | Demo tích hợp cuối tuần 5 (06/12/2026), mục tiêu toàn bộ 44 yêu cầu bắt buộc có luồng sử dụng và có thể kiểm thử; ghi rõ phần chưa đạt/bị chặn, demo không thay nghiệm thu tuần 6; không tính hai mục Optional vào mốc này. |
+| 6 — Nghiệm thu phạm vi chính | Kiểm thử liên thông; token hết hạn; rate limit; timeout; phục hồi ứng dụng; VI/EN; offline; sửa lỗi; hoàn thiện hướng dẫn và báo cáo; Espresso, Room migration, WorkManager và Spring Boot Test/MockMvc | Kiểm thử và sửa lỗi bản demo; ma trận yêu cầu có kết quả kiểm chứng; không còn lỗi nghiêm trọng; hoàn thiện APK, tài liệu, slide và video bàn giao |
 
-Nếu thời hạn chỉ có 6 tuần, công suất ở mốc 16 giờ/người/tuần giảm từ 448 xuống 384 giờ công. Cần lập lại ước lượng, phân bổ nhân lực và cách triển khai để đáp ứng đủ 44 yêu cầu bắt buộc; không tự cắt các \[N\] không có Optional hoặc thời gian kiểm thử. Nếu nguồn lực không đủ, nêu rõ chênh lệch và đề xuất điều chỉnh thời gian hoặc nguồn lực để người đặt yêu cầu quyết định. Hai phần Optional không triển khai trong phương án 6 tuần.
+Kế hoạch hiện hành là 6 tuần. Tuần 6 dành cho kiểm thử/sửa lỗi, không mặc định bù tính năng thiếu ở mốc demo. Nếu có nguy cơ trễ, ghi phần thiếu, owner và phương án xử lý; không tự giảm 44 yêu cầu hoặc tiêu chí nghiệm thu. Không lên kế hoạch hai Optional trong đợt này.
 
 ## **4 3 Mốc quản lý tiến độ**
 
 * Cuối tuần 1: Có bằng chứng quyền API, bản mẫu Java đạt, tập phiên bản đã khóa và ước lượng cập nhật gồm chuyển đổi mã nguồn nếu có.  
 * **Cuối tuần 3:** Luồng tạo–duyệt–đăng đa kênh hoạt động.  
-* Cuối tuần 5: Hoàn tất triển khai 44 yêu cầu bắt buộc, gồm 33 \[B\] và 11 \[N\] không có Optional; ghi rõ phần chưa đạt và kế hoạch khắc phục.  
-* **Cuối tuần 6:** Hoàn tất nghiệm thu nội bộ.  
-* **Tuần 7:** Ưu tiên ổn định và bảo vệ.
+* Cuối tuần 5 (06/12/2026): Demo tích hợp, mục tiêu hoàn tất triển khai 44 yêu cầu bắt buộc, gồm 33 \[B\] và 11 \[N\] không có Optional; ghi rõ phần chưa đạt và kế hoạch khắc phục.
+* **Cuối tuần 6 (13/12/2026):** Hoàn tất kiểm thử, sửa lỗi và nghiệm thu nội bộ; ghi kết quả thực tế.
 
-Nhóm họp ngắn hai lần mỗi tuần, demo bản tích hợp vào cuối tuần và cập nhật bảng công việc theo trạng thái: chưa làm, đang làm, review, kiểm thử, hoàn tất.
+Nhóm họp ngắn hai lần mỗi tuần, demo bản tích hợp vào cuối tuần và cập nhật ticket trên **GitHub Project**, dùng cùng **GitHub Repo**, theo trạng thái: chưa làm, đang làm, review, kiểm thử, hoàn tất. Toàn bộ công việc có mô tả và assignee; mỗi ticket triển khai có nhánh riêng và PR về `main`, mô tả chi tiết phần đã làm và ít nhất **2 thành viên khác review, approve** trước khi merge. AI review chỉ hỗ trợ, không thay approval của thành viên.
+
+Tạo Slack channel `2024_31_md_<ma_nhom>`, giữ nguyên tiền tố theo hướng dẫn và mời giảng viên cùng các thành viên. Báo cáo tuần gồm Current tasks, Next plan, Blockers; mỗi task ghi người phụ trách, nhóm bổ sung link ticket/PR và kết quả. Tạm gửi trước cuối thứ Bảy do tin nhắn hướng dẫn ghi mốc này, trong khi lời nói đề cập Chủ nhật; chờ thông báo làm rõ, không tự đặt giờ cụ thể. Người tổng hợp/gửi báo cáo tuần luân phiên TV1 → TV2 → TV3 → TV4, mỗi người cung cấp nội dung phần mình. Đây là việc riêng với tổng hợp báo cáo cuối kỳ của TV2.
+
+Giảng viên đánh giá cả sản phẩm, quy trình GitHub và đóng góp cá nhân; không mặc định điểm mọi thành viên bằng nhau. Quy ước đặt tên, checklist PR, mẫu báo cáo và phân biệt yêu cầu giảng viên/quy ước nội bộ nằm trong [CONTRIBUTING.md](../CONTRIBUTING.md). Theo dõi thông báo bổ sung về hạn nộp, vấn đáp và bộ sản phẩm phải nộp.
 
 ## **4 4 Ngân sách và nguồn lực**
 
-Lấy **448 giờ công** làm mốc lập kế hoạch, tương ứng 16 giờ × 4 người × 7 tuần. Khoảng còn lại trong mức cam kết 15–20 giờ/người/tuần là khả năng điều chỉnh, không coi toàn bộ là thời gian rảnh cho chức năng mới.
+Lấy **576 giờ công** làm công suất cam kết: 24 giờ × 4 người × 6 tuần. Có 480 giờ đến demo cuối tuần 5 và 96 giờ tuần 6 cho kiểm thử, sửa lỗi, bàn giao. Không coi toàn bộ là giờ lập trình; ước lượng từng task phải gồm review, tích hợp, tài liệu và dự phòng.
 
-448 giờ là mốc năng lực, chưa phải ước lượng công việc đã được kiểm chứng. Cuối tuần 1, chia đủ 44 yêu cầu bắt buộc thành nhiệm vụ và ước lượng thiết kế, lập trình, tích hợp, kiểm thử, tài liệu cùng dự phòng. TV1 và TV4 có nguy cơ quá tải do phụ thuộc API; cần phân bổ hỗ trợ và chọn cách triển khai phù hợp. Nếu không đủ năng lực phải báo chênh lệch, không tự chuyển các \[N\] đã chọn sang tùy chọn. Tuần 6–7 vẫn dành cho nghiệm thu và ổn định. Ước lượng Java phải tính UI XML, quản lý callback/hủy, kiểm thử vòng đời và thời gian làm quen Spring Boot; không mặc định việc đổi ngôn ngữ giúp rút ngắn tiến độ.
+576 giờ là công suất cam kết, chưa phải ước lượng công việc đã được kiểm chứng. Cuối tuần 1, chia đủ 44 yêu cầu bắt buộc thành nhiệm vụ và ước lượng thiết kế, lập trình, tích hợp, kiểm thử, tài liệu cùng dự phòng. Theo phân công mục 4.1, TV4 nhận trực tiếp API comment/số liệu; TV3 nhận giao diện dashboard/mục tiêu và CI; nghiệp vụ AI thuộc chủ module thay vì dồn về TV2. Theo dõi cả tải mới của TV3 để điều chỉnh tiếp nếu cần. Việc phân chia này giảm tập trung trách nhiệm, chưa chứng minh đủ công suất. Nếu không đủ năng lực phải báo chênh lệch, không tự chuyển các \[N\] đã chọn sang tùy chọn. Tuần 6 dành cho kiểm thử, sửa lỗi và nghiệm thu. Tính giờ điều phối schema/migration vào tải TV2; chủ module tự chuẩn bị thay đổi và kiểm thử. Ước lượng Java phải tính UI XML, quản lý callback/hủy, kiểm thử vòng đời và thời gian làm quen Spring Boot; không mặc định việc đổi ngôn ngữ giúp rút ngắn tiến độ.
 
 Chi phí trực tiếp gồm:
 
@@ -466,7 +501,7 @@ Phụ trách TV1. Mốc triển khai Tuần 3\.
 
 ### **F6 Đọc comment và trả lời**
 
-Phụ trách TV4. Mốc triển khai Tuần 4–5.
+Phụ trách TV4, gồm API comment, đồng bộ, giao diện inbox và nghiệp vụ AI qua dịch vụ TV2. Chuẩn bị dữ liệu/đồng bộ từ tuần 2–3; hoàn thiện Tuần 4–5.
 
 | Mã | Yêu cầu | Phép thử và điều kiện đạt |
 | :---- | :---- | :---- |
@@ -479,7 +514,7 @@ Phụ trách TV4. Mốc triển khai Tuần 4–5.
 
 ### **F7 Theo dõi tăng trưởng**
 
-Phụ trách TV4. Mốc triển khai B tuần 4 • N tuần 5\.
+TV4 điều phối F7, phụ trách API/snapshot, truy vấn và công thức, lưu mục tiêu/tính tiến độ, báo cáo tuần AI cùng giao diện báo cáo. TV3 phụ trách giao diện/ViewModel cho F7.B1, F7.B2, F7.B3, F7.N1 và F7.N3; TV4 bàn giao dữ liệu cho các màn hình này. Chủ trì bằng chứng nghiệm thu: TV4 cho F7.B1, F7.B2, F7.N1, F7.N2; TV3 cho F7.B3, F7.N3, có TV4 đối chiếu số liệu. Chuẩn bị tuần 2–3; hoàn thiện B tuần 4 • N tuần 5.
 
 | Mã | Yêu cầu | Phép thử và điều kiện đạt |
 | :---- | :---- | :---- |
@@ -505,7 +540,7 @@ Phụ trách TV2. Mốc triển khai B tuần 2–3 • N tuần 5\.
 
 ### **F9 Cài đặt chung**
 
-Phụ trách TV3. Mốc triển khai Tuần 6\.
+TV3 điều phối và tổng hợp nghiệm thu F9; mỗi chủ task triển khai VI/EN, lưu offline và sửa lỗi cho module của mình theo mục 4.1. Triển khai cùng chức năng từ tuần 2; nghiệm thu liên thông Tuần 6.
 
 | Mã | Yêu cầu | Phép thử và điều kiện đạt |
 | :---- | :---- | :---- |
@@ -521,12 +556,12 @@ Kiểm thử kỹ thuật Java bổ sung: Espresso cho luồng Views/XML; MockWe
 | Rủi ro | Tác động | Biện pháp |
 | :---- | :---- | :---- |
 | Chưa được cấp đủ quyền Facebook/LinkedIn | Chặn đăng bài, comment hoặc số liệu thật | Đăng ký và kiểm chứng từ đầu tuần 1; ghi bằng chứng; làm việc với giảng viên ngay khi xác định bị chặn |
-| Phạm vi lớn so với 6–7 tuần | Dồn tích hợp và kiểm thử về cuối | Tích hợp liên tục; dùng UI đơn giản; đóng chức năng chính trước tuần 6 |
+| Phạm vi lớn so với 6 tuần | Dồn tích hợp và kiểm thử về cuối | Tích hợp liên tục; dùng UI đơn giản; đóng chức năng chính trước tuần 6 |
 | Hạn mức API | Đồng bộ thất bại hoặc bị giới hạn | Đồng bộ tăng dần, phân bổ lượt gọi, backoff; tránh polling liên tục |
 | Tác vụ nền bị trì hoãn | Comment và thông báo cập nhật chậm | Hiển thị thời điểm đồng bộ; hỗ trợ làm mới thủ công; không cam kết tức thời |
 | AI sai nội dung hoặc phân loại | Bài viết/trả lời không phù hợp | Duyệt bài; kiểm tra đầu ra; tự trả lời mặc định tắt và có điều kiện chặt |
 | Timeout khi đăng | Nguy cơ đăng trùng | Hàng đợi bền vững, khóa xử lý, đối soát và kiểm tra thủ công khi cần |
-| Thiếu lịch sử tăng trưởng | Khó chứng minh dashboard | Thu thập snapshot ngay từ tuần 4; dữ liệu mẫu được gắn nhãn riêng |
+| Thiếu lịch sử tăng trưởng | Khó chứng minh dashboard | Thu thập snapshot thật từ tuần 2–3 khi có quyền API, tuần 4 dùng lịch sử đã tích lũy; thiếu quyền ghi blocker; dữ liệu mẫu được gắn nhãn riêng |
 | Chi phí AI vượt dự tính | Thiếu ngân sách kiểm thử | Đo usage sớm, đặt hạn mức và giảm số lần gọi lặp không cần thiết |
 | Chuyển stack và vòng đời Java | Viết lại UI/async hoặc mất trạng thái, tốn thêm giờ tích hợp | Kiểm kê mã cũ; bản mẫu tuần 1; mẫu callback/hủy dùng chung; kiểm thử xoay màn hình, process bị kết thúc và Room transaction |
 
