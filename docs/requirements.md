@@ -1,5 +1,7 @@
 # Theo dõi yêu cầu F1–F9
 
+Kế hoạch nội bộ gồm 6 tuần, tuần 1 là 02–08/11/2026 (thứ Hai–Chủ nhật). Demo tích hợp cuối tuần 5 (06/12/2026); tuần 6 (07–13/12/2026) kiểm thử, sửa lỗi, nghiệm thu và hoàn thiện bàn giao. Mỗi người cam kết 24 giờ/tuần, gồm thiết kế, lập trình, review, họp, tích hợp, kiểm thử và tài liệu: 96 giờ/nhóm/tuần, 480 giờ đến demo và 576 giờ toàn đợt. Demo không thay nghiệm thu 44 yêu cầu; hạn nộp/bảo vệ chính thức theo thông báo giảng viên.
+
 44 yêu cầu bắt buộc và 2 Optional. Tất cả hiện là Chưa nghiệm thu; bộ khung không chứng minh tích hợp thật.
 
 | Mã | Yêu cầu | Trạng thái |

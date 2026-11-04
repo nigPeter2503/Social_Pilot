@@ -10,3 +10,5 @@
 *.keystore
 *.log
 .DS_Store
+/.agents/skills/
+/AGENTS.md

@@ -16,3 +16,9 @@ Các interface trong domain/contract là điểm mở rộng, chưa có thực t
 - OAuth cần state, ràng buộc phiên, PKCE khi hỗ trợ và mã bàn giao một lần có TTL.
 - URL/comment là dữ liệu đầu vào; không được ghi đè quy tắc duyệt và ngân sách.
 - Quyền Facebook/LinkedIn phải kiểm chứng thật ở tuần 1; mock không thay bằng chứng nghiệm thu.
+
+## Phân công dữ liệu và schema chung
+
+TV4 — Tô Lãng Nghị sở hữu API, snapshot, repository, công thức, lưu mục tiêu/tính tiến độ và F7.N2 (nghiệp vụ cùng giao diện báo cáo AI). TV3 — Đỗ Phước Thiện sở hữu XML/ViewModel F7.B1 (số liệu từng bài), F7.B2 (đường tăng trưởng), F7.B3 (dashboard), F7.N1 (phân tích theo nhóm), F7.N3 (mục tiêu); không tính lại chỉ số trong UI. Snapshot thật bắt đầu từ tuần 2–3 khi có quyền API, tuần 4 dùng lịch sử đã tích lũy; thiếu quyền phải ghi blocker, giữ khoảng trống dữ liệu.
+
+Nguyễn Đức Đạt (TV2) điều phối schema Room, phiên bản database và chuỗi migration theo [CONTRIBUTING mục 6](../CONTRIBUTING.md#6-phối-hợp-phần-dùng-chung). Chủ module đề xuất entity/DAO, migration và kiểm thử phần mình; Đạt chốt thứ tự tích hợp phần chung. Quy ước chi tiết cần được nhóm chốt trong tuần 1; phân công này chưa đồng nghĩa thiết kế schema đã hoàn tất.
