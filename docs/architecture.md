@@ -7,6 +7,11 @@ AI gọi trực tiếp từ thiết bị đến provider. Backend Spring Boot ch
 Hiện đã nối luồng topic → kiểm tra → lưu Room → quan sát danh sách. Room chưa chứa key/token.
 Các interface trong domain/contract là điểm mở rộng, chưa có thực thi AI, đăng bài, ngân sách hoặc đồng bộ.
 
+Hợp đồng social v1 (SP-009) có DTO kênh/capability, request/result đăng,
+lỗi chuẩn hóa và DTO OAuth đồng bộ Android/backend. Xem [hợp đồng social](social-contract.md)
+cho ví dụ, ràng buộc phiên, ownership và ca kiểm chứng. DTO/interface không thay
+adapter OAuth, queue hoặc kiểm chứng API thật; endpoint OAuth vẫn trả 501.
+
 ## Quy tắc cần giữ khi triển khai tiếp
 
 - Bài được duyệt theo phiên bản; chỉnh sửa làm mất hiệu lực duyệt.
