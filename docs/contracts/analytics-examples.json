@@ -1,0 +1,893 @@
+{
+    "contractRevision": "draft-2",
+    "source": "MO_PHONG",
+    "notice": "Synthetic IDs and values. No API permission or integration evidence.",
+    "dtoExamples": {
+        "comment": {
+            "scope": {
+                "platform": "FACEBOOK",
+                "channelId": "mock-page-a",
+                "connectionRevision": 1
+            },
+            "postId": "mock-p1",
+            "commentId": "mock-c1",
+            "parentCommentId": null,
+            "parentState": "ROOT",
+            "message": "Synthetic comment for UI review",
+            "contentState": "AVAILABLE",
+            "authorDisplayName": null,
+            "createdAt": "2026-11-08T09:00:00Z",
+            "providerUpdatedAt": null,
+            "timeMissingReason": null,
+            "syncedAt": "2026-11-08T10:00:00Z",
+            "source": "MO_PHONG",
+            "sourceRef": "analytics-draft-2-comment",
+            "replyCapability": {
+                "operation": "REPLY_COMMENT",
+                "availability": "UNVERIFIED",
+                "reasonCode": "NO_LIVE_TEST",
+                "verifiedAt": null
+            }
+        },
+        "snapshot": {
+            "snapshotId": "mock-snapshot-1",
+            "collectionId": "mock-collection-1",
+            "scope": {
+                "platform": "FACEBOOK",
+                "channelId": "mock-page-a",
+                "connectionRevision": 1
+            },
+            "entityType": "CHANNEL",
+            "entityId": "mock-page-a",
+            "collectedAt": "2026-11-08T17:00:05Z",
+            "source": "MO_PHONG",
+            "samples": [
+                {
+                    "scope": {
+                        "platform": "FACEBOOK",
+                        "channelId": "mock-page-a",
+                        "connectionRevision": 1
+                    },
+                    "entityType": "CHANNEL",
+                    "entityId": "mock-page-a",
+                    "definitionId": "mock-followers-v1",
+                    "value": 100,
+                    "missingReason": null,
+                    "observedAt": "2026-11-08T17:00:00Z",
+                    "observedAtBasis": "COLLECTION",
+                    "collectedAt": "2026-11-08T17:00:00Z",
+                    "providerPeriodStart": null,
+                    "providerPeriodEnd": null,
+                    "providerApiVersion": null,
+                    "source": "MO_PHONG",
+                    "sourceRef": "analytics-draft-2-snapshot",
+                    "collectionId": "mock-collection-1"
+                }
+            ],
+            "collectionStartedAt": "2026-11-08T16:59:55Z"
+        },
+        "metricDefinition": {
+            "definitionId": "mock-followers-v1",
+            "metricKey": "FOLLOWER_COUNT",
+            "unit": "COUNT",
+            "entityType": "CHANNEL",
+            "measurementKind": "GAUGE",
+            "providerMetricName": null,
+            "aggregation": "LATEST",
+            "componentDefinitionIds": []
+        },
+        "goal": {
+            "goalId": "mock-goal-1",
+            "scope": {
+                "platform": "FACEBOOK",
+                "channelId": "mock-page-a",
+                "connectionRevision": 1
+            },
+            "metricDefinitionId": "mock-followers-v1",
+            "kind": "FOLLOWER_LEVEL",
+            "unit": "COUNT",
+            "baselineValue": 100,
+            "baselineSnapshotIds": [
+                "mock-snapshot-1"
+            ],
+            "targetValue": 120,
+            "periodStart": "2026-11-08T17:00:00Z",
+            "periodEnd": "2026-11-15T17:00:00Z",
+            "zoneId": "Asia/Ho_Chi_Minh",
+            "cohortPostIds": [],
+            "createdAt": "2026-11-08T17:00:00Z",
+            "revision": 1
+        }
+    },
+    "metricValues": [
+        {
+            "id": "available-zero",
+            "value": 0,
+            "missingReason": null,
+            "collectedAt": "2026-11-08T17:00:00Z",
+            "isStale": false
+        },
+        {
+            "id": "permission",
+            "value": null,
+            "missingReason": "PERMISSION_REQUIRED",
+            "collectedAt": "2026-11-08T17:00:00Z",
+            "isStale": false
+        },
+        {
+            "id": "unsupported",
+            "value": null,
+            "missingReason": "UNSUPPORTED",
+            "collectedAt": "2026-11-08T17:00:00Z",
+            "isStale": false
+        },
+        {
+            "id": "not-synced",
+            "value": null,
+            "missingReason": "NOT_SYNCED",
+            "collectedAt": null,
+            "isStale": null
+        },
+        {
+            "id": "stale",
+            "value": 100,
+            "missingReason": null,
+            "collectedAt": "2026-11-01T17:00:00Z",
+            "now": "2026-11-08T17:00:00Z",
+            "thresholdHours": 48,
+            "isStale": true
+        }
+    ],
+    "engagementCases": [
+        {
+            "id": "complete",
+            "reaction": 12,
+            "comment": 3,
+            "share": 5,
+            "impression": 400,
+            "expected": {
+                "value": 5,
+                "reason": null
+            }
+        },
+        {
+            "id": "zero-numerator",
+            "reaction": 0,
+            "comment": 0,
+            "share": 0,
+            "impression": 400,
+            "expected": {
+                "value": 0,
+                "reason": null
+            }
+        },
+        {
+            "id": "zero-denominator",
+            "reaction": 12,
+            "comment": 3,
+            "share": 5,
+            "impression": 0,
+            "expected": {
+                "value": null,
+                "reason": "ZERO_DENOMINATOR"
+            }
+        },
+        {
+            "id": "missing-share",
+            "reaction": 12,
+            "comment": 3,
+            "share": null,
+            "impression": 400,
+            "expected": {
+                "value": null,
+                "reason": "MISSING_COMPONENT"
+            }
+        },
+        {
+            "id": "missing-impression",
+            "reaction": 12,
+            "comment": 3,
+            "share": 5,
+            "impression": null,
+            "expected": {
+                "value": null,
+                "reason": "MISSING_COMPONENT"
+            }
+        },
+        {
+            "id": "incompatible-scope",
+            "reaction": 12,
+            "comment": 3,
+            "share": 5,
+            "impression": 400,
+            "expected": {
+                "value": null,
+                "reason": "INCOMPATIBLE_SCOPE"
+            },
+            "componentScopes": [
+                "mock-page-a/mock-p1",
+                "mock-page-a/mock-p1",
+                "mock-page-a/mock-p1",
+                "mock-page-b/mock-p1"
+            ]
+        },
+        {
+            "id": "incompatible-window",
+            "reaction": 12,
+            "comment": 3,
+            "share": 5,
+            "impression": 400,
+            "expected": {
+                "value": null,
+                "reason": "INCOMPATIBLE_PERIOD"
+            },
+            "componentWindows": [
+                "collection-1",
+                "collection-1",
+                "collection-1",
+                "collection-2"
+            ]
+        },
+        {
+            "id": "mixed-provenance",
+            "reaction": 12,
+            "comment": 3,
+            "share": 5,
+            "impression": 400,
+            "expected": {
+                "value": null,
+                "reason": "INCOMPATIBLE_SOURCE"
+            },
+            "componentSources": [
+                "MO_PHONG",
+                "MO_PHONG",
+                "MO_PHONG",
+                "API_THAT"
+            ]
+        }
+    ],
+    "snapshotCases": [
+        {
+            "id": "decrease",
+            "baseline": 100,
+            "current": 95,
+            "beforeAt": "2026-11-01T17:00:00Z",
+            "afterAt": "2026-11-08T17:00:00Z",
+            "beforeDefinition": "followers-v1",
+            "afterDefinition": "followers-v1",
+            "expected": {
+                "delta": -5,
+                "growth": -5,
+                "reason": null
+            }
+        },
+        {
+            "id": "missing-baseline",
+            "baseline": null,
+            "current": 95,
+            "beforeAt": null,
+            "afterAt": "2026-11-08T17:00:00Z",
+            "beforeDefinition": "followers-v1",
+            "afterDefinition": "followers-v1",
+            "expected": {
+                "delta": null,
+                "growth": null,
+                "reason": "MISSING_BASELINE"
+            }
+        },
+        {
+            "id": "zero-baseline",
+            "baseline": 0,
+            "current": 5,
+            "beforeAt": "2026-11-01T17:00:00Z",
+            "afterAt": "2026-11-08T17:00:00Z",
+            "beforeDefinition": "followers-v1",
+            "afterDefinition": "followers-v1",
+            "expected": {
+                "delta": 5,
+                "growth": null,
+                "reason": "ZERO_DENOMINATOR"
+            }
+        },
+        {
+            "id": "different-definition",
+            "baseline": 100,
+            "current": 105,
+            "beforeAt": "2026-11-01T17:00:00Z",
+            "afterAt": "2026-11-08T17:00:00Z",
+            "beforeDefinition": "followers-v1",
+            "afterDefinition": "connections-v1",
+            "expected": {
+                "delta": null,
+                "growth": null,
+                "reason": "INCOMPATIBLE_DEFINITION"
+            }
+        },
+        {
+            "id": "missing-current",
+            "baseline": 100,
+            "current": null,
+            "beforeAt": "2026-11-01T17:00:00Z",
+            "afterAt": "2026-11-08T17:00:00Z",
+            "beforeDefinition": "followers-v1",
+            "afterDefinition": "followers-v1",
+            "expected": {
+                "delta": null,
+                "growth": null,
+                "reason": "MISSING_CURRENT"
+            }
+        },
+        {
+            "id": "same-time",
+            "baseline": 100,
+            "current": 95,
+            "beforeAt": "2026-11-01T17:00:00Z",
+            "afterAt": "2026-11-01T17:00:00Z",
+            "beforeDefinition": "followers-v1",
+            "afterDefinition": "followers-v1",
+            "expected": {
+                "delta": null,
+                "growth": null,
+                "reason": "INVALID_TIME_ORDER"
+            }
+        },
+        {
+            "id": "reverse-time",
+            "baseline": 100,
+            "current": 95,
+            "beforeAt": "2026-11-01T17:00:00Z",
+            "afterAt": "2026-10-31T17:00:00Z",
+            "beforeDefinition": "followers-v1",
+            "afterDefinition": "followers-v1",
+            "expected": {
+                "delta": null,
+                "growth": null,
+                "reason": "INVALID_TIME_ORDER"
+            }
+        },
+        {
+            "id": "different-scope",
+            "baseline": 100,
+            "current": 95,
+            "beforeAt": "2026-11-01T17:00:00Z",
+            "afterAt": "2026-11-08T17:00:00Z",
+            "beforeDefinition": "followers-v1",
+            "afterDefinition": "followers-v1",
+            "expected": {
+                "delta": null,
+                "growth": null,
+                "reason": "INCOMPATIBLE_SCOPE"
+            },
+            "afterScope": "LINKEDIN/mock-org/CHANNEL/mock-org"
+        },
+        {
+            "id": "different-unit",
+            "baseline": 100,
+            "current": 95,
+            "beforeAt": "2026-11-01T17:00:00Z",
+            "afterAt": "2026-11-08T17:00:00Z",
+            "beforeDefinition": "followers-v1",
+            "afterDefinition": "followers-v1",
+            "expected": {
+                "delta": null,
+                "growth": null,
+                "reason": "INCOMPATIBLE_DEFINITION"
+            },
+            "afterUnit": "PERCENT"
+        },
+        {
+            "id": "different-kind",
+            "baseline": 100,
+            "current": 95,
+            "beforeAt": "2026-11-01T17:00:00Z",
+            "afterAt": "2026-11-08T17:00:00Z",
+            "beforeDefinition": "followers-v1",
+            "afterDefinition": "followers-v1",
+            "expected": {
+                "delta": null,
+                "growth": null,
+                "reason": "INCOMPATIBLE_DEFINITION"
+            },
+            "afterKind": "PERIOD"
+        },
+        {
+            "id": "different-source",
+            "baseline": 100,
+            "current": 95,
+            "beforeAt": "2026-11-01T17:00:00Z",
+            "afterAt": "2026-11-08T17:00:00Z",
+            "beforeDefinition": "followers-v1",
+            "afterDefinition": "followers-v1",
+            "expected": {
+                "delta": null,
+                "growth": null,
+                "reason": "INCOMPATIBLE_SOURCE"
+            },
+            "afterSource": "API_THAT"
+        },
+        {
+            "id": "different-provider-period",
+            "baseline": 100,
+            "current": 95,
+            "beforeAt": "2026-11-01T17:00:00Z",
+            "afterAt": "2026-11-08T17:00:00Z",
+            "beforeDefinition": "followers-v1",
+            "afterDefinition": "followers-v1",
+            "expected": {
+                "delta": null,
+                "growth": null,
+                "reason": "INCOMPATIBLE_PERIOD"
+            },
+            "beforeKind": "PERIOD",
+            "afterKind": "PERIOD",
+            "beforePeriod": [
+                "2026-11-01",
+                "2026-11-02"
+            ],
+            "afterPeriod": [
+                "2026-11-02",
+                "2026-11-03"
+            ]
+        }
+    ],
+    "goalCases": [
+        {
+            "id": "half",
+            "baseline": 100,
+            "target": 120,
+            "actual": 110,
+            "expected": {
+                "value": 50,
+                "reason": null
+            }
+        },
+        {
+            "id": "negative",
+            "baseline": 100,
+            "target": 120,
+            "actual": 95,
+            "expected": {
+                "value": -25,
+                "reason": null
+            }
+        },
+        {
+            "id": "over-target",
+            "baseline": 100,
+            "target": 120,
+            "actual": 125,
+            "expected": {
+                "value": 125,
+                "reason": null
+            }
+        },
+        {
+            "id": "interaction-increase",
+            "baseline": 0,
+            "target": 60,
+            "actual": 30,
+            "expected": {
+                "value": 50,
+                "reason": null
+            }
+        },
+        {
+            "id": "invalid-target",
+            "baseline": 100,
+            "target": 100,
+            "actual": 110,
+            "expected": {
+                "value": null,
+                "reason": "INVALID_TARGET"
+            }
+        },
+        {
+            "id": "missing-actual",
+            "baseline": 100,
+            "target": 120,
+            "actual": null,
+            "expected": {
+                "value": null,
+                "reason": "MISSING_COMPONENT"
+            }
+        }
+    ],
+    "commentPages": {
+        "projection": "Dedup-only page projections, not complete CommentRecord DTOs; see dtoExamples.comment.",
+        "scope": {
+            "platform": "FACEBOOK",
+            "channelId": "mock-page-a",
+            "connectionRevision": 1
+        },
+        "pages": [
+            {
+                "items": [
+                    {
+                        "commentId": "mock-c1",
+                        "postId": "mock-p1",
+                        "message": "First version",
+                        "providerUpdatedAt": "2026-11-08T09:00:00Z"
+                    },
+                    {
+                        "commentId": "mock-c2",
+                        "postId": "mock-p1",
+                        "message": "Second comment",
+                        "providerUpdatedAt": "2026-11-08T09:00:00Z"
+                    }
+                ],
+                "nextCursor": "MOCK_CURSOR_PAGE_2",
+                "hasMore": true
+            },
+            {
+                "items": [
+                    {
+                        "commentId": "mock-c1",
+                        "postId": "mock-p1",
+                        "message": "Edited version",
+                        "providerUpdatedAt": "2026-11-08T10:00:00Z"
+                    },
+                    {
+                        "commentId": "mock-c3",
+                        "postId": "mock-p1",
+                        "message": "Third comment",
+                        "providerUpdatedAt": "2026-11-08T10:00:00Z"
+                    }
+                ],
+                "nextCursor": null,
+                "hasMore": false
+            }
+        ],
+        "expectedIds": [
+            "mock-c1",
+            "mock-c2",
+            "mock-c3"
+        ],
+        "expectedEditedMessage": "Edited version"
+    },
+    "pageStates": [
+        {
+            "id": "empty",
+            "outcome": "SUCCESS",
+            "page": {
+                "items": [],
+                "nextCursor": null,
+                "hasMore": false
+            },
+            "error": null
+        },
+        {
+            "id": "permission-error",
+            "outcome": "FAILURE",
+            "page": null,
+            "error": {
+                "code": "PERMISSION_REQUIRED"
+            }
+        },
+        {
+            "id": "rate-limit",
+            "outcome": "FAILURE",
+            "page": null,
+            "error": {
+                "code": "RATE_LIMITED",
+                "retryAfterAt": null
+            }
+        }
+    ],
+    "week": {
+        "zoneId": "Asia/Ho_Chi_Minh",
+        "start": "2026-11-01T17:00:00Z",
+        "end": "2026-11-08T17:00:00Z",
+        "points": [
+            {
+                "at": "2026-11-01T16:59:59Z",
+                "expectedInside": false
+            },
+            {
+                "at": "2026-11-01T17:00:00Z",
+                "expectedInside": true
+            },
+            {
+                "at": "2026-11-08T16:59:59Z",
+                "expectedInside": true
+            },
+            {
+                "at": "2026-11-08T17:00:00Z",
+                "expectedInside": false
+            }
+        ]
+    },
+    "coverageCases": [
+        {
+            "id": "full-boundaries",
+            "times": [
+                "2026-11-01T17:00:00Z",
+                "2026-11-08T17:00:00Z"
+            ],
+            "expected": {
+                "actualStart": "2026-11-01T17:00:00Z",
+                "actualEnd": "2026-11-08T17:00:00Z",
+                "coverage": "FULL",
+                "reason": null
+            }
+        },
+        {
+            "id": "partial-week",
+            "times": [
+                "2026-11-02T17:15:00Z",
+                "2026-11-07T17:20:00Z"
+            ],
+            "expected": {
+                "actualStart": "2026-11-02T17:15:00Z",
+                "actualEnd": "2026-11-07T17:20:00Z",
+                "coverage": "PARTIAL",
+                "reason": null
+            }
+        },
+        {
+            "id": "one-snapshot",
+            "times": [
+                "2026-11-07T17:20:00Z"
+            ],
+            "expected": {
+                "actualStart": null,
+                "actualEnd": null,
+                "coverage": "NONE",
+                "reason": "MISSING_BASELINE"
+            }
+        },
+        {
+            "id": "no-history",
+            "times": [],
+            "expected": {
+                "actualStart": null,
+                "actualEnd": null,
+                "coverage": "NONE",
+                "reason": "MISSING_BASELINE"
+            }
+        },
+        {
+            "id": "start-without-end",
+            "times": [
+                "2026-11-01T17:00:00Z",
+                "2026-11-07T17:20:00Z"
+            ],
+            "expected": {
+                "actualStart": "2026-11-01T17:00:00Z",
+                "actualEnd": "2026-11-07T17:20:00Z",
+                "coverage": "PARTIAL",
+                "reason": null
+            }
+        },
+        {
+            "id": "end-without-start",
+            "times": [
+                "2026-11-02T17:15:00Z",
+                "2026-11-08T17:00:00Z"
+            ],
+            "expected": {
+                "actualStart": "2026-11-02T17:15:00Z",
+                "actualEnd": "2026-11-08T17:00:00Z",
+                "coverage": "PARTIAL",
+                "reason": null
+            }
+        },
+        {
+            "id": "exclude-outside-and-duplicate",
+            "times": [
+                "2026-10-31T17:00:00Z",
+                "2026-11-01T17:00:00Z",
+                "2026-11-01T17:00:00Z",
+                "2026-11-08T17:00:00Z",
+                "2026-11-09T17:00:00Z"
+            ],
+            "expected": {
+                "actualStart": "2026-11-01T17:00:00Z",
+                "actualEnd": "2026-11-08T17:00:00Z",
+                "coverage": "FULL",
+                "reason": null
+            }
+        }
+    ],
+    "topPosts": {
+        "posts": [
+            {
+                "platform": "FACEBOOK",
+                "channelId": "mock-page-a",
+                "postId": "mock-p2",
+                "value": 5,
+                "publishedAt": "2026-11-02T02:00:00Z"
+            },
+            {
+                "platform": "FACEBOOK",
+                "channelId": "mock-page-a",
+                "postId": "mock-p1",
+                "value": 5,
+                "publishedAt": "2026-11-02T02:00:00Z"
+            },
+            {
+                "platform": "FACEBOOK",
+                "channelId": "mock-page-a",
+                "postId": "mock-p3",
+                "value": -2,
+                "publishedAt": "2026-11-03T02:00:00Z"
+            },
+            {
+                "platform": "FACEBOOK",
+                "channelId": "mock-page-a",
+                "postId": "mock-p4",
+                "value": null,
+                "publishedAt": null
+            },
+            {
+                "platform": "FACEBOOK",
+                "channelId": "mock-page-a",
+                "postId": "mock-p5",
+                "value": 5,
+                "publishedAt": null
+            },
+            {
+                "platform": "FACEBOOK",
+                "channelId": "mock-page-a",
+                "postId": "mock-p6",
+                "value": 5,
+                "publishedAt": null
+            }
+        ],
+        "expectedIds": [
+            "mock-p1",
+            "mock-p2",
+            "mock-p5",
+            "mock-p6",
+            "mock-p3"
+        ],
+        "expectedExcludedCount": 1
+    },
+    "groupRate": {
+        "engagements": [
+            20,
+            10
+        ],
+        "impressions": [
+            400,
+            100
+        ],
+        "expectedPercent": 6
+    },
+    "metricValuesProjection": "Metric/card state projections, not complete persisted MetricSample objects. NOT_SYNCED has no observation or freshness.",
+    "compatibilityDefaults": {
+        "scope": "FACEBOOK/mock-page-a/CHANNEL/mock-page-a",
+        "unit": "COUNT",
+        "kind": "GAUGE",
+        "source": "MO_PHONG",
+        "period": null
+    },
+    "paginationCases": [
+        {
+            "id": "more-with-cursor",
+            "hasMore": true,
+            "nextCursor": "MOCK_NEXT",
+            "expectedValid": true
+        },
+        {
+            "id": "last-page",
+            "hasMore": false,
+            "nextCursor": null,
+            "expectedValid": true
+        },
+        {
+            "id": "unknown-with-cursor",
+            "hasMore": null,
+            "nextCursor": "MOCK_NEXT",
+            "expectedValid": true
+        },
+        {
+            "id": "unknown-without-cursor",
+            "hasMore": null,
+            "nextCursor": null,
+            "expectedValid": true
+        },
+        {
+            "id": "more-without-cursor",
+            "hasMore": true,
+            "nextCursor": null,
+            "expectedValid": false
+        },
+        {
+            "id": "last-with-cursor",
+            "hasMore": false,
+            "nextCursor": "MOCK_NEXT",
+            "expectedValid": false
+        }
+    ],
+    "dedupCases": [
+        {
+            "id": "older-response",
+            "previous": {
+                "postId": "mock-p1",
+                "message": "new",
+                "providerUpdatedAt": "2026-11-08T10:00:00Z"
+            },
+            "incoming": {
+                "postId": "mock-p1",
+                "message": "old",
+                "providerUpdatedAt": "2026-11-08T09:00:00Z"
+            },
+            "expected": {
+                "message": "new",
+                "needsRefresh": false
+            }
+        },
+        {
+            "id": "same-time-conflict",
+            "previous": {
+                "postId": "mock-p1",
+                "message": "saved",
+                "providerUpdatedAt": "2026-11-08T10:00:00Z"
+            },
+            "incoming": {
+                "postId": "mock-p1",
+                "message": "conflict",
+                "providerUpdatedAt": "2026-11-08T10:00:00Z"
+            },
+            "expected": {
+                "message": "saved",
+                "needsRefresh": true
+            }
+        },
+        {
+            "id": "unknown-update-time",
+            "previous": {
+                "postId": "mock-p1",
+                "message": "saved",
+                "providerUpdatedAt": null
+            },
+            "incoming": {
+                "postId": "mock-p1",
+                "message": "later-serial-read",
+                "providerUpdatedAt": null
+            },
+            "expected": {
+                "message": "later-serial-read",
+                "needsRefresh": false
+            }
+        },
+        {
+            "id": "post-id-conflict",
+            "previous": {
+                "postId": "mock-p1",
+                "message": "saved",
+                "providerUpdatedAt": null
+            },
+            "incoming": {
+                "postId": "mock-p2",
+                "message": "wrong-post",
+                "providerUpdatedAt": null
+            },
+            "expected": {
+                "message": "saved",
+                "needsRefresh": true
+            }
+        }
+    ],
+    "goalPeriod": {
+        "start": "2026-11-08T17:00:00Z",
+        "end": "2026-11-15T17:00:00Z",
+        "samples": [
+            {
+                "at": "2026-11-08T17:00:00Z",
+                "value": 100
+            },
+            {
+                "at": "2026-11-15T16:50:00Z",
+                "value": 110
+            },
+            {
+                "at": "2026-11-16T17:00:00Z",
+                "value": 150
+            }
+        ],
+        "expectedActual": 110,
+        "expectedAt": "2026-11-15T16:50:00Z",
+        "expectedTemporalCoverage": "PARTIAL"
+    }
+}
