@@ -5,6 +5,9 @@ server:
     include-message: never
     include-stacktrace: never
 spring:
+  jackson:
+    parser:
+      strict-duplicate-detection: true
   application:
     name: socialpilot-oauth
 logging:

@@ -1,6 +1,6 @@
 # Taskbrief Tuần 1 — Ngô Gia Minh (TV1)
 
-Đồng bộ ngày 04/11/2026 (Asia/Bangkok) từ GitHub Issues và [Project #5](https://github.com/users/nigPeter2503/projects/5). Các ticket dưới đây đã tạo, đã assign cho `nigPeter2503`, hiện ở **Todo (Chưa làm)**. [Bản tổng hợp Tuần 1](week-1-taskbrief.md).
+Đồng bộ ngày 04/11/2026 (Asia/Bangkok) từ GitHub Issues và [Project #5](https://github.com/users/nigPeter2503/projects/5). Các ticket dưới đây đã tạo, đã assign cho `nigPeter2503`, ở **Todo (Chưa làm)** tại thời điểm 04/11; SP-009 có cập nhật ngày 09/11 bên dưới. [Bản tổng hợp Tuần 1](week-1-taskbrief.md).
 
 - **Trách nhiệm:** F1/F5, OAuth/backend, hợp đồng social và điều phối tích hợp.
 - **Task chính:** [SP-009](https://github.com/nigPeter2503/Social_Pilot/issues/11), [SP-010](https://github.com/nigPeter2503/Social_Pilot/issues/12), [SP-011](https://github.com/nigPeter2503/Social_Pilot/issues/13).
@@ -28,15 +28,15 @@ Dành 0,75 giờ/người/task cho review ban đầu; chủ task gửi hợp đ�
 - **Issue:** [SP-009](https://github.com/nigPeter2503/Social_Pilot/issues/11) — #11.
 - **Issue cha:** [SP-002](https://github.com/nigPeter2503/Social_Pilot/issues/4).
 - **Project:** [Social Pilot - Development Board 2024_31_MD_2](https://github.com/users/nigPeter2503/projects/5).
-- **Trạng thái đã kiểm chứng:** Issue OPEN; Project **Todo (Chưa làm)**; đã assign cho `nigPeter2503`.
+- **Cập nhật local 09/11:** Minh đã xác nhận bản sửa hai blocking và full Gradle đạt (30 test); sẵn sàng commit bản sửa. Trạng thái Issue/Project và approval mới chưa xác minh; ghi nhận OPEN/Todo ngày 04/11 là lịch sử.
 - **Yêu cầu:** INFRA, F1.B1, F1.B3, F5.B1.
 - **Owner:** TV1 — Ngô Gia Minh (`nigPeter2503`).
 - **Hai reviewer khi có PR:** Nguyễn Đức Đạt (`dat532006`); Tô Lãng Nghị (`bob35306`).
 - **Ưu tiên:** Cao, ghi trong issue; board hiện không có field Priority riêng.
 - **Mốc bàn giao:** Hết ngày làm việc 2, tính từ đầu Tuần 1.
 - **Ước lượng owner:** 6 giờ gồm thiết kế/triển khai, tích hợp, kiểm thử và tài liệu. Review thêm 0,75 giờ/người/PR, tính riêng.
-- **Branch dự kiến:** `feat/sp-009-social-contract` (chưa tạo), base `main`.
-- **PR:** chưa tạo; liên kết issue ở trên và yêu cầu hai reviewer đã ghi.
+- **Branch hiện tại:** `feat/sp-009-social-contract`; bản sửa dựa trên commit `289e4d1`.
+- **PR:** [#66](https://github.com/nigPeter2503/Social_Pilot/pull/66), theo feedback người dùng cung cấp. Bản sửa chưa commit/push; xem [hồ sơ kiểm chứng](../../sp-009-verification.md). N1 còn mở; chưa đánh dấu Hoàn tất.
 
 ### Mục tiêu, phạm vi và khu vực
 
@@ -52,7 +52,7 @@ Không cần quyền API để bắt đầu. Nhận nhu cầu comment/số liệ
 
 ### Đầu ra và tiêu chí đạt
 
-- [ ] Có mẫu đầu vào/đầu ra cho đăng thành công với postId/URL, thiếu quyền và timeout chưa rõ kết quả; trường chưa rõ không được biến thành thành công.
+- [x] Có mẫu đầu vào/đầu ra cho đăng thành công với postId/URL, thiếu quyền và timeout chưa rõ kết quả; trường chưa rõ không được biến thành thành công.
 - [ ] Chốt state/ràng buộc phiên/redirect, PKCE khi hỗ trợ, mã bàn giao dùng một lần có TTL và quy tắc không đưa token vào URL.
 - [ ] Ngắt kênh phải hủy job, bỏ callback muộn, giữ dữ liệu kênh khác và bản nháp dùng chung; sơ đồ ownership được hai reviewer kiểm tra.
 

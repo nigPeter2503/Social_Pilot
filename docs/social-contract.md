@@ -1,7 +1,10 @@
 # Hợp đồng Social v1 — SP-009
 
 Ngày triển khai: 07/11/2026 (Asia/Bangkok). Người dùng đã duyệt bản nháp để triển khai.
-Đây là hợp đồng code/tài liệu để review, chưa có hai approval thành viên hoặc nghiệm thu API thật.
+Ngày 09/11/2026, Minh đã xác nhận bản sửa hai blocking và kết quả kiểm tra local
+(30 test đạt, Android build/lint và backend bootJar thành công).
+Đây là xác nhận của owner; hai approval reviewer trên bản sửa chưa được xác minh,
+chưa nghiệm thu API thật. N1 ở §7 chưa có quyết định chính sách cụ thể.
 
 - Ticket: [SP-009 / #11](https://github.com/nigPeter2503/Social_Pilot/issues/11).
 - Owner: Ngô Gia Minh. Reviewer: Nguyễn Đức Đạt, Tô Lãng Nghị.
@@ -35,7 +38,12 @@ Endpoint OAuth hiện tại tiếp tục trả 501 OAUTH_NOT_CONFIGURED.
   Timestamp capability cũng theo định dạng này; adapter chịu trách nhiệm nguồn thời gian.
 - DTO nghiệp vụ bất biến, được tạo qua constructor/factory; không deserialize trực tiếp bằng Gson.
 - DTO OAuth Android phải gọi validate() sau deserialize bởi Gson có thể bỏ qua constructor.
-  Backend dùng Jackson constructor có validation. Validation cấu trúc không thay xác thực phiên.
+  Backend dùng Jackson constructor có validation và mapper do Spring quản lý, bật
+  `spring.jackson.parser.strict-duplicate-detection` trong application.yml để từ chối
+  khóa JSON lặp trước khi dữ liệu ghi đè giá trị đã validate. Không tự tạo ObjectMapper
+  mặc định để nhận payload OAuth; constructor validation một mình không đủ.
+  Regression test kiểm tra mapper Spring và JSON converter đăng ký trong MVC.
+  Validation cấu trúc không thay xác thực phiên.
 - null biểu thị thiếu dữ liệu theo quy tắc bên dưới. Không bịa ID, URL hay thời điểm.
 - Không log DTO OAuth đã serialize, HTTP body xác thực, token hoặc secret.
   toString() DTO OAuth luôn che toàn bộ nội dung; điều này không thay cấu hình che log mạng.
@@ -78,6 +86,8 @@ ChannelCapability gồm operation, availability, reasonCode và verifiedAt.
 Không suy quyền comment/metrics từ đăng thành công, không coi UNVERIFIED là AVAILABLE.
 Các trạng thái trừ AVAILABLE yêu cầu reasonCode. Mỗi lần gọi vẫn xử lý quyền bị thu hồi;
 capability là ảnh chụp khả năng, không phải bảo đảm quyền vĩnh viễn.
+Mọi verifiedAt khác null đều phải đúng định dạng UTC ở §2 và là ngày lịch hợp lệ,
+kể cả khi UNVERIFIED. Chỉ UNVERIFIED được phép có verifiedAt null.
 
 ## 4. Yêu cầu và kết quả đăng
 
@@ -238,6 +248,14 @@ Hồ sơ đối soát tối thiểu dự kiến chỉ gồm requestId, channelId
 revision, trạng thái gửi và postId nếu đã biết. Chính sách thời hạn lưu/xóa hồ sơ này
 và hành vi kết nối lại phải được Đạt/Nghị/Minh review với F1.B4 trước adapter production.
 Không tự xóa bài đã đăng trên provider khi ngắt kênh.
+
+**N1 — còn mở, theo dõi tại SP-009 / issue #11:** Minh chịu trách nhiệm tổng hợp
+quyết định cùng Đạt và Nghị trước khi triển khai lưu/xóa hồ sơ trong adapter/queue.
+Cần chốt dữ liệu được giữ, thời điểm xóa và hành vi reconnect sao cho đáp ứng đồng thời
+F1.B4 và F5.B3. TTL hữu hạn hoặc không chứa token không tự tạo ngoại lệ cho F1.B4.
+Bảng trên là đề xuất ownership, chưa cho phép triển khai lưu hồ sơ sau ngắt kênh
+như một chính sách đã được nhóm duyệt. Mục này chỉ được ghi theo dõi trong tài liệu;
+chưa đăng cập nhật lên issue hoặc ghi nhận quyết định của reviewer.
 
 ## 8. Ma trận kiểm chứng và bàn giao
 

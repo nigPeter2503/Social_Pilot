@@ -16,6 +16,9 @@ public final class ChannelCapability {
         if (availability != CapabilityAvailability.UNVERIFIED) {
             ContractChecks.text(verifiedAt, "verifiedAt");
         }
+        if (verifiedAt != null) {
+            ContractChecks.timestamp(verifiedAt, "verifiedAt");
+        }
         if (availability != CapabilityAvailability.AVAILABLE) {
             ContractChecks.text(reasonCode, "reasonCode");
         }
