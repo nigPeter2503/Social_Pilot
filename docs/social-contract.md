@@ -238,24 +238,45 @@ bỏ kết quả revision cũ. Việc kiểm tra revision và ghi dữ liệu ph
 |---|---|---|
 | Token | Xóa kho bí mật/tham chiếu | Minh phối hợp phần lưu bí mật |
 | Job chưa gửi | Hủy | Minh |
-| Job đã gửi chưa rõ | Không retry; giữ hồ sơ đối soát tối thiểu, không token/nội dung | Minh |
+| Publish SUCCESS/PUBLISHED_URL_PENDING/UNKNOWN | Đề xuất giữ tombstone tối thiểu tối đa 30 ngày; UNKNOWN không retry, chờ N1 duyệt | Minh |
 | Comment/snapshot riêng kênh | Xóa cục bộ, chặn callback ghi lại | Nghị |
 | Tác vụ AI kênh | Hủy Future + HTTP, chặn callback | Đạt |
 | Bản nháp/nguồn chung | Giữ, gỡ liên kết kênh theo ownership | Thiện |
 | Kênh khác | Giữ nguyên | Mỗi owner |
 
-Hồ sơ đối soát tối thiểu dự kiến chỉ gồm requestId, channelId, approvedVersionId,
-revision, trạng thái gửi và postId nếu đã biết. Chính sách thời hạn lưu/xóa hồ sơ này
-và hành vi kết nối lại phải được Đạt/Nghị/Minh review với F1.B4 trước adapter production.
-Không tự xóa bài đã đăng trên provider khi ngắt kênh.
+**Đề xuất N1 — CHỜ DUYỆT, chưa phải chính sách:** Khi ngắt kênh, vô hiệu revision
+ngay, chặn và xóa job chưa gửi; xóa token/tham chiếu bí mật, OAuth state, comment,
+snapshot, cache và chi tiết lịch sử publish đã có kết quả cuối. Giữ bản nháp/phiên bản
+chung, nhưng gỡ liên kết kênh. Không xóa bài đã đăng trên provider.
+
+Để tránh gửi lại bài đã đăng, đề xuất giữ tombstone cục bộ tối đa 30 ngày tính từ lúc
+ngắt kênh cho các request SUCCESS, PUBLISHED_URL_PENDING, đang gửi hoặc UNKNOWN;
+không giữ request REJECTED hoặc đã xác nhận chắc chắn không tạo bài. Giữ tombstone
+SUCCESS đến hết TTL dù đã đối soát; xóa sớm UNKNOWN/PUBLISHED_URL_PENDING chỉ khi
+đối soát xác nhận không tạo bài. Người dùng vẫn có thể yêu cầu xóa ngay, nhưng phải
+cảnh báo rằng thao tác đó bỏ mất bảo vệ dedupe cho request tương ứng. Tombstone chỉ gồm requestId, channelId nội bộ,
+approvedVersionId, revision, outcome và postId nếu đã biết; không gồm token, nội dung,
+media, comment, snapshot, response thô hay thông tin đăng nhập provider. Phải báo rõ
+phần giữ tạm này trong luồng ngắt kênh. Mốc 30 ngày là đề xuất để review, chưa được duyệt.
+
+Reconnect cùng channelId tạo revision mới, không khôi phục job cũ và không tự retry.
+Nếu còn tombstone SUCCESS, chặn enqueue cùng approvedVersionId; PUBLISHED_URL_PENDING
+và UNKNOWN cần đối soát tường minh, tuyệt đối không tự retry. Reconnect sang tài khoản
+khác tạo channelId mới và không nhận tombstone cũ. Sau khi tombstone hết hạn hoặc bị
+xóa ngay, không còn căn cứ tự động đối soát/chống trùng cho request đó; yêu cầu người
+dùng kiểm tra bài trên provider và xác nhận trước một lần gửi mới. Nếu Đạt/Nghị xác
+nhận F1.B4 không cho phép giữ tombstone sau ngắt kênh, phương án thay thế là xóa cả
+tombstone ngay và giữ cảnh báo/xác nhận người dùng như trên; không trình bày chế độ đó
+như tự động bảo đảm không đăng trùng.
 
 **N1 — còn mở, theo dõi tại SP-009 / issue #11:** Minh chịu trách nhiệm tổng hợp
 quyết định cùng Đạt và Nghị trước khi triển khai lưu/xóa hồ sơ trong adapter/queue.
-Cần chốt dữ liệu được giữ, thời điểm xóa và hành vi reconnect sao cho đáp ứng đồng thời
-F1.B4 và F5.B3. TTL hữu hạn hoặc không chứa token không tự tạo ngoại lệ cho F1.B4.
-Bảng trên là đề xuất ownership, chưa cho phép triển khai lưu hồ sơ sau ngắt kênh
-như một chính sách đã được nhóm duyệt. Mục này chỉ được ghi theo dõi trong tài liệu;
-chưa đăng cập nhật lên issue hoặc ghi nhận quyết định của reviewer.
+Phương án tombstone ở trên cần được cả ba xác nhận cụ thể theo F1.B4 và F5.B3; TTL
+hữu hạn hoặc bỏ token không tự tạo ngoại lệ cho yêu cầu xóa dữ liệu. Chưa cho phép
+triển khai lưu hồ sơ sau ngắt kênh như chính sách đã duyệt. Nếu PR #66 đóng issue #11 khi merge trước khi
+quyết định được ghi nhận, chuyển N1 sang ticket còn mở, giữ Minh làm owner và dẫn
+ticket mới từ mục này. Chưa ghi nhận quyết định chính sách hoặc xác nhận reviewer;
+trạng thái issue/project trực tuyến cần được kiểm tra riêng.
 
 ## 8. Ma trận kiểm chứng và bàn giao
 
