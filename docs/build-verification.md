@@ -26,7 +26,8 @@ Các file build có trên máy này nhưng được loại khỏi ZIP mã nguồ
 | GitHub Actions của revision `0348982` | Job Android và backend thành công | Cả hai job thành công; lượt chạy này có 0 artifact | [Workflow run #13](https://github.com/nigPeter2503/Social_Pilot/actions/runs/41795456566) |
 | GitHub Actions của commit SP-015 `c5f4d84` | Job Android và backend thành công; lưu APK debug thành artifact | Cả hai job thành công; có artifact `socialpilot-debug-apk` | [Workflow run của SP-015](https://github.com/nigPeter2503/Social_Pilot/actions/runs/42857432928) |
 | Cài APK, lưu topic và mở lại ứng dụng | Topic vẫn còn sau khi mở lại | Đạt trên Samsung SM-A356E, Android API 36: lưu `SP015_20261110_test_topic`, buộc đóng/mở lại, cài lại APK rồi mở lại; topic vẫn hiển thị | [Log kiểm tra thiết bị](evidence/sp-015-device-check-2026-11-10.txt) |
+| Kiểm tra Android API tối thiểu | Ứng dụng chạy trên API 23; topic vẫn còn sau khi mở lại | Đạt trên AVD `SocialPilot_API23` (Android 6.0, API 23): lưu `SP015_API23_20261111`, buộc đóng/mở lại, cài lại APK rồi mở lại; topic vẫn hiển thị | [Log API 23](evidence/sp-015-api23-device-check-2026-11-11.txt) · [Ảnh sau khi mở lại](evidence/sp-015-api23-after-restart.png) |
 
 Workflow của SP-015 đã bổ sung bước tải APK debug thành artifact. Sau mọi commit tiếp theo, cần kiểm tra CI của chính commit đó trước khi bàn giao.
 
-Chưa thử emulator API 23 và chưa thử trên điện thoại thứ hai. Kết quả thiết bị chỉ xác nhận luồng nhập/lưu/đọc lại topic của baseline; không chứng minh các tích hợp OAuth hoặc AI.
+Ca API 23 được bổ sung ngày 11/11/2026 trên commit `971db85`, sau khi xác nhận tăng tốc emulator hoạt động. Kết quả thiết bị chỉ xác nhận luồng nhập/lưu/đọc lại topic của baseline; không chứng minh các tích hợp OAuth hoặc AI.

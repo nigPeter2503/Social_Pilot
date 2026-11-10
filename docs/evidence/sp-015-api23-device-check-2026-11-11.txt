@@ -1,0 +1,11 @@
+SP-015 API 23 emulator check
+Time (Asia/Ho_Chi_Minh): 2026-11-11 00:09:00 +07:00
+Repository HEAD at test: 971db854504c98b351779c54563340b64ec29806
+APK SHA-256: 0DA8DAB0234A8A0311E087FA113F46BA73764F9FF19D53674853CA4DC812BCF8
+AVD: SocialPilot_API23; model: Android SDK built for x86_64 ; Android 6.0 ; API 23 
+Install: Performing Push Install 	pkg: /data/local/tmp/app-debug.apk  Success 
+Launch: Starting: Intent { cmp=com.socialpilot.app/.ui.MainActivity } 
+Input: SP015_API23_20261111
+Procedure: save topic in app, force-stop and reopen; reinstall APK, force-stop and reopen again.
+Result: PASS - recent drafts contains the test topic after restart and reinstall.
+Screenshot: sp-015-api23-after-restart.png
