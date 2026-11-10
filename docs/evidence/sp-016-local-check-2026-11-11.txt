@@ -1,0 +1,13 @@
+SP-016 local verification
+Time (Asia/Ho_Chi_Minh): 2026-11-11 01:13:45 +07:00
+Performed by: Do Phuoc Thien (PhuocThien06)
+Branch: feat/sp-016-brief-approval-contract
+Base main SHA: 0348982c8f295d946815da91eae491bd9645ac94
+Environment: Windows; Temurin JDK 21.0.13; Android SDK Platform 36; Build Tools 36.0.0
+Build output: local temporary directory outside OneDrive (Gradle init script); no repository build configuration changed.
+Command: gradlew.bat --init-script %TEMP%\socialpilot-sp016-build.gradle :app:assembleDebug :app:testDebugUnitTest :app:lintDebug --console=plain --no-daemon
+Expected: APK build, all unit tests pass, lint has no errors.
+Actual: BUILD SUCCESSFUL; 9 tests, 0 failures/errors; lint 0 errors, 13 warnings.
+Focused cases: edit text/image after approval, independent channels, restore old content, missing/wrong version, invalid parent, history of past approval.
+Not tested: runtime wireframe on device, Room persistence of versions, durable queue, live AI/social APIs, reviewer walkthrough.
+Evidence in repo: android/app/src/test/java/com/socialpilot/app/domain/editor/VersionApprovalStateTest.java; docs/w1-wireframes.md; docs/sp-016-brief-contract.md.
