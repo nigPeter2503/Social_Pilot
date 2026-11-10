@@ -24,6 +24,8 @@ Các file build có trên máy này nhưng được loại khỏi ZIP mã nguồ
 | Tại `android/`: `.\gradlew.bat :app:assembleDebug :app:testDebugUnitTest :app:lintDebug --console=plain` | Build, unit test và lint thành công | `BUILD SUCCESSFUL`; APK debug được tạo | `android/app/build/outputs/apk/debug/app-debug.apk`; báo cáo `android/app/build/reports/lint-results-debug.html` trên máy kiểm tra |
 | GitHub Actions của revision `0348982` | Job Android và backend thành công | Cả hai job thành công; lượt chạy này có 0 artifact | [Workflow run #13](https://github.com/nigPeter2503/Social_Pilot/actions/runs/41795456566) |
 | GitHub Actions của commit SP-015 `c5f4d84` | Job Android và backend thành công; lưu APK debug thành artifact | Cả hai job thành công; có artifact `socialpilot-debug-apk` | [Workflow run của SP-015](https://github.com/nigPeter2503/Social_Pilot/actions/runs/42857432928) |
-| Cài APK, lưu topic và mở lại ứng dụng | Topic vẫn còn sau khi mở lại | Chưa chạy: máy kiểm tra chưa có AVD và ADB chưa nhận thiết bị | Cần bổ sung tên thiết bị, Android API, ảnh/video và kết quả thực tế |
+| Cài APK, lưu topic và mở lại ứng dụng | Topic vẫn còn sau khi mở lại | Đạt trên Samsung SM-A356E, Android API 36: lưu `SP015_20261110_test_topic`, buộc đóng/mở lại, cài lại APK rồi mở lại; topic vẫn hiển thị | [Log kiểm tra thiết bị](evidence/sp-015-device-check-2026-11-10.txt) |
 
 Workflow của SP-015 đã bổ sung bước tải APK debug thành artifact. Sau mọi commit tiếp theo, cần kiểm tra CI của chính commit đó trước khi bàn giao.
+
+Chưa thử emulator API 23 và chưa thử trên điện thoại thứ hai. Kết quả thiết bị chỉ xác nhận luồng nhập/lưu/đọc lại topic của baseline; không chứng minh các tích hợp OAuth hoặc AI.
