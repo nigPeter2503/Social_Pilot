@@ -1,0 +1,19 @@
+SP-017 prototype verification
+Date: 2026-11-11 (Asia/Ho_Chi_Minh)
+Performed by: Do Phuoc Thien (PhuocThien06)
+Branch: feat/sp-017-ui-room-worker-prototype; base main: 0348982c8f295d946815da91eae491bd9645ac94
+Environment: Windows; Temurin JDK 21.0.13; Android SDK Platform 36; Build Tools 36.0.0
+AVDs: SocialPilot_API23 (Android 6.0, API 23); SocialPilot_API36 (Android 16, API 36)
+Final APK SHA-256: 750F18B61C841607026C0D743B81EF4282F3C21D87A811B2125C67A1A3562370
+Build command: gradlew.bat --init-script %TEMP%\socialpilot-sp016-build.gradle :app:assembleDebug :app:testDebugUnitTest :app:lintDebug :app:connectedDebugAndroidTest --console=plain --no-daemon
+Build: PASS; 5 unit tests, 0 failures; lint 0 errors, 13 warnings.
+API 23 instrumented: PASS, 2 tests (Room reopen/topic preservation; WorkManager network constraint/checkpoint and pending unique job cancellation).
+API 36 instrumented: PASS, the same 2 tests.
+API 23 UI: PASS, start A/B -> cancel A -> rotate -> B COMPLETE; force-stop/reopen -> B persisted.
+API 23 process death: PASS, stop during B RUNNING -> reopen after stream delay -> B INTERRUPTED, no automatic generation.
+API 23 offline job: PASS, wifi/data disabled -> job waiting/checkpoint not written; data enabled -> job completed/checkpoint saved.
+API 36 UI: PASS, cancel A/rotate/B COMPLETE/reopen; simulate error A and retry while B stays complete.
+Final APK API 36 UI: PASS, start A/B -> cancel A -> B COMPLETE; force-stop/reopen -> A CANCELLED and B COMPLETE persisted.
+API 36 stale status: PASS, starting a new A after old job completion displays no job/checkpoint for the new result.
+Artifacts: sp-017-api23-demo.mp4; sp-017-api23-cancel-a-b-complete.png; sp-017-api23-interrupted.png; sp-017-api23-worker-done.png; sp-017-api36-cancel-a-b-complete.png.
+Not tested: physical phone, live AI/social API, SP-014 runtime integration, shared SP-012 schema, production publish queue, immediate Worker execution after force-stop.

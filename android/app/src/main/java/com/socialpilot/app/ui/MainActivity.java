@@ -1,5 +1,6 @@
 package com.socialpilot.app.ui;
 import android.os.Bundle;
+import android.content.Intent;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.view.ViewCompat;
@@ -35,6 +36,8 @@ public final class MainActivity extends AppCompatActivity {
             try { model.save(DraftValidator.normalize(String.valueOf(binding.topicInput.getText()))); }
             catch (IllegalArgumentException error) { binding.topicInput.setError(getString(R.string.required)); }
         });
+        binding.openPrototype.setOnClickListener(view ->
+                startActivity(new Intent(this, PrototypeActivity.class)));
     }
 }
 
