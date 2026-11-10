@@ -1,20 +1,35 @@
 # SP-009 — Kiểm chứng và bàn giao hợp đồng
 
-## Bản sửa sẵn sàng commit — 09/11/2026
+## Trạng thái sau push — 10/11/2026
 
-Owner: Ngô Gia Minh; sửa tiếp trên `feat/sp-009-social-contract`, base `289e4d1`,
-theo yêu cầu kiểm tra và sửa hai blocking của PR #66. Trạng thái cục bộ: đã sửa,
-regression test và full Gradle local đạt; còn chờ CI và review. Chưa commit/push bản sửa.
-GitHub không truy cập được trong lượt này; chưa cập nhật/xác minh Project hoặc approval.
-Các ghi nhận ngày 07/11 bên dưới là lịch sử, không phải trạng thái PR hiện tại.
+PR [#66](https://github.com/nigPeter2503/Social_Pilot/pull/66) đã được push tại
+head `ed7ed291e50bffb9de344823dfa91dabe2dd9018` trên
+`feat/sp-009-social-contract`; local `HEAD` và `origin/feat/sp-009-social-contract`
+cùng trỏ tới commit này. Commit sửa gồm 9 file, bao gồm hai regression test.
 
-Minh đã xác nhận bản sửa và kết quả kiểm tra local, yêu cầu đồng bộ tài liệu.
-Hai blocking đã có regression test và full Gradle gate đạt. Đủ điều kiện commit
-bản sửa SP-009; commit không yêu cầu có sẵn hai approval hoặc CI trên commit mới.
-Không đưa docs/drafts/ (SP-010/SP-011) vào commit này. Xác nhận của owner không
-thay approval của Đạt/Nghị hoặc quyết định cụ thể về retention/reconnect của N1.
+Theo kết quả review lại ngày 10/11, CI của đúng head này đều thành công:
+[backend `test bootJar`](https://github.com/nigPeter2503/Social_Pilot/actions/runs/42582986127/job/129045943045)
+và [Android `assembleDebug`, `testDebugUnitTest`, `lintDebug`](https://github.com/nigPeter2503/Social_Pilot/actions/runs/42582986127/job/129045943029).
+Đây là kết quả CI do reviewer xác nhận, không phải lần chạy lại trong workspace này.
+Reviewer cũng báo API reviews chưa có approval chính thức tại thời điểm kiểm tra;
+cần hai thành viên khác tác giả approve phiên bản cuối trước merge theo CONTRIBUTING.
 
-### Bằng chứng chạy trước và sau sửa
+Hai blocking cũ được xử lý trong source và test. N1 vẫn mở: retention/reconnect
+chưa phải chính sách được duyệt. Phương án đề xuất là xóa credentials, dữ liệu kênh,
+job chưa gửi và lịch sử có kết quả cuối tại thời điểm ngắt; chỉ giữ tombstone cục bộ
+cho publish SUCCESS/PUBLISHED_URL_PENDING/đang gửi/UNKNOWN tối đa 30 ngày, xóa sớm
+chỉ khi đối soát xác nhận chưa tạo bài hoặc người dùng yêu cầu sau khi được cảnh báo.
+Reconnect không khôi phục hay retry job;
+SUCCESS chặn gửi trùng cùng approvedVersionId, trạng thái chưa rõ cần đối soát tường minh.
+Đây là đề xuất chờ Minh/Đạt/Nghị duyệt vì retention ngoại lệ còn cần đối chiếu F1.B4.
+Chi tiết ở [§7 của social contract](social-contract.md). Nếu merge PR khiến issue #11
+đóng trước khi có quyết định, chuyển N1 sang ticket còn mở, giữ owner Minh và liên kết
+ticket đó từ §7. Mô tả PR công khai vẫn ghi commit
+`289e4d1` và bằng chứng kiểm thử trước bản sửa; chưa thể cập nhật PR hoặc phản hồi
+N1/N2 vì phiên GitHub trong browser đang đăng xuất. Trạng thái Issue/Project chưa
+được xác minh.
+
+### Bằng chứng kiểm tra local — 09/11/2026
 
 Môi trường: JDK 21.0.7, Spring Boot 3.5.16, Jackson 2.21.4; JUnit Jupiter 5.12.2
 và JUnit 4.13.2. Biên dịch lại source bằng javac; chạy JUnit Platform Launcher
@@ -42,7 +57,7 @@ hiện tại. Đây là kiểm tra trực tiếp JVM, không thay thế full Gra
   mặc định không được xem là boundary hợp lệ. Không đổi wire fields hoặc dependency.
 - git diff --check: đạt.
 
-### Full Gradle local đã đạt và phần còn chờ
+### Full Gradle local — owner ghi nhận ngày 09/11/2026
 
 Đã thử wrapper backend `test bootJar` và Android
 `:app:assembleDebug :app:testDebugUnitTest :app:lintDebug` với `--offline --console=plain`.
@@ -65,7 +80,8 @@ Nguồn kiểm chứng: log terminal do Minh cung cấp; backend/build/test-resu
 và android/app/build/test-results/testDebugUnitTest/TEST-*.xml đọc trực tiếp.
 Kết quả này áp dụng working tree đã sửa hai blocking, không lấy từ build ngày 07/11.
 Build có cảnh báo JVM class sharing và Gradle deprecated features; không gây thất bại
-trong hai lượt chạy. Chưa xác minh CI trên GitHub.
+trong hai lượt chạy. Đây là bằng chứng local do owner cung cấp, tách biệt với CI
+trên head `ed7ed29` ở phần trạng thái hiện tại phía trên.
 
 ```powershell
 # Tại backend/

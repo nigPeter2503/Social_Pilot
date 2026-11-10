@@ -28,15 +28,16 @@ Dành 0,75 giờ/người/task cho review ban đầu; chủ task gửi hợp đ�
 - **Issue:** [SP-009](https://github.com/nigPeter2503/Social_Pilot/issues/11) — #11.
 - **Issue cha:** [SP-002](https://github.com/nigPeter2503/Social_Pilot/issues/4).
 - **Project:** [Social Pilot - Development Board 2024_31_MD_2](https://github.com/users/nigPeter2503/projects/5).
-- **Cập nhật local 09/11:** Minh đã xác nhận bản sửa hai blocking và full Gradle đạt (30 test); sẵn sàng commit bản sửa. Trạng thái Issue/Project và approval mới chưa xác minh; ghi nhận OPEN/Todo ngày 04/11 là lịch sử.
+- **Cập nhật 10/11:** PR #66 đã push tại head `ed7ed291e50bffb9de344823dfa91dabe2dd9018`; CI backend và Android của head này đều success theo kết quả reviewer. Chưa ghi nhận approval chính thức tại lần review lại; cần hai approval theo CONTRIBUTING. Issue/Project chưa xác minh; trạng thái OPEN/Todo ngày 04/11 là lịch sử.
 - **Yêu cầu:** INFRA, F1.B1, F1.B3, F5.B1.
 - **Owner:** TV1 — Ngô Gia Minh (`nigPeter2503`).
 - **Hai reviewer khi có PR:** Nguyễn Đức Đạt (`dat532006`); Tô Lãng Nghị (`bob35306`).
 - **Ưu tiên:** Cao, ghi trong issue; board hiện không có field Priority riêng.
 - **Mốc bàn giao:** Hết ngày làm việc 2, tính từ đầu Tuần 1.
 - **Ước lượng owner:** 6 giờ gồm thiết kế/triển khai, tích hợp, kiểm thử và tài liệu. Review thêm 0,75 giờ/người/PR, tính riêng.
-- **Branch hiện tại:** `feat/sp-009-social-contract`; bản sửa dựa trên commit `289e4d1`.
-- **PR:** [#66](https://github.com/nigPeter2503/Social_Pilot/pull/66), theo feedback người dùng cung cấp. Bản sửa chưa commit/push; xem [hồ sơ kiểm chứng](../../sp-009-verification.md). N1 còn mở; chưa đánh dấu Hoàn tất.
+- **Branch hiện tại:** `feat/sp-009-social-contract`; head đã push `ed7ed291e50bffb9de344823dfa91dabe2dd9018`.
+- **PR:** [#66](https://github.com/nigPeter2503/Social_Pilot/pull/66). CI: [backend](https://github.com/nigPeter2503/Social_Pilot/actions/runs/42582986127/job/129045943045), [Android](https://github.com/nigPeter2503/Social_Pilot/actions/runs/42582986127/job/129045943029), đều success theo reviewer. Xem [hồ sơ kiểm chứng](../../sp-009-verification.md). N1 còn mở; nếu merge đóng issue #11 trước khi chốt chính sách, chuyển N1 sang ticket còn mở, giữ owner và liên kết tại §7 social contract. Chưa đánh dấu Hoàn tất.
+- **Đề xuất N1 chờ duyệt:** xóa dữ liệu kênh và job chưa gửi khi disconnect; chỉ giữ tombstone cục bộ tối thiểu cho request SUCCESS/PUBLISHED_URL_PENDING/đang gửi/UNKNOWN tối đa 30 ngày. Giữ SUCCESS đến hết TTL; chỉ xóa sớm khi xác nhận request chưa tạo bài hoặc người dùng yêu cầu sau khi được cảnh báo mất dedupe. Reconnect tạo revision mới, không tự khôi phục/retry; Đạt/Nghị cần xác nhận ngoại lệ này có phù hợp F1.B4 không. Chi tiết tại [§7 social contract](../../social-contract.md).
 
 ### Mục tiêu, phạm vi và khu vực
 
