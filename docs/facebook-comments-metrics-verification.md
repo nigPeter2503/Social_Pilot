@@ -1,25 +1,24 @@
 # SP-018 — Chuẩn bị kiểm chứng Facebook comment, reply và metrics
 
-Ngày: 09/11/2026, Asia/Saigon. Owner: Tô Lãng Nghị (`bob35306`).
+Ngày cập nhật: 11/11/2026, Asia/Saigon. Owner: Tô Lãng Nghị (`bob35306`).
 Ticket: [#20](https://github.com/nigPeter2503/Social_Pilot/issues/20).
 Reviewer dự kiến: Minh (`nigPeter2503`), Thiện (`PhuocThien06`).
 Trạng thái: **đang làm; phần offline đã chuẩn bị, phần API thật bị chặn**.
-API version: **chưa chốt**. Số phép gọi Facebook thật trong phiên này: **0**.
+API version dùng cho SP-018: **chưa chốt**. Số phép gọi Facebook thật của SP-018: **0**.
 
 ## 1. Phạm vi và revision
 
 - Nhánh `feat/sp-018-facebook-comments-metrics-spike`, tạo từ `origin/main`
   `0348982c8f295d946815da91eae491bd9645ac94` sau fetch ngày 09/11.
-- Issue #20 và đầu vào [SP-010/#12](https://github.com/nigPeter2503/Social_Pilot/issues/12)
-  còn OPEN; cả hai chưa có bình luận tại lần đọc REST trong phiên này.
-  Chưa thấy branch/PR SP-018 hoặc SP-010 trên remote. Project live chưa xác minh;
-  công việc chưa push của nhóm chưa biết.
-- [SP-009 PR #66](https://github.com/nigPeter2503/Social_Pilot/pull/66) vẫn OPEN,
-  head `289e4d1`, chưa merge. Main chỉ có SocialConnector publish nền;
-  chưa tích hợp code comment/metrics vào interface chung.
+- Issue #20 và [SP-010/#12](https://github.com/nigPeter2503/Social_Pilot/issues/12)
+  còn OPEN và có 0 bình luận theo REST ngày 11/11. SP-018 đã push `9c80601`,
+  chưa thấy PR. [PR #74 của SP-010](https://github.com/nigPeter2503/Social_Pilot/pull/74)
+  đang mở tại `d64da45`. Project live chưa xác minh.
+- [SP-009 PR #66](https://github.com/nigPeter2503/Social_Pilot/pull/66) đã merge.
+  Tham chiếu [Social v1 tại main `4f69a39`](https://github.com/nigPeter2503/Social_Pilot/blob/4f69a3936ff5e3d988d907f7f2f46083dcd967b5/docs/social-contract.md).
 - [SP-020 PR #67](https://github.com/nigPeter2503/Social_Pilot/pull/67) OPEN,
-  head `bf89da1`: [contract draft-2 tại revision đã đọc](https://github.com/nigPeter2503/Social_Pilot/blob/bf89da1598ca13fd02e2bd116f4f47a5a07c2555/docs/analytics-data-contract.md).
-  Đây là đề xuất cần review, chưa phải Java API đã chốt. Không kéo thay đổi SP-020 vào nhánh này.
+  head `cdc633a`. Tham chiếu [draft-4](https://github.com/nigPeter2503/Social_Pilot/blob/cdc633a85a99167e391b2e238f64378c085152a6/docs/analytics-data-contract.md)
+  để chuẩn bị bàn giao dữ liệu. Contract analytics vẫn đang review.
 - Bộ offline dùng Node tích hợp sẵn, không dependency, không HTTP; chỉ để khảo sát
   hình dạng phản hồi và quy tắc mapping. Ứng dụng/backend vẫn dùng Java.
   Không sửa Android/backend/UI/database/build. Chưa có adapter production.
@@ -28,20 +27,19 @@ API version: **chưa chốt**. Số phép gọi Facebook thật trong phiên nà
 
 | Đầu vào | Tình trạng | Người mở chặn |
 |---|---|---|
-| Contract operation/capability/error và revision tích hợp | SP-009 chưa merge; cần người dùng contract xác nhận | Minh, SP-009/#11 |
-| App/Page, loại token, nơi cấu hình an toàn, hiệu lực và quyền cấp cho Page | Chưa được chỉ vị trí; không thấy tên biến môi trường Facebook/Meta trong phiên shell; không kết luận nơi khác không có | Minh, SP-010/#12 |
-| Page/post/comment ID và xác nhận được đọc/reply trên đối tượng thử | Chưa được cung cấp hoặc xác nhận; không gọi thật | Minh, SP-010/#12 |
-| Version, quyền, metric/period áp dụng cho app và loại bài | Chưa xác minh đầy đủ do tài liệu web trả 429, chưa có đầu vào app | Minh + Nghị tra lại tài liệu trước khi pin |
-| Schema và các trường cần cho UI | SP-020 draft-2 còn review | Đạt schema, Thiện UI |
+| Contract operation/capability/error | Social v1 đã merge tại `4f69a39` | Minh, SP-009/#11 |
+| App/Page, loại token, nơi cấu hình an toàn, hiệu lực và quyền cấp cho Page | SP-010 có OAuth Facebook trên thiết bị thật. Phiên shell chưa có biến cấu hình Facebook/Meta và chỉ thấy mẫu `.env.example`; chưa xác nhận token dùng được cho SP-018 | Minh, SP-010/#12 |
+| Page/post/comment ID và phạm vi thử | SP-010 xác nhận Page và bài test đăng/đọc lại qua Graph API Explorer ngày 11/11. Đây là ứng viên cho lượt đọc. Còn thiếu xác nhận phạm vi đọc SP-018, comment thử và nội dung reply đã duyệt | Minh, SP-010/#12 |
+| Version, quyền, metric/period áp dụng cho app và loại bài | Cấu hình mặc định của SP-010 là `v27.0`. Bằng chứng đăng/đọc bài chưa ghi version Explorer thực dùng. Các trang Meta về quyền, comments và changelog vẫn trả 429 | Minh + Nghị đối chiếu trước khi pin |
+| Schema và các trường cần cho UI | SP-020 draft-4 được Minh approve; đang chờ các xác nhận còn lại | Đạt schema, Thiện UI |
 
-**Phân biệt SP-009 và SP-010:** SP-009 cung cấp hợp đồng OAuth/capability/lỗi;
-SP-010 cung cấp kết quả Facebook OAuth và đầu vào thử thật. OAuth hoặc đăng bài thành
-công không chứng minh quyền đọc comment, reply, follower hay insights.
+Tra Page/post ID và permalink tại [hồ sơ SP-010 `d64da45`](https://github.com/nigPeter2503/Social_Pilot/blob/d64da4565d7d0a9f43ac331dc87d5b0c5a986876/docs/drafts/sp-010-implementation-status.md).
+Đối chiếu version trong [cấu hình backend cùng revision](https://github.com/nigPeter2503/Social_Pilot/blob/d64da4565d7d0a9f43ac331dc87d5b0c5a986876/backend/src/main/resources/application.properties).
 
-Nội dung nhờ Minh chuẩn bị, **chưa gửi**: chỉ vị trí cấu hình an toàn, app mode/access
-level, version app đang dùng, token type/expiry và danh sách quyền đã cấp; Page/post/comment
-thử, vai trò/Page task của người cấp token; xác nhận phạm vi được đọc và nội dung reply
-thử được duyệt. Không gửi token/client secret trong chat/issue/PR.
+Đầu vào cần Minh xác nhận trước lượt đọc gồm app mode/access level, version Explorer,
+vị trí cấu hình token thử, loại token, thời hạn, quyền đã cấp, Page task và phạm vi
+đọc trên Page/post đã ghi ở SP-010. Trước FB-03 cần thêm comment thử và nội dung
+reply được duyệt. Giá trị token/client secret giữ trong nơi cấu hình an toàn.
 
 ## 3. Nguồn chính thức và giới hạn khảo sát
 
@@ -60,16 +58,22 @@ thử được duyệt. Không gửi token/client secret trong chat/issue/PR.
 Không dùng nguồn bên thứ ba để khẳng định metric đang hoạt động hoặc version mới nhất.
 Các link SDK trỏ main có thể đổi; khi thử thật cần ghi revision/version đã dùng cùng evidence.
 
+Kiểm tra lại ngày 11/11: Comments reference, Permissions và Graph API changelog
+trả HTTP 429. Các nguồn SDK Comment, PagePost và Page truy cập được. Trang
+[Meta Business SDK Releases](https://github.com/meta/facebook-python-business-sdk/releases)
+hiển thị SDK `26.0.4`. Bản phát hành SDK và cấu hình mặc định của SP-010 là hai
+nguồn để đối chiếu khi xác nhận version thực dùng trong Explorer.
+
 ## 4. Ma trận request và bằng chứng cần thu
 
 Mọi endpoint dưới đây là **ứng viên**, dùng prefix `https://graph.facebook.com/{version}`.
-`{version}` chưa có giá trị; không thay bằng version nhớ từ trước. Auth bằng header trong
+`{version}` lấy theo version xác nhận cho lượt thử SP-018. Auth bằng header trong
 công cụ thử, không đưa token vào URL/fixture/log. Trước gọi thật phải đọc lại quyền,
 app access level/Page task và version chính thức; ghi quyền granted thực tế theo từng case.
 
 | Case | Request ứng viên | Quyền ứng viên cần đối chiếu | Expected / bằng chứng cần có | Actual hiện tại |
 |---|---|---|---|---|
-| FB-01 | GET `/{post-id}/comments?fields=id,message,created_time,from,parent&limit={small-limit}` | Page token; pages_read_engagement, pages_read_user_content theo loại nội dung | Comment đúng bài/Page; created_time, nội dung, tác giả/parent nếu được trả; đối chiếu UI. Thu hẹp field nếu field không hỗ trợ, ghi kết quả riêng | NOT_RUN — thiếu đầu vào SP-010 |
+| FB-01 | GET `/{post-id}/comments?fields=id,message,created_time,from,parent&limit={small-limit}` | Page token; pages_read_engagement, pages_read_user_content theo loại nội dung | Comment đúng bài/Page; created_time, nội dung, tác giả/parent nếu được trả; đối chiếu UI. Thu hẹp field nếu field không hỗ trợ, ghi kết quả riêng | NOT_RUN — có bài ứng viên SP-010, chờ xác nhận quyền và phạm vi đọc |
 | FB-02 | GET cùng edge/filter/order/fields, thêm `after={cursor}` | Như FB-01 | Ít nhất hai trang thật khi đủ dữ liệu; cursor cuối, ID overlap, dedup và trường thiếu. Thiếu dữ liệu phân trang ghi hạn chế | NOT_RUN |
 | FB-03 | POST `/{comment-id}/comments`, body message đã duyệt | pages_manage_engagement và các quyền phụ thuộc phải kiểm tra lại | Gửi một lần trên comment được phép; ID phản hồi; đọc lại reply và đối chiếu trên Page đúng parent, tác giả, nội dung, thời điểm | NOT_RUN — chưa xác nhận quyền ghi |
 | FB-04 | GET `/{page-id}?fields=id,followers_count` | Page token; pages_read_engagement ứng viên | Số follower tại thời điểm thu; 0 là số hợp lệ; không dùng fan_count/connections thay thế | NOT_RUN |
@@ -116,6 +120,23 @@ HTTP/code/subcode | redactedEvidenceRef | verifiedBy | blocker/owner`
 
 Reply thêm `approvedTestRef | requestTime | replyIdRef | parentIdRef |
 PageReconciledAt | outcome | noAutomaticRetry` trong phạm vi chia sẻ phù hợp.
+
+### Bảng capability để bàn giao
+
+| SocialOperation | Ca cung cấp bằng chứng | Trạng thái 11/11 | Điều kiện cập nhật |
+|---|---|---|---|
+| `READ_COMMENTS` | FB-01, FB-02 | `UNVERIFIED` | FB-01 đọc đúng bài/Page. Ghi kết quả phân trang riêng theo số comment thật |
+| `REPLY_COMMENT` | FB-03 | `UNVERIFIED` | Có reply ID và đã đối chiếu reply trên đúng Page/comment |
+| `READ_FOLLOWER_COUNT` | FB-04 | `UNVERIFIED` | Có giá trị `followers_count` hợp lệ, gồm cả 0, với thời điểm thu |
+| `READ_POST_METRICS` | FB-05–FB-08 | `UNVERIFIED` | Có ít nhất một số đo hợp lệ; ghi trạng thái từng metric và kỳ đo riêng |
+
+Ở thời điểm này, lý do của cả bốn thao tác là chưa có lượt gọi SP-018 và
+`verifiedAt` để trống. Ghi `reasonCode` cho trạng thái ngoài `AVAILABLE`. Khi xác nhận
+`AVAILABLE`, `PERMISSION_REQUIRED` hoặc `UNSUPPORTED`, ghi `verifiedAt` UTC
+cùng evidence cho đúng thao tác, kênh và revision. Với metric null, dùng
+`PERMISSION_REQUIRED` hoặc `UNSUPPORTED` khi bằng chứng áp dụng cho metric đó,
+và `UNVERIFIED` khi metric chưa được kiểm chứng. Giữ lần gọi lỗi ở hồ sơ thử và
+giữ số đo đã thu gần nhất với trạng thái freshness tương ứng.
 
 ## 6. Bộ offline và mapping đề xuất
 
