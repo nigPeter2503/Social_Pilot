@@ -1,7 +1,9 @@
 package com.socialpilot.oauth.facebook;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.socialpilot.oauth.flow.OAuthFlowException;
+import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -11,12 +13,15 @@ import org.springframework.web.client.RestClientResponseException;
 @Component
 public final class FacebookGraphClient {
     private static final Logger LOGGER = LoggerFactory.getLogger(FacebookGraphClient.class);
+    private static final Pattern SAFE_ERROR_TYPE = Pattern.compile("[A-Za-z0-9_]{1,60}");
     private final FacebookOAuthProperties properties;
     private final RestClient graph;
+    private final ObjectMapper objectMapper;
 
-    public FacebookGraphClient(FacebookOAuthProperties properties, RestClient.Builder builder) {
+    public FacebookGraphClient(FacebookOAuthProperties properties, RestClient.Builder builder, ObjectMapper objectMapper) {
         this.properties = properties;
         this.graph = builder.baseUrl("https://graph.facebook.com").build();
+        this.objectMapper = objectMapper;
     }
 
     public PageIdentity exchangeCodeForTargetPage(String code) {
@@ -61,13 +66,28 @@ public final class FacebookGraphClient {
             LOGGER.warn("Facebook OAuth stopped at stage={} code={}", stage, exception.getCode());
             throw exception;
         } catch (RestClientResponseException exception) {
-            LOGGER.warn("Facebook Graph API failed at stage={} httpStatus={}", stage, exception.getStatusCode().value());
+            GraphError error = safeGraphError(exception.getResponseBodyAsByteArray());
+            LOGGER.warn("Facebook Graph API failed at stage={} httpStatus={} graphCode={} graphSubcode={} graphType={}",
+                    stage, exception.getStatusCode().value(), error.code, error.subcode, error.type);
             throw OAuthFlowException.providerError();
         } catch (RuntimeException exception) {
             // Do not log exception messages, request URLs, bodies, tokens, authorization codes, or secrets.
             LOGGER.warn("Facebook Graph API failed at stage={} exceptionType={}", stage,
                     exception.getClass().getSimpleName());
             throw OAuthFlowException.providerError();
+        }
+    }
+
+    private GraphError safeGraphError(byte[] body) {
+        try {
+            JsonNode error = objectMapper.readTree(body).path("error");
+            int code = error.path("code").asInt(-1);
+            int subcode = error.path("error_subcode").asInt(-1);
+            String type = error.path("type").asText("unknown");
+            if (!SAFE_ERROR_TYPE.matcher(type).matches()) type = "unknown";
+            return new GraphError(code, subcode, type);
+        } catch (Exception ignored) {
+            return new GraphError(-1, -1, "unknown");
         }
     }
 
@@ -83,6 +103,14 @@ public final class FacebookGraphClient {
             if ("CREATE_CONTENT".equals(task.asText()) || "MANAGE".equals(task.asText())) return true;
         }
         return false;
+    }
+
+    private static final class GraphError {
+        private final int code, subcode;
+        private final String type;
+        private GraphError(int code, int subcode, String type) {
+            this.code = code; this.subcode = subcode; this.type = type;
+        }
     }
 
     public static final class PageIdentity {
