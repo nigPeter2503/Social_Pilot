@@ -115,13 +115,12 @@ Suggested commit title:
 ```text
 docs(docs): record SP-010 Facebook OAuth evidence [SP-010]
 ```
-
 ## Owner evidence and implementation update — 11/11/2026
 
-The owner later supplied Meta dashboard and Graph API Explorer evidence that supersedes the earlier “unknown” rows in this 10/11 snapshot:
+The owner confirmed that Facebook OAuth completed successfully on a real Android device. The tested flow returned to the app with the Facebook Page connected. This validates the live authorization-code exchange and Page-list stage for that test account. It does not verify publishing or the full token lifecycle.
 
-- App is in Development mode; the selected use case is Page management; Minh Ngg has the app Admin role.
-- Meta lists `pages_show_list`, `pages_read_engagement`, `pages_read_user_content`, `pages_manage_posts`, `public_profile`, and `business_management` as ready for testing. `pages_manage_engagement` was not added.
-- The owner confirmed a valid Page token for Demo Page MD 24-31 (`1427548503779474`) and a read-only `GET /<PAGE_ID>?fields=id,name` returning the expected Page name and ID. No token value is stored here.
-- The owner has `cloudflared` 2026.10.7 installed. A Quick Tunnel host has not yet been started/registered, so the exact HTTPS callback URI remains pending.
-- Source work is now in progress on the SP-010 branch stacked on SP-009. This does not replace required Gradle checks or live callback evidence; no post has been published.
+- Meta app is in Development mode and the owner account is an Admin. Graph API Explorer showed Page-related permissions available for testing.
+- The user reported a successful device connection after the backend change to parse Graph responses independently of the response Content-Type. No credential, authorization code or token is recorded here.
+- The latest supplied Cloudflare tunnel hostname was `planning-theoretical-into-tmp.trycloudflare.com`; confirm the active run matches the configured callback before any further test.
+- SP-010 is stacked on SP-009. Keep the SP-009 commits out of the final SP-010 PR by waiting for SP-009 to merge or rebuilding the SP-010 branch on the updated `main` before opening its PR.
+- No real post has been published. Page publish permissions, one approved post, ID/permalink, token refresh/expiry, restart behavior, and cold-start callback remain unverified.
