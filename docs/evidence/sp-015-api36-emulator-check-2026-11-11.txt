@@ -1,0 +1,12 @@
+SP-015 API 36 emulator check
+Time (Asia/Ho_Chi_Minh): 2026-11-11 00:20:15 +07:00
+Repository HEAD at test: 3ed33dab5ac2fdb126c385901e6d4ea98093ed7c
+APK SHA-256: 0DA8DAB0234A8A0311E087FA113F46BA73764F9FF19D53674853CA4DC812BCF8
+AVD: SocialPilot_API36; model: sdk_gphone64_x86_64; Android API 36
+JDK: Temurin 21.0.13; Android SDK Platform 36; Build Tools 36.0.0
+Install: adb install -r android/app/build/outputs/apk/debug/app-debug.apk -> Success
+Launch: com.socialpilot.app/.ui.MainActivity
+Input: SP015_API36_20261111
+Procedure: save topic in app, force-stop and reopen; reinstall APK, force-stop and reopen again.
+Result: PASS - recent drafts contains the test topic after restart and reinstall.
+Screenshot: sp-015-api36-emulator-after-restart.png
