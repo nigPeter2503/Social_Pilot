@@ -1,7 +1,25 @@
 # SP-020 — Hồ sơ bản nháp và kiểm tra local
 
+## Cập nhật 11/11/2026 — draft-3
+
+- Đã cập nhật `main` đến `4f69a39` chứa SP-009 và merge vào nhánh SP-020.
+  Đã đối chiếu Social v1 và mã Java của scope, capability và `SocialError`.
+- Draft-3 dùng trạng thái capability và cặp code/nextAction đã merge, đặt
+  `retryAfterAt` ở kết quả analytics, và ràng buộc ghi/xóa dữ liệu theo revision.
+  Đề xuất Room `8124f3a` đã được đối chiếu cho timestamp và khóa snapshot/sample.
+  Đạt còn cần xác nhận khóa, index và thứ tự tích hợp.
+- [PR #67](https://github.com/nigPeter2503/Social_Pilot/pull/67) đang mở ở draft-2
+  `bf89da1`. Thiện duyệt revision này ngày 10/11, xác nhận đủ trường UI và tài liệu +
+  fixture cho W1. Minh còn chờ review. Draft-3 được chuẩn bị local.
+- Kiểm tra local trên Windows, PowerShell: `node docs/contracts/verify-analytics-examples.cjs`
+  đạt **63/63 MO_PHONG**, gồm lỗi cần kết nối lại và kênh đã ngắt.
+  `node --check docs/contracts/verify-analytics-examples.cjs` và `git diff --check main` đạt.
+  Phạm vi phiên này là tài liệu và validator fixture. Android/backend build và API thật chưa chạy.
+
+## Lịch sử draft-1 và draft-2
+
 Ngày: 09/11/2026 (Asia/Saigon). Người thực hiện: Tô Lãng Nghị — TV4 (`bob35306`).
-Revision contract hiện tại: **draft-2**. Trạng thái: **xong bản nháp local, chờ review**;
+Revision tại phiên này: **draft-2**. Trạng thái khi lập hồ sơ: **xong bản nháp local, chờ review**;
 chưa hoàn tất ticket, chưa nghiệm thu F6/F7.
 
 ## 1. Revision và kiểm kê tiến độ

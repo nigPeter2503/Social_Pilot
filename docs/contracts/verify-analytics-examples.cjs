@@ -15,7 +15,7 @@ const result = (value, reason = null) => ({ value, reason });
 const time = value => Date.parse(value);
 check('provenance-and-dto-examples', () => {
     assert.equal(fixture.source, 'MO_PHONG');
-    assert.equal(fixture.contractRevision, 'draft-2');
+    assert.equal(fixture.contractRevision, 'draft-3');
     const { comment, snapshot, metricDefinition, goal } = fixture.dtoExamples;
     assert.equal(comment.source, 'MO_PHONG');
     assert.equal(comment.parentState, 'ROOT');
@@ -23,7 +23,9 @@ check('provenance-and-dto-examples', () => {
     assert.equal(comment.contentState, 'AVAILABLE');
     assert.equal(typeof comment.message, 'string');
     assert.equal(comment.timeMissingReason, null);
+    assert.equal(comment.replyCapability.operation, 'REPLY_COMMENT');
     assert.equal(comment.replyCapability.availability, 'UNVERIFIED');
+    assert.ok(comment.replyCapability.reasonCode.trim());
     assert.equal(comment.replyCapability.verifiedAt, null);
     assert.deepEqual(comment.scope, snapshot.scope);
     assert.deepEqual(goal.scope, snapshot.scope);
@@ -106,6 +108,13 @@ check('pagination/overlap-and-edit', () => {
     assert.deepEqual([...comments.values()].map(c => c.commentId).sort(), fixture.commentPages.expectedIds);
     assert.equal([...comments.values()].find(c => c.commentId === 'mock-c1').message, fixture.commentPages.expectedEditedMessage);
 });
+const pageFailureActions = new Map([
+    ['PERMISSION_REQUIRED', 'RESOLVE_PERMISSION'],
+    ['AUTH_REQUIRED', 'RECONNECT'],
+    ['CHANNEL_DISCONNECTED', 'RECONNECT'],
+    ['UNSUPPORTED_OPERATION', 'NONE'],
+    ['RATE_LIMITED', 'WAIT'],
+]);
 for (const c of fixture.pageStates) check(`page-state/${c.id}`, () => {
     if (c.outcome === 'SUCCESS') {
         assert.equal(c.error, null);
@@ -113,7 +122,13 @@ for (const c of fixture.pageStates) check(`page-state/${c.id}`, () => {
         assert.equal(c.page.hasMore, false);
     } else {
         assert.equal(c.page, null);
-        assert.ok(['PERMISSION_REQUIRED', 'RATE_LIMITED'].includes(c.error.code));
+        assert.equal(c.outcome, 'FAILURE');
+        assert.ok(pageFailureActions.has(c.error.code));
+        assert.equal(c.error.nextAction, pageFailureActions.get(c.error.code));
+        if (c.error.code === 'RATE_LIMITED') {
+            assert.equal(c.retryAfterAt, null);
+            assert.equal(Object.hasOwn(c.error, 'retryAfterAt'), false);
+        }
     }
 });
 for (const c of fixture.paginationCases) check(`pagination-shape/${c.id}`, () => {

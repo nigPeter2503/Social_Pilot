@@ -1,22 +1,21 @@
 # Hợp đồng dữ liệu comment và analytics — SP-020
 
-Revision: **draft-2**, 09/11/2026, Asia/Saigon. Owner: Tô Lãng Nghị (`bob35306`).
+Revision: **draft-3**, 11/11/2026, Asia/Saigon. Owner: Tô Lãng Nghị (`bob35306`).
 Trạng thái: **bản đề xuất để review**, chưa phải hợp đồng đã được nhóm phê duyệt.
 Ticket: [SP-020 / #22](https://github.com/nigPeter2503/Social_Pilot/issues/22).
 Reviewer: Minh và Thiện; Đạt xác nhận thiết kế lưu trữ trước khi sửa schema.
 
 ## 1. Căn cứ, ranh giới và phụ thuộc
 
-- Base `origin/main`: `0348982c8f295d946815da91eae491bd9645ac94`.
+- Base `origin/main`: `4f69a3936ff5e3d988d907f7f2f46083dcd967b5`.
 - [Proposal F6/F7](SocialPilot_Proposal_Java.md), [requirements](requirements.md),
   [kiến trúc](architecture.md), [brief TV4](TaskBrief/W1/tv4-nghi-taskbrief.md).
-- SP-009: tham chiếu **đề xuất** tại commit `289e4d137b5d006c16d257fae413e0d5687fc472`,
-  [PR #66](https://github.com/nigPeter2503/Social_Pilot/pull/66), còn mở khi kiểm tra 09/11.
-  `ChannelInfo`, `connectionRevision`, `ChannelCapability`, `SocialOperation`, `SocialError`
-  bên dưới là tên theo revision đó, chưa hiện diện trên base main.
-- SP-012: [#14](https://github.com/nigPeter2503/Social_Pilot/issues/14) còn mở;
-  chưa tìm thấy nhánh/PR hay thiết kế schema đã chốt trong các nguồn đã kiểm tra.
-  ID, index, ownership và biểu diễn thời gian dưới đây cần Đạt review.
+- SP-009 dùng [hợp đồng Social v1](social-contract.md) đã merge qua
+  [PR #66](https://github.com/nigPeter2503/Social_Pilot/pull/66). Đối chiếu capability,
+  lỗi và ngắt kênh theo mục 3, 4 và 7 của hợp đồng đó.
+- SP-012 đã có [đề xuất Room tại 8124f3a](https://github.com/nigPeter2503/Social_Pilot/blob/8124f3af9770b7e87fc81ed9539159aa603db0d4/docs/room-schema-contract.md).
+  [Issue #14](https://github.com/nigPeter2503/Social_Pilot/issues/14) còn mở. Các khóa,
+  index và thứ tự tích hợp analytics vẫn cần Đạt xác nhận.
 - Không sửa `SocialConnector`, `AppDatabase`, backend, UI hoặc build trong bản nháp này.
   Các DTO và interface dưới đây là schema tài liệu, chưa phải Java API production.
 - Fixture [analytics-examples.json](contracts/analytics-examples.json) hoàn toàn **MO_PHONG**.
@@ -40,13 +39,22 @@ thực tế **chưa kiểm chứng**. SP-018/#20 và SP-019/#21 phải bổ sung
 
 ## 3. Kiểu dùng chung và bất biến
 
-Đề xuất UTC ISO 8601 dạng `yyyy-MM-dd'T'HH:mm:ss'Z'` để tương thích SP-009;
-Đạt quyết định kiểu cột Room. ID là chuỗi opaque không rỗng, không đổi chữ hoa/thường,
+Timestamp trao đổi dùng UTC ISO 8601 dạng `yyyy-MM-dd'T'HH:mm:ss'Z'` theo SP-009.
+Đề xuất lưu UTC epoch millisecond trong Room theo SP-012. ID là chuỗi opaque không rỗng, không đổi chữ hoa/thường,
 không cắt/gộp provider ID/URN. Không dùng tên hiển thị hoặc parse số để làm khóa.
 
 `ChannelScope = {platform, channelId, connectionRevision}`: platform là FACEBOOK/LINKEDIN,
 channelId là ID nội bộ, revision dương và bền vững theo SP-009. Không sao chép tokenReference
 hay token vào comment/metric/fixture. Account type lấy từ ChannelInfo, không đoán từ ID.
+
+Đối chiếu từng `SocialOperation` theo scope hiện hành: `READ_COMMENTS`,
+`REPLY_COMMENT`, `READ_POST_METRICS` và `READ_FOLLOWER_COUNT`. `ChannelCapability`
+gồm operation, availability, reasonCode, verifiedAt. `AVAILABLE` cần verifiedAt.
+`PERMISSION_REQUIRED` và `UNSUPPORTED` cần cả reasonCode lẫn verifiedAt.
+`UNVERIFIED` cần reasonCode và có thể chưa có verifiedAt. Khi có verifiedAt, dùng
+định dạng UTC trên và ngày lịch hợp lệ. Từng lần gọi vẫn xử lý quyền bị thu hồi.
+OAuth hoặc quyền đăng không xác nhận các operation này. `SocialConnector` cung cấp
+tra cứu capability. Adapter và repository phụ trách thao tác comment/metrics.
 
 `EvidenceSource = API_THAT | FIXTURE_TU_API_DA_CHE | MO_PHONG | PROTOTYPE`.
 Chỉ `API_THAT` được dùng làm lịch sử production. Fixture đã che chỉ phục vụ test,
@@ -76,12 +84,14 @@ Mỗi response lỗi phải được adapter chuẩn hóa, không trả body th�
 | createdAt, providerUpdatedAt | Nullable khi provider không trả; timeMissingReason bắt buộc khi createdAt thiếu, null khi có createdAt |
 | syncedAt | Bắt buộc; thời điểm nhận thực tế, không thay createdAt |
 | source, sourceRef | Bắt buộc; sourceRef là nhãn evidence đã che, không URL phân trang/token |
-| replyCapability | Theo operation REPLY_COMMENT của SP-009; UNVERIFIED nếu chưa thử |
+| replyCapability | Capability REPLY_COMMENT của scope hiện hành; UNVERIFIED nếu chưa thử, kèm reasonCode |
 
 Khóa logic comment: `(platform, channelId, commentId)`. postId là quan hệ cần kiểm tra;
 cùng khóa nhưng đổi postId là xung đột cần đối soát, không âm thầm chuyển comment sang bài khác.
 Tất cả dữ liệu gắn kênh; ngắt kênh xóa dữ liệu cục bộ riêng kênh và chặn kết quả revision cũ.
-Kiểm tra revision và ghi phải trong cùng cơ chế đồng bộ/transaction; kiểm tra trước HTTP là chưa đủ.
+Vô hiệu revision và chặn công việc mới trước khi hủy HTTP và dọn dữ liệu. Kiểm tra scope,
+revision và ghi trong cùng transaction. Kết nối lại cùng channelId bắt đầu revision mới
+với cache, checkpoint và lịch sử analytics riêng kênh đã được dọn khi ngắt.
 
 ### Request, page và checkpoint
 
@@ -107,8 +117,12 @@ cùng providerUpdatedAt giữ bản đã lưu và đánh dấu cần refresh. Kh
 một trang không chứng minh comment đã xóa; chỉ dùng tombstone khi provider xác nhận.
 
 Trang rỗng thành công khác với lỗi thiếu quyền. `Result = SUCCESS(page) | FAILURE(error)`;
-lỗi không được trả success với items=[]. Error dùng mã SP-009 khi phù hợp;
-RATE_LIMITED có retryAfterAt nullable và không bịa thời gian chờ.
+lỗi không được trả success với items=[]. Dùng cặp `SocialError.code` và `nextAction`
+theo SP-009 khi áp dụng: `PERMISSION_REQUIRED / RESOLVE_PERMISSION`,
+`AUTH_REQUIRED / RECONNECT`, `CHANNEL_DISCONNECTED / RECONNECT`,
+`UNSUPPORTED_OPERATION / NONE`, `RATE_LIMITED / WAIT`. Analytics bổ sung
+`retryAfterAt` nullable bên cạnh `SocialError` khi provider có thông tin.
+`nextAction` là gợi ý cho caller.
 
 Đề xuất `CommentRepository.loadCached(query)` và `syncPage(request, callback) -> Cancelable`;
 cache đi kèm sync/freshness/error state. Không chặn main thread; callback nền;
@@ -150,7 +164,7 @@ measurement window có thể tương thích; khác endpoint/time window phải c
 đã review và bằng chứng provider. Draft chưa tự đặt dung sai thời gian để ghép số.
 
 Freshness ở thời điểm truy vấn: `isStale = now - collectedAt > freshnessThreshold`;
-đề xuất threshold 48 giờ với lịch thu hằng ngày, chờ review. Trả collectedAt,
+đề xuất threshold 48 giờ với lịch thu hằng ngày, cần kiểm lại theo lịch thu/API thật. Trả collectedAt,
 lastAttemptAt/error riêng; offline vẫn có thể trả số cache với stale/offline indicator.
 Capability AVAILABLE ở cấp READ_POST_METRICS không chứng minh mọi metric con đều có.
 
@@ -171,8 +185,8 @@ measurementKind và source có thể so sánh; source API_THAT không ghép vớ
 Thiếu current → null/MISSING_CURRENT, không để null bị chuyển thành số 0.
 Hai mốc phải có effective observation time tăng nghiêm ngặt; bằng/đảo thời gian →
 INVALID_TIME_ORDER. GAUGE so sánh mức tại hai mốc; CUMULATIVE phải cùng nguồn bộ đếm;
-PERIOD khác kỳ không dùng phép trừ như hai mốc CUMULATIVE. connectionRevision vẫn được
-kiểm tra để chặn callback cũ; chỉ giữ lịch sử qua reconnect khi chính sách ownership đã chốt.
+PERIOD khác kỳ không dùng phép trừ như hai mốc CUMULATIVE. Chọn hai mốc trong lịch sử
+thuộc scope hiện hành. Ngắt kênh xóa lịch sử analytics riêng kênh theo mục 4.
 
 | Phép tính | Điều kiện và ví dụ mong đợi |
 |---|---|
@@ -234,7 +248,8 @@ coverage, sourceSnapshotIds, calculatedAt, isStale, completionStatus}`.
 completionStatus = UNKNOWN / IN_PROGRESS / REACHED / NOT_REACHED.
 Khi không đủ phạm vi đo,
 chỉ trả progress tạm tính có nhãn partial; trạng thái hoàn thành còn UNKNOWN.
-Đạt mục tiêu cần dữ liệu đủ coverage và không stale; quy tắc đánh giá cuối kỳ chờ Thiện review.
+Đạt mục tiêu cần dữ liệu đủ coverage và không stale. Thiện xác nhận UI có thể hiển thị
+`rawProgress` tạm tính và giữ `completionStatus = UNKNOWN` khi coverage thiếu hoặc dữ liệu stale.
 actual chỉ dùng số đo trong kỳ goal, không lấy số mới nhất sau periodEnd để đánh giá kỳ cũ.
 Goal follower có thể hiển thị mức hiện tại trong kỳ và progress tạm thời; không phải chờ
 đến cuối kỳ mới hiển thị. completionStatus giữ UNKNOWN khi coverage/freshness chưa đủ.
@@ -288,8 +303,8 @@ Chưa tạo entity/DAO/version/migration. Các khóa và index sau cần SP-012 
 |---|---|---|
 | Comment | UNIQUE(platform,channelId,commentId); INDEX(channelId,postId,createdAt,commentId) | Phân trang cache ổn định; riêng kênh |
 | SyncCheckpoint | UNIQUE(channelId,postId,queryFingerprint,connectionRevision) | Resume đúng revision, lưu cùng upsert trang |
-| Snapshot | snapshotId; INDEX(channelId,entityType,entityId,collectedAt,snapshotId) | Lấy hai mốc thực, giữ collectionId, riêng kênh |
-| Sample | UNIQUE(snapshotId,definitionId); INDEX(definitionId,snapshotId) | Lưu value/reason, definition/version/kỳ đo |
+| Snapshot | snapshotId; UNIQUE(channelId,entityType,entityId,collectionId); INDEX(channelId,entityType,entityId,collectedAt,snapshotId) | Một snapshot mỗi đối tượng mỗi đợt; xác minh đối tượng thuộc đúng kênh trong transaction |
+| Sample | UNIQUE(snapshotId,definitionId); INDEX(definitionId,snapshotId) | Một sample mỗi định nghĩa trong một snapshot; chốt period key với Đạt nếu cần lưu nhiều kỳ trong cùng đợt |
 | Collection | collectionId + scope + startedAt/completedAt | Xác định đợt thu chung, lỗi và coverage |
 | Goal | goalId/revision; INDEX(channelId,periodStart,periodEnd) | Riêng kênh; không dùng bản nháp chung làm cascade root |
 | Post grouping | INDEX(channelId,primaryTopicId,publishedAt,postId), index format khi cần | Lọc tập bài trước khi tải metric; không N+1 |
@@ -298,7 +313,9 @@ Retry cùng lần thu giữ collectionId/snapshotId để tránh nhân bản; l�
 không UNIQUE theo ngày vì có refresh thủ công. Query lấy tập bài rồi batch load samples
 cho hai mốc, không quét lịch sử theo từng card. Benchmark/query plan làm sau khi có DAO/schema thật.
 Xóa kênh dọn comment/snapshot/goal/cache/cursor của kênh, giữ draft/topic chung và kênh khác.
-Lưu dữ liệu và tombstone/revision phải bảo đảm callback cũ không khôi phục dữ liệu đã xóa.
+Revision phải bền vững để callback cũ không khôi phục dữ liệu đã xóa. Goal trong W1
+có scope kênh. Goal độc lập được nêu trong SP-012 nằm ngoài DTO này. Đề xuất N1 của
+SP-009 về tombstone của hàng đợi đăng vẫn chờ duyệt.
 
 ## 9. Thu snapshot thật W2–3 (SP-045)
 
@@ -317,21 +334,19 @@ SP-018/019 chốt metric provider/version/definition. Thu follower kênh và b�
 thay bằng connections hoặc scrape. Thất bại giữ lastSuccess, ghi attempt/gap và next action;
 ngắt kênh dừng job. Hai snapshot thật khác thời điểm mới mở so sánh; W1 không yêu cầu sẵn lịch sử.
 
-## 10. Nội dung chuẩn bị bàn giao (chưa gửi)
+## 10. Xác nhận review và điểm cần chốt
 
 | Người | Cần xác nhận / cung cấp | Ảnh hưởng nếu chưa có |
 |---|---|---|
-| Minh (`nigPeter2503`) — SP-009/#11, SP-010/#12, SP-011/#13 | Revision capability/error; nơi cấu hình token an toàn; Page/author/post/comment thử và phạm vi được phép reply; account/product/scope | Không gọi API/reply thật; provider mapping còn UNVERIFIED |
-| Đạt (`dat532006`) — SP-012/#14 | Khóa/ID, UTC/null, cascade, collection/index và thứ tự schema | Không tích hợp Room/migration |
-| Thiện (`PhuocThien06`) — UI F7 / SP-016 | DTO/dashboard/goal, metric/kỳ top bài, nhóm, partial/stale và missing states | Chưa tick xác nhận đủ trường UI |
+| Minh (`nigPeter2503`) — Social | Review mapping capability/error theo SP-009 và điều kiện tương thích giữa số đo | Còn chờ review SP-020 |
+| Đạt (`dat532006`) — SP-012/#14 | Xác nhận khóa/ID, UTC/null, cascade, collection/index và thứ tự schema | Còn chờ xác nhận thiết kế Room |
+| Thiện (`PhuocThien06`) — UI F7 | Ngày 10/11 xác nhận draft-2 đủ trường UI và chấp nhận tài liệu + fixture cho W1 | Xác nhận áp dụng cho draft-2 tại [PR #67](https://github.com/nigPeter2503/Social_Pilot/pull/67) |
 
-Đề nghị review draft-2, fixture và ví dụ số; trả quyết định theo từng điểm còn mở:
-threshold stale; slot thu; chọn cặp mốc chung và coverage; goal partial/stale;
-alignment measurement windows; query/grouping/tie-break; chữ ký repository.
-Chưa có phản hồi không xem là đồng ý.
-Không gửi token trong chat/issue/PR. Tất cả nội dung trên mới chuẩn bị local.
+Draft-3 cần review phần đồng bộ SP-009/SP-012. Các điểm còn mở gồm ngưỡng stale
+theo lịch thu thực, chọn cặp mốc chung và coverage, alignment measurement windows,
+query/grouping/tie-break và lịch thu W2–3. Chữ ký Java cụ thể chốt khi tích hợp.
 
 SP-020 W1 bàn giao contract/fixture có nhãn: không đòi token hoặc snapshot thật sẵn có.
 SP-018/019 kiểm chứng API, SP-045 thu lịch sử; chúng bổ sung mapping qua revision sau.
-Java DTO/interface chỉ cần thêm nếu được chọn làm cách bàn giao tích hợp; nếu chọn
-document-only thì Minh/Thiện phải xác nhận cách bàn giao này đáp ứng người dùng contract.
+Thiện đã xác nhận tài liệu và fixture đủ cho UI W1. Minh còn cần xác nhận phần tiêu thụ
+hợp đồng ở adapter và repository.

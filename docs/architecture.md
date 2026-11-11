@@ -30,9 +30,10 @@ Nguyễn Đức Đạt (TV2) điều phối schema Room, phiên bản database v
 
 ## Bản đề xuất dữ liệu F6/F7 để review
 
-[Hợp đồng analytics SP-020, draft-2](analytics-data-contract.md) mô tả comment,
-pagination/dedup, snapshot, công thức, mục tiêu và đầu ra dashboard. Đây là đề xuất
-chưa được Minh/Thiện/Đạt xác nhận; tham chiếu SP-009 tại PR #66 chưa merge và chờ SP-012.
+[Hợp đồng analytics SP-020, draft-3](analytics-data-contract.md) mô tả comment,
+pagination/dedup, snapshot, công thức, mục tiêu và đầu ra dashboard. Bản này dùng
+hợp đồng Social v1 đã merge. Thiện đã xác nhận phạm vi UI của draft-2. Mapping
+capability/error và đề xuất lưu trữ còn chờ Minh và Đạt xác nhận.
 [Fixture có nhãn MO_PHONG](contracts/analytics-examples.json) và
 [hồ sơ kiểm tra](sp-020-verification.md) phục vụ review, không phải bằng chứng API thật.
 Chưa thêm Java DTO/repository, thay SocialConnector hoặc đổi Room version/migration.

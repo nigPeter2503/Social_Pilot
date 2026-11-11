@@ -1,5 +1,5 @@
 {
-    "contractRevision": "draft-2",
+    "contractRevision": "draft-3",
     "source": "MO_PHONG",
     "notice": "Synthetic IDs and values. No API permission or integration evidence.",
     "dtoExamples": {
@@ -21,7 +21,7 @@
             "timeMissingReason": null,
             "syncedAt": "2026-11-08T10:00:00Z",
             "source": "MO_PHONG",
-            "sourceRef": "analytics-draft-2-comment",
+            "sourceRef": "analytics-draft-3-comment",
             "replyCapability": {
                 "operation": "REPLY_COMMENT",
                 "availability": "UNVERIFIED",
@@ -60,7 +60,7 @@
                     "providerPeriodEnd": null,
                     "providerApiVersion": null,
                     "source": "MO_PHONG",
-                    "sourceRef": "analytics-draft-2-snapshot",
+                    "sourceRef": "analytics-draft-3-snapshot",
                     "collectionId": "mock-collection-1"
                 }
             ],
@@ -560,7 +560,26 @@
             "outcome": "FAILURE",
             "page": null,
             "error": {
-                "code": "PERMISSION_REQUIRED"
+                "code": "PERMISSION_REQUIRED",
+                "nextAction": "RESOLVE_PERMISSION"
+            }
+        },
+        {
+            "id": "auth-required",
+            "outcome": "FAILURE",
+            "page": null,
+            "error": {
+                "code": "AUTH_REQUIRED",
+                "nextAction": "RECONNECT"
+            }
+        },
+        {
+            "id": "channel-disconnected",
+            "outcome": "FAILURE",
+            "page": null,
+            "error": {
+                "code": "CHANNEL_DISCONNECTED",
+                "nextAction": "RECONNECT"
             }
         },
         {
@@ -569,8 +588,9 @@
             "page": null,
             "error": {
                 "code": "RATE_LIMITED",
-                "retryAfterAt": null
-            }
+                "nextAction": "WAIT"
+            },
+            "retryAfterAt": null
         }
     ],
     "week": {
