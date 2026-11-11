@@ -12,14 +12,16 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.Base64;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -35,14 +37,24 @@ public final class FacebookOAuthSessionService {
 
     private final FacebookOAuthProperties properties;
     private final FacebookGraphClient graph;
+    private final Clock clock;
     private final SecureRandom random = new SecureRandom();
-    private final ConcurrentMap<String, OAuthSession> sessionsById = new ConcurrentHashMap<>();
-    private final ConcurrentMap<String, OAuthSession> sessionsByState = new ConcurrentHashMap<>();
-    private final ConcurrentMap<String, Handoff> handoffsByDigest = new ConcurrentHashMap<>();
-    private final ConcurrentMap<String, TerminalHandoff> terminalHandoffs = new ConcurrentHashMap<>();
+    // All indexes share one short critical section. Provider I/O never holds this lock.
+    private final Object storeLock = new Object();
+    private final Map<String, OAuthSession> sessionsById = new HashMap<>();
+    private final Map<String, OAuthSession> sessionsByState = new HashMap<>();
+    private final Map<String, Handoff> handoffsByDigest = new HashMap<>();
+    private final Map<String, TerminalHandoff> terminalHandoffs = new HashMap<>();
 
+    @Autowired
     public FacebookOAuthSessionService(FacebookOAuthProperties properties, FacebookGraphClient graph) {
-        this.properties = properties; this.graph = graph;
+        this(properties, graph, Clock.systemUTC());
+    }
+
+    FacebookOAuthSessionService(FacebookOAuthProperties properties, FacebookGraphClient graph, Clock clock) {
+        this.properties = properties;
+        this.graph = graph;
+        this.clock = clock;
     }
 
     public OAuthStartResponse start(OAuthStartRequest request) {
@@ -52,14 +64,18 @@ public final class FacebookOAuthSessionService {
         if (!"FACEBOOK".equals(request.provider) || !ANDROID_REDIRECT_ID.equals(request.redirectId)) {
             throw OAuthFlowException.invalidRedirect();
         }
-        cleanupExpired();
-        if (sessionsById.size() >= MAX_ACTIVE_SESSIONS) throw OAuthFlowException.providerError();
         String sessionId = UUID.randomUUID().toString();
         String state = randomUrlToken();
-        Instant expiresAt = Instant.now().plus(SESSION_TTL);
-        OAuthSession session = new OAuthSession(sessionId, state, request.sessionChallenge, expiresAt);
-        sessionsById.put(sessionId, session);
-        sessionsByState.put(state, session);
+        Instant expiresAt;
+        synchronized (storeLock) {
+            Instant now = clock.instant();
+            cleanupExpired(now);
+            if (sessionsById.size() >= MAX_ACTIVE_SESSIONS) throw OAuthFlowException.providerError();
+            expiresAt = now.plus(SESSION_TTL);
+            OAuthSession session = new OAuthSession(sessionId, state, request.sessionChallenge, expiresAt);
+            sessionsById.put(sessionId, session);
+            sessionsByState.put(state, session);
+        }
         String authorizationUrl = com.socialpilot.oauth.facebook.FacebookOAuthUrlBuilder
                 .authorizationUri(properties, state).toASCIIString();
         return new OAuthStartResponse(sessionId, authorizationUrl, UTC_SECONDS.format(expiresAt));
@@ -67,30 +83,40 @@ public final class FacebookOAuthSessionService {
 
     public URI completeCallback(String code, String state, String providerError) {
         if (state == null || !state.matches("[A-Za-z0-9_-]{43}")) throw OAuthFlowException.invalidState();
-        OAuthSession session = sessionsByState.get(state);
-        if (session == null || !session.expiresAt.isAfter(Instant.now())) {
-            if (session != null) removeSession(session);
-            throw OAuthFlowException.invalidState();
+        OAuthSession session;
+        synchronized (storeLock) {
+            session = sessionsByState.get(state);
+            if (session == null || !session.expiresAt.isAfter(clock.instant())) {
+                if (session != null) removeSession(session);
+                throw OAuthFlowException.invalidState();
+            }
+            sessionsByState.remove(state);
         }
-        if (!sessionsByState.remove(state, session)) throw OAuthFlowException.invalidState();
         if (providerError != null && !providerError.isBlank()) {
-            removeSession(session);
+            synchronized (storeLock) { removeSession(session); }
             return androidError(session.id, "ACCESS_DENIED");
         }
         if (code == null || code.isBlank() || code.length() > 4096) {
-            removeSession(session);
+            synchronized (storeLock) { removeSession(session); }
             return androidError(session.id, "PROVIDER_ERROR");
         }
         PageIdentity page;
         try { page = graph.exchangeCodeForTargetPage(code); }
         catch (OAuthFlowException exception) {
-            removeSession(session);
+            synchronized (storeLock) { removeSession(session); }
             return androidError(session.id, exception.getCode());
         }
         String handoffCode = randomUrlToken();
         String digest = digest(handoffCode);
-        Handoff handoff = new Handoff(session.id, page, Instant.now().plus(HANDOFF_TTL));
-        if (handoffsByDigest.putIfAbsent(digest, handoff) != null) throw OAuthFlowException.providerError();
+        synchronized (storeLock) {
+            Instant now = clock.instant();
+            if (sessionsById.get(session.id) != session || !session.expiresAt.isAfter(now)) {
+                removeSession(session);
+                throw OAuthFlowException.invalidSession();
+            }
+            Handoff handoff = new Handoff(session.id, page, now.plus(HANDOFF_TTL));
+            if (handoffsByDigest.putIfAbsent(digest, handoff) != null) throw OAuthFlowException.providerError();
+        }
         return UriComponentsBuilder.fromUriString(ANDROID_REDIRECT_URI)
                 .queryParam("sessionId", session.id).queryParam("handoffCode", handoffCode)
                 .build().encode().toUri();
@@ -100,28 +126,22 @@ public final class FacebookOAuthSessionService {
         request.validate();
         if (!request.handoffCode.matches("[A-Za-z0-9_-]{43}")) throw OAuthFlowException.invalidSession();
         String digest = digest(request.handoffCode);
-        cleanupExpired();
-        Handoff handoff = handoffsByDigest.get(digest);
-        if (handoff == null) {
-            TerminalHandoff terminal = terminalHandoffs.get(digest);
-            if (terminal != null) {
-                if ("HANDOFF_EXPIRED".equals(terminal.code)) throw OAuthFlowException.handoffExpired();
-                throw OAuthFlowException.handoffUsed();
+        synchronized (storeLock) {
+            Instant now = clock.instant();
+            cleanupExpired(now);
+            Handoff handoff = handoffsByDigest.get(digest);
+            if (handoff == null) {
+                TerminalHandoff terminal = terminalHandoffs.get(digest);
+                if (terminal != null) {
+                    if ("HANDOFF_EXPIRED".equals(terminal.code)) throw OAuthFlowException.handoffExpired();
+                    throw OAuthFlowException.handoffUsed();
+                }
+                throw OAuthFlowException.invalidSession();
             }
-            throw OAuthFlowException.invalidSession();
-        }
-        OAuthSession session = sessionsById.get(request.sessionId);
-        if (session == null || !session.expiresAt.isAfter(Instant.now())) {
-            if (session != null) removeSession(session);
-            throw OAuthFlowException.invalidSession();
-        }
-        synchronized (handoff) {
-            if (handoffsByDigest.get(digest) != handoff) throw OAuthFlowException.handoffUsed();
-            if (!handoff.expiresAt.isAfter(Instant.now())) {
-                handoffsByDigest.remove(digest, handoff);
-                terminalHandoffs.put(digest, new TerminalHandoff("HANDOFF_EXPIRED", Instant.now().plus(SESSION_TTL)));
-                removeSession(session);
-                throw OAuthFlowException.handoffExpired();
+            OAuthSession session = sessionsById.get(request.sessionId);
+            if (session == null || !session.expiresAt.isAfter(now)) {
+                if (session != null) removeSession(session);
+                throw OAuthFlowException.invalidSession();
             }
             if (!handoff.sessionId.equals(session.id)) throw OAuthFlowException.invalidSession();
             byte[] supplied = sha256(request.sessionVerifier);
@@ -129,7 +149,7 @@ public final class FacebookOAuthSessionService {
             if (!MessageDigest.isEqual(expected, supplied)) throw OAuthFlowException.invalidSession();
             if (!handoffsByDigest.remove(digest, handoff)) throw OAuthFlowException.handoffUsed();
             sessionsById.remove(session.id, session);
-            terminalHandoffs.put(digest, new TerminalHandoff("HANDOFF_ALREADY_USED", Instant.now().plus(SESSION_TTL)));
+            terminalHandoffs.put(digest, new TerminalHandoff("HANDOFF_ALREADY_USED", now.plus(SESSION_TTL)));
             PageIdentity page = handoff.page;
             return new OAuthExchangeResponse(session.id, "FACEBOOK", page.id, "PAGE", page.name,
                     page.accessToken, null, "bearer", null);
@@ -142,20 +162,26 @@ public final class FacebookOAuthSessionService {
                 .build().encode().toUri();
     }
 
-    private void cleanupExpired() {
-        Instant now = Instant.now();
-        sessionsById.forEach((id, session) -> { if (!session.expiresAt.isAfter(now)) removeSession(session); });
-        handoffsByDigest.forEach((digest, handoff) -> {
-            if (!handoff.expiresAt.isAfter(now) && handoffsByDigest.remove(digest, handoff)) {
+    private void cleanupExpired(Instant now) {
+        // Expired handoffs leave a short-lived error tombstone, never a credential.
+        handoffsByDigest.entrySet().removeIf(entry -> {
+            if (!entry.getValue().expiresAt.isAfter(now)) {
+                String digest = entry.getKey();
                 terminalHandoffs.put(digest, new TerminalHandoff("HANDOFF_EXPIRED", now.plus(SESSION_TTL)));
+                return true;
             }
+            return false;
         });
+        sessionsById.entrySet().removeIf(entry -> !entry.getValue().expiresAt.isAfter(now));
+        sessionsByState.entrySet().removeIf(entry -> !entry.getValue().expiresAt.isAfter(now));
+        handoffsByDigest.entrySet().removeIf(entry -> !sessionsById.containsKey(entry.getValue().sessionId));
         terminalHandoffs.entrySet().removeIf(entry -> !entry.getValue().expiresAt.isAfter(now));
     }
 
     private void removeSession(OAuthSession session) {
         sessionsById.remove(session.id, session);
         sessionsByState.remove(session.state, session);
+        handoffsByDigest.entrySet().removeIf(entry -> entry.getValue().sessionId.equals(session.id));
     }
 
     private static boolean validChallenge(String value) {

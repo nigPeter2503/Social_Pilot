@@ -78,15 +78,15 @@ Khi bàn giao ghi phần đã làm, kiểm thử đã chạy, phần còn thiế
 - **Issue:** [SP-010](https://github.com/nigPeter2503/Social_Pilot/issues/12) — #12.
 - **Issue cha:** [SP-002](https://github.com/nigPeter2503/Social_Pilot/issues/4).
 - **Project:** [Social Pilot - Development Board 2024_31_MD_2](https://github.com/users/nigPeter2503/projects/5).
-- **Trạng thái đã kiểm chứng:** Issue OPEN; Project **Todo (Chưa làm)**; đã assign cho `nigPeter2503`.
+- **Trạng thái đã kiểm chứng trong lượt sửa 11–12/11:** Issue OPEN; Project **In Progress (Đang làm)**; đã assign cho `nigPeter2503`. Chưa Hoàn tất; mốc W1 ban đầu đã trễ.
 - **Yêu cầu:** F1.B1, F1.B3, F5.B1, F5.B5.
 - **Owner:** TV1 — Ngô Gia Minh (`nigPeter2503`).
 - **Hai reviewer khi có PR:** Nguyễn Đức Đạt (`dat532006`); Đỗ Phước Thiện (`PhuocThien06`).
 - **Ưu tiên:** Cao, ghi trong issue; board hiện không có field Priority riêng.
 - **Mốc bàn giao:** Hết ngày làm việc 3, tính từ đầu Tuần 1.
 - **Ước lượng owner:** 8 giờ gồm thiết kế/triển khai, tích hợp, kiểm thử và tài liệu. Review thêm 0,75 giờ/người/PR, tính riêng.
-- **Branch:** feat/sp-010-facebook-oauth-spike, đã push; branch hiện còn SP-009 ancestry nên cần cập nhật/tách trên main sau khi SP-009 merge trước khi mở PR cuối.
-- **PR:** chưa tạo; liên kết issue ở trên và yêu cầu hai reviewer đã ghi.
+- **Branch:** `feat/sp-010-facebook-oauth-spike`; đã tích hợp `origin/main` sau khi SP-009 / PR #66 merge và giải conflict trong checkout sửa.
+- **PR:** [#74](https://github.com/nigPeter2503/Social_Pilot/pull/74). Bản sửa bốn feedback có 39 backend test và 27 Android unit test đạt; build/lint và APK test đạt. Test Keystore trên thiết bị chưa chạy vì chưa có device/AVD. Hai reviewer cần xác nhận lại head mới; xem [hồ sơ kiểm chứng](../../drafts/sp-010-implementation-status.md).
 
 ### Mục tiêu, phạm vi và khu vực
 
@@ -109,7 +109,7 @@ Các đường dẫn package Android rút gọn tính từ `android/app/src/main
 
 ### Kiểm chứng và bằng chứng cần nộp
 
-MockMvc cho state/TTL/replay; các ca âm tính/expiry/race vẫn cần hoàn tất. Callback OAuth đã được xác nhận trên thiết bị thật. Bài Page thật được tạo và đọc lại qua Graph API Explorer; không đồng nhất bằng chứng này với publish qua hàng đợi ứng dụng. Lỗi mô phỏng ghi tách khỏi thành công API thật.
+State/TTL/replay/race đã có test service với provider giả trong bản sửa review; không dùng kết quả này thay bằng chứng callback âm tính/lifecycle trên thiết bị. Callback OAuth cơ bản đã được owner xác nhận trên thiết bị thật trước bản sửa. Bài Page thật được tạo và đọc lại qua Graph API Explorer; không đồng nhất bằng chứng này với publish qua hàng đợi ứng dụng. Lỗi mô phỏng ghi tách khỏi thành công API thật.
 
 Nộp revision/PR khi có, lệnh/ca thử, môi trường, ngày thử, kết quả và phần chưa thử. Log/ảnh không chứa key/token. Prototype, mock và API thật phải có nhãn riêng. Bằng chứng dự kiến đặt trong hồ sơ ticket/PR hoặc tài liệu kiểm chứng được thống nhất; cập nhật bằng chứng thực thi vào issue/PR tương ứng; trạng thái Todo chưa chứng minh tiêu chí đã đạt.
 

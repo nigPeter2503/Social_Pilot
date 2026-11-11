@@ -9,5 +9,10 @@
   <string name="required">Please enter a topic.</string>
   <string name="saved">Draft saved.</string>
   <string name="save_error">Could not save. Please retry.</string>
+  <string name="connect_facebook">Connect Facebook Page</string>
+  <string name="facebook_not_connected">No Facebook Page connected.</string>
+  <string name="facebook_connected">Connected Page: %1$s</string>
+  <string name="facebook_connected_short">Facebook Page connected.</string>
+  <string name="oauth_error">Could not connect to Facebook (%1$s).</string>
   <string name="integration_status">Facebook connection is available for development; LinkedIn and AI integrations are pending.</string>
 </resources>

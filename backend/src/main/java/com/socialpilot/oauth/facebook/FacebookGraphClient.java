@@ -7,7 +7,10 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
+import java.util.HashSet;
 import java.util.Locale;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import java.util.regex.Pattern;
@@ -19,6 +22,8 @@ import org.springframework.web.client.RestClientResponseException;
 
 @Component
 public final class FacebookGraphClient {
+    static final int MAX_PAGE_LIST_REQUESTS = 25;
+    private static final long PAGE_LIST_BUDGET_NANOS = TimeUnit.SECONDS.toNanos(30);
     private static final Logger LOGGER = LoggerFactory.getLogger(FacebookGraphClient.class);
     private static final Pattern SAFE_ERROR_TYPE = Pattern.compile("[A-Za-z0-9_]{1,60}");
     private static final Pattern SAFE_TRACE_ID = Pattern.compile("[A-Za-z0-9_-]{1,120}");
@@ -47,32 +52,21 @@ public final class FacebookGraphClient {
             String userToken = text(tokenJson, "access_token");
 
             stage = "page_list";
-            ResponseEntity<byte[]> pageListResponse = graph.get().uri(uri -> uri
-                    .pathSegment(properties.getGraphApiVersion(), "me", "accounts")
-                    .queryParam("fields", "id,name,tasks,access_token").build())
-                    .headers(headers -> headers.setBearerAuth(userToken))
-                    .retrieve().toEntity(byte[].class);
-            JsonNode pageList = parseGraphJson(pageListResponse, stage);
-            JsonNode data = pageList == null ? null : pageList.get("data");
-            if (data == null || !data.isArray()) throw OAuthFlowException.accessDenied();
-            for (JsonNode page : data) {
-                if (!properties.getTargetPageId().equals(text(page, "id"))) continue;
-                String pageName = text(page, "name");
-                String pageToken = text(page, "access_token");
-                if (!hasContentTask(page.get("tasks"))) throw OAuthFlowException.accessDenied();
+            JsonNode page = findTargetPage(userToken);
+            String pageName = text(page, "name");
+            String pageToken = text(page, "access_token");
+            if (!hasContentTask(page.get("tasks"))) throw OAuthFlowException.accessDenied();
 
-                stage = "page_identity";
-                ResponseEntity<byte[]> identityResponse = graph.get().uri(uri -> uri
-                        .pathSegment(properties.getGraphApiVersion(), properties.getTargetPageId())
-                        .queryParam("fields", "id,name").build())
-                        .headers(headers -> headers.setBearerAuth(pageToken))
-                        .retrieve().toEntity(byte[].class);
-                JsonNode identity = parseGraphJson(identityResponse, stage);
-                if (!properties.getTargetPageId().equals(text(identity, "id"))
-                        || !pageName.equals(text(identity, "name"))) throw OAuthFlowException.providerError();
-                return new PageIdentity(properties.getTargetPageId(), pageName, pageToken);
-            }
-            throw OAuthFlowException.accessDenied();
+            stage = "page_identity";
+            ResponseEntity<byte[]> identityResponse = graph.get().uri(uri -> uri
+                    .pathSegment(properties.getGraphApiVersion(), properties.getTargetPageId())
+                    .queryParam("fields", "id,name").build())
+                    .headers(headers -> headers.setBearerAuth(pageToken))
+                    .retrieve().toEntity(byte[].class);
+            JsonNode identity = parseGraphJson(identityResponse, stage);
+            if (!properties.getTargetPageId().equals(text(identity, "id"))
+                    || !pageName.equals(text(identity, "name"))) throw OAuthFlowException.providerError();
+            return new PageIdentity(properties.getTargetPageId(), pageName, pageToken);
         } catch (OAuthFlowException exception) {
             LOGGER.warn("Facebook OAuth stopped at stage={} code={}", stage, exception.getCode());
             throw exception;
@@ -101,6 +95,39 @@ public final class FacebookGraphClient {
                     exception.getClass().getSimpleName());
             throw OAuthFlowException.providerError();
         }
+    }
+
+    private JsonNode findTargetPage(String userToken) {
+        String after = null;
+        Set<String> seenCursors = new HashSet<>();
+        long startedAt = System.nanoTime();
+        for (int request = 0; request < MAX_PAGE_LIST_REQUESTS; request++) {
+            if (System.nanoTime() - startedAt >= PAGE_LIST_BUDGET_NANOS) throw OAuthFlowException.providerError();
+            String cursor = after;
+            // Never follow paging.next: it is untrusted and may embed a token or another host.
+            ResponseEntity<byte[]> response = graph.get().uri(uri -> {
+                uri.pathSegment(properties.getGraphApiVersion(), "me", "accounts")
+                        .queryParam("fields", "id,name,tasks,access_token");
+                if (cursor != null) uri.queryParam("after", "{cursor}");
+                return cursor == null ? uri.build() : uri.build(cursor);
+            }).headers(headers -> headers.setBearerAuth(userToken)).retrieve().toEntity(byte[].class);
+            JsonNode pageList = parseGraphJson(response, "page_list");
+            JsonNode data = pageList.get("data");
+            if (data == null || !data.isArray()) throw OAuthFlowException.providerError();
+            for (JsonNode page : data) {
+                if (properties.getTargetPageId().equals(text(page, "id"))) return page;
+            }
+            JsonNode paging = pageList.path("paging");
+            JsonNode next = paging.get("next");
+            if (next == null || next.isNull() || (next.isTextual() && next.asText().isBlank())) {
+                throw OAuthFlowException.accessDenied();
+            }
+            after = paging.path("cursors").path("after").asText("");
+            if (!next.isTextual() || after.isBlank() || after.length() > 4096 || !seenCursors.add(after)) {
+                throw OAuthFlowException.providerError();
+            }
+        }
+        throw OAuthFlowException.providerError();
     }
 
     JsonNode parseGraphJson(ResponseEntity<byte[]> response, String stage) {
