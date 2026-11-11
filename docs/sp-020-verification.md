@@ -1,5 +1,16 @@
 # SP-020 — Hồ sơ bản nháp và kiểm tra local
 
+## Phản hồi review của Minh — draft-4
+
+- Tham chiếu SP-009 trong tài liệu và lịch sử kiểm tra đều ghi PR #66 đã merge
+  vào main tại `4f69a39`. Revision `289e4d1` chỉ ghi lại nguồn từng dùng cho draft-2.
+- Bảng ánh xạ ở mục 3 của [hợp đồng analytics](analytics-data-contract.md) phân
+  biệt giá trị thiếu, capability cấp thao tác và lỗi lần gọi. Mẫu kiểm tra bao gồm
+  thao tác không hỗ trợ, metric riêng không hỗ trợ, response bỏ trường và kênh đã ngắt.
+- Validator đạt **75/75 MO_PHONG**, gồm 11 ca ánh xạ và 1 ca lỗi trang mới.
+  Kiểm tra cú pháp CJS và `git diff --check main` đạt. Phiên sửa tài liệu và
+  fixture này chưa chạy Android/backend build hoặc API thật.
+
 ## Cập nhật 11/11/2026 — draft-3
 
 - Đã cập nhật `main` đến `4f69a39` chứa SP-009 và merge vào nhánh SP-020.
@@ -34,10 +45,9 @@ chưa hoàn tất ticket, chưa nghiệm thu F6/F7.
   [#22](https://github.com/nigPeter2503/Social_Pilot/issues/22) đều OPEN, assignee `bob35306`;
   cả ba có updated_at ngày 04/11. Danh sách PR mọi trạng thái không có PR ba task này.
   Không suy trạng thái board hiện tại từ nội dung issue cũ: **Project live chưa xác minh**.
-- [SP-009 PR #66](https://github.com/nigPeter2503/Social_Pilot/pull/66) OPEN, chưa merge,
-  head `289e4d137b5d006c16d257fae413e0d5687fc472`. Đã đọc social-contract,
-  SocialConnector, ChannelInfo/ChannelCapability/SocialOperation ở revision này để so khớp.
-  Đây chưa phải một lượt review đầy đủ hoặc human approval.
+- Draft-2 được đối chiếu với bản SP-009 tại `289e4d1` vào ngày 09/11.
+  [SP-009 PR #66](https://github.com/nigPeter2503/Social_Pilot/pull/66) sau đó
+  đã merge vào main tại `4f69a39`. Draft-3 trở đi tham chiếu hợp đồng đã merge.
 - [SP-012 #14](https://github.com/nigPeter2503/Social_Pilot/issues/14) OPEN, assignee `dat532006`;
   chưa thấy nhánh/PR liên quan trong danh sách remote/PR đã đọc. Chưa có schema chốt để tích hợp.
 - Lần fetch/REST đầu trong sandbox thất bại DNS (`getaddrinfo() thread failed to start`,
@@ -48,7 +58,7 @@ chưa hoàn tất ticket, chưa nghiệm thu F6/F7.
 
 | Đầu vào | Kết quả kiểm kê | Người / bước mở chặn |
 |---|---|---|
-| Capability/error SP-009 | Có draft ở PR #66; chưa merge/xác nhận tích hợp | Minh chốt revision với Nghị |
+| Capability/error SP-009 | Draft-2 dùng revision `289e4d1` tại thời điểm lập hồ sơ. Bản đã merge là `4f69a39` | Xem phần cập nhật ở đầu hồ sơ |
 | Schema SP-012 | Main vẫn AppDatabase v1 chỉ DraftEntity; chưa thấy contract schema chốt | Đạt review mục 8 contract |
 | Token/đối tượng Facebook | Không phát hiện cấu hình trong file cấu hình local dự kiến và tên biến môi trường đã kiểm tra; chưa được cung cấp vị trí hoặc xác nhận đối tượng thử | Minh, SP-010/#12; không kết luận token không tồn tại ở nơi khác |
 | LinkedIn account/product/scope/token/IDs | Chưa có thông tin đã xác nhận trong nguồn kiểm tra | Minh, SP-011/#13 |

@@ -15,7 +15,7 @@ const result = (value, reason = null) => ({ value, reason });
 const time = value => Date.parse(value);
 check('provenance-and-dto-examples', () => {
     assert.equal(fixture.source, 'MO_PHONG');
-    assert.equal(fixture.contractRevision, 'draft-3');
+    assert.equal(fixture.contractRevision, 'draft-4');
     const { comment, snapshot, metricDefinition, goal } = fixture.dtoExamples;
     assert.equal(comment.source, 'MO_PHONG');
     assert.equal(comment.parentState, 'ROOT');
@@ -54,6 +54,29 @@ for (const sample of fixture.metricValues) check(`metric/${sample.id}`, () => {
         assert.equal(sample.collectedAt, null);
         assert.equal(sample.isStale, null);
     }
+});
+const missingReasonByError = new Map([
+    ['PERMISSION_REQUIRED', 'PERMISSION_REQUIRED'],
+    ['UNSUPPORTED_OPERATION', 'UNSUPPORTED'],
+    ['AUTH_REQUIRED', 'AUTH_REQUIRED'],
+    ['NETWORK_ERROR', 'NETWORK_ERROR'],
+    ['RATE_LIMITED', 'RATE_LIMITED'],
+    ['CHANNEL_DISCONNECTED', null],
+]);
+for (const c of fixture.missingReasonCases) check(`missing-reason/${c.id}`, () => {
+    // These inputs describe normalized evidence for a missing metric, with no cached value.
+    let reason;
+    if (c.socialErrorCode !== null) {
+        assert.ok(missingReasonByError.has(c.socialErrorCode));
+        reason = missingReasonByError.get(c.socialErrorCode);
+    } else if (c.metricOutcome !== null) {
+        assert.equal(c.availability, 'AVAILABLE');
+        assert.ok(['UNSUPPORTED', 'PROVIDER_OMITTED'].includes(c.metricOutcome));
+        reason = c.metricOutcome;
+    } else {
+        reason = c.availability === 'AVAILABLE' ? 'NOT_SYNCED' : c.availability;
+    }
+    assert.equal(reason, c.expected);
 });
 for (const c of fixture.engagementCases) check(`engagement/${c.id}`, () => {
     // Metadata here is a projection of adapter-normalized identities/windows, not raw HTTP.

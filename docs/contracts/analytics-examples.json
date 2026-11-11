@@ -1,5 +1,5 @@
 {
-    "contractRevision": "draft-3",
+    "contractRevision": "draft-4",
     "source": "MO_PHONG",
     "notice": "Synthetic IDs and values. No API permission or integration evidence.",
     "dtoExamples": {
@@ -21,7 +21,7 @@
             "timeMissingReason": null,
             "syncedAt": "2026-11-08T10:00:00Z",
             "source": "MO_PHONG",
-            "sourceRef": "analytics-draft-3-comment",
+            "sourceRef": "analytics-draft-4-comment",
             "replyCapability": {
                 "operation": "REPLY_COMMENT",
                 "availability": "UNVERIFIED",
@@ -60,7 +60,7 @@
                     "providerPeriodEnd": null,
                     "providerApiVersion": null,
                     "source": "MO_PHONG",
-                    "sourceRef": "analytics-draft-3-snapshot",
+                    "sourceRef": "analytics-draft-4-snapshot",
                     "collectionId": "mock-collection-1"
                 }
             ],
@@ -136,6 +136,85 @@
             "now": "2026-11-08T17:00:00Z",
             "thresholdHours": 48,
             "isStale": true
+        }
+    ],
+    "missingReasonCases": [
+        {
+            "id": "operation-unsupported",
+            "availability": "UNSUPPORTED",
+            "socialErrorCode": "UNSUPPORTED_OPERATION",
+            "metricOutcome": null,
+            "expected": "UNSUPPORTED"
+        },
+        {
+            "id": "operation-unsupported-before-request",
+            "availability": "UNSUPPORTED",
+            "socialErrorCode": null,
+            "metricOutcome": null,
+            "expected": "UNSUPPORTED"
+        },
+        {
+            "id": "single-metric-unsupported",
+            "availability": "AVAILABLE",
+            "socialErrorCode": null,
+            "metricOutcome": "UNSUPPORTED",
+            "expected": "UNSUPPORTED"
+        },
+        {
+            "id": "provider-omits-metric",
+            "availability": "AVAILABLE",
+            "socialErrorCode": null,
+            "metricOutcome": "PROVIDER_OMITTED",
+            "expected": "PROVIDER_OMITTED"
+        },
+        {
+            "id": "operation-unverified",
+            "availability": "UNVERIFIED",
+            "socialErrorCode": null,
+            "metricOutcome": null,
+            "expected": "UNVERIFIED"
+        },
+        {
+            "id": "not-synced",
+            "availability": "AVAILABLE",
+            "socialErrorCode": null,
+            "metricOutcome": null,
+            "expected": "NOT_SYNCED"
+        },
+        {
+            "id": "permission-revoked-after-verification",
+            "availability": "AVAILABLE",
+            "socialErrorCode": "PERMISSION_REQUIRED",
+            "metricOutcome": null,
+            "expected": "PERMISSION_REQUIRED"
+        },
+        {
+            "id": "reauth-required",
+            "availability": "AVAILABLE",
+            "socialErrorCode": "AUTH_REQUIRED",
+            "metricOutcome": null,
+            "expected": "AUTH_REQUIRED"
+        },
+        {
+            "id": "network-error",
+            "availability": "AVAILABLE",
+            "socialErrorCode": "NETWORK_ERROR",
+            "metricOutcome": null,
+            "expected": "NETWORK_ERROR"
+        },
+        {
+            "id": "rate-limited",
+            "availability": "AVAILABLE",
+            "socialErrorCode": "RATE_LIMITED",
+            "metricOutcome": null,
+            "expected": "RATE_LIMITED"
+        },
+        {
+            "id": "channel-disconnected",
+            "availability": null,
+            "socialErrorCode": "CHANNEL_DISCONNECTED",
+            "metricOutcome": null,
+            "expected": null
         }
     ],
     "engagementCases": [
@@ -580,6 +659,15 @@
             "error": {
                 "code": "CHANNEL_DISCONNECTED",
                 "nextAction": "RECONNECT"
+            }
+        },
+        {
+            "id": "unsupported-operation",
+            "outcome": "FAILURE",
+            "page": null,
+            "error": {
+                "code": "UNSUPPORTED_OPERATION",
+                "nextAction": "NONE"
             }
         },
         {

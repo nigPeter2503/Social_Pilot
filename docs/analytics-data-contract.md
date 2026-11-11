@@ -1,6 +1,6 @@
 # Hợp đồng dữ liệu comment và analytics — SP-020
 
-Revision: **draft-3**, 11/11/2026, Asia/Saigon. Owner: Tô Lãng Nghị (`bob35306`).
+Revision: **draft-4**, 11/11/2026, Asia/Saigon. Owner: Tô Lãng Nghị (`bob35306`).
 Trạng thái: **bản đề xuất để review**, chưa phải hợp đồng đã được nhóm phê duyệt.
 Ticket: [SP-020 / #22](https://github.com/nigPeter2503/Social_Pilot/issues/22).
 Reviewer: Minh và Thiện; Đạt xác nhận thiết kế lưu trữ trước khi sửa schema.
@@ -60,15 +60,40 @@ tra cứu capability. Adapter và repository phụ trách thao tác comment/metr
 Chỉ `API_THAT` được dùng làm lịch sử production. Fixture đã che chỉ phục vụ test,
 không nhập ngược vào kho lịch sử. Provenance theo từng sample, không chỉ nhãn toàn màn hình.
 
-`MissingReason = PERMISSION_REQUIRED | UNSUPPORTED | NOT_SYNCED | UNVERIFIED |
-PROVIDER_OMITTED | AUTH_REQUIRED | NETWORK_ERROR | RATE_LIMITED`.
-Không suy UNSUPPORTED từ trường JSON vắng mặt hoặc HTTP 403.
-
 `MetricValue = {value: number|null, missingReason: MissingReason|null}`:
 value hữu hạn, 0 là số đo hợp lệ; value có mặt thì missingReason null;
 value null thì missingReason bắt buộc. Số đếm không âm; delta được phép âm.
 Stale là thuộc tính freshness riêng, không ghi đè số đo đã có bằng null.
 Mỗi response lỗi phải được adapter chuẩn hóa, không trả body thô hoặc URL có token.
+
+### Ánh xạ dữ liệu thiếu và lỗi Social v1
+
+`MissingReason` giải thích vì sao một giá trị analytics là null.
+`ChannelCapability.availability` mô tả khả năng của từng thao tác trên kênh và
+revision hiện hành. `SocialError` mô tả lỗi của lần gọi hoặc yêu cầu bị chặn.
+
+| `MissingReason` | Nguồn và quy tắc ánh xạ |
+|---|---|
+| `PERMISSION_REQUIRED` | Capability `PERMISSION_REQUIRED`, hoặc lỗi `PERMISSION_REQUIRED / RESOLVE_PERMISSION` khi adapter xác định thiếu quyền đọc giá trị đó. |
+| `UNSUPPORTED` | Capability `UNSUPPORTED` hoặc lỗi `UNSUPPORTED_OPERATION / NONE` cho thao tác đọc tương ứng. Nếu chỉ một metric đã được xác nhận không hỗ trợ, đặt `UNSUPPORTED` cho metric đó và giữ capability cấp thao tác, ví dụ `READ_POST_METRICS = AVAILABLE` khi thao tác vẫn đọc được metric khác. |
+| `UNVERIFIED` | Capability hoặc metric cụ thể chưa được kiểm chứng. Trạng thái này tự nó không sinh `SocialError`. |
+| `NOT_SYNCED` | Giá trị chưa được thu và chưa có kết quả cụ thể hơn. Đây là trạng thái cục bộ, không có mã SocialError tương ứng. |
+| `PROVIDER_OMITTED` | Response thành công nhưng thiếu trường metric được yêu cầu. Giữ capability hiện có. Trường vắng mặt hoặc HTTP 403 chưa phân loại không đủ căn cứ để gán `UNSUPPORTED`. |
+| `AUTH_REQUIRED` | Lỗi `AUTH_REQUIRED / RECONNECT` trên kết nối cần xác thực lại. |
+| `NETWORK_ERROR` | Lỗi `NETWORK_ERROR` của lần đọc. Chỉ dùng `RETRY_WHEN_SAFE` cho lần đọc có thể thử lại an toàn. |
+| `RATE_LIMITED` | Lỗi `RATE_LIMITED / WAIT`. Lưu `retryAfterAt` cạnh lỗi khi provider có thông tin. |
+
+Khi thao tác đọc bị từ chối vì đã xác định không hỗ trợ, dùng
+`SocialError.Code.UNSUPPORTED_OPERATION` với `NextAction.NONE` cho lần gọi.
+Dùng `MissingReason.UNSUPPORTED` cho giá trị null và
+`CapabilityAvailability.UNSUPPORTED` khi bằng chứng áp dụng cho cả thao tác.
+Chỉ cập nhật capability khi có bằng chứng cho đúng thao tác, kênh và revision.
+
+Khi lần đọc thất bại và còn mẫu hợp lệ đã lưu, giữ số đo và timestamp của mẫu.
+Tính freshness từ timestamp đó và ghi lỗi ở trạng thái lần thử gần nhất. Nếu chưa có giá trị dùng được,
+áp dụng bảng trên cho các metric bị ảnh hưởng. Với
+`CHANNEL_DISCONNECTED / RECONNECT`, dùng trạng thái ngắt kênh và quy tắc dọn dữ liệu
+ở mục 4. Trường hợp này không có `MissingReason` tương ứng.
 
 ## 4. Comment, phân trang và trạng thái đồng bộ
 
@@ -338,11 +363,11 @@ ngắt kênh dừng job. Hai snapshot thật khác thời điểm mới mở so 
 
 | Người | Cần xác nhận / cung cấp | Ảnh hưởng nếu chưa có |
 |---|---|---|
-| Minh (`nigPeter2503`) — Social | Review mapping capability/error theo SP-009 và điều kiện tương thích giữa số đo | Còn chờ review SP-020 |
+| Minh (`nigPeter2503`) — Social | Đã góp ý cập nhật trạng thái SP-009 và làm rõ mapping MissingReason với Social v1 | Draft-4 đã bổ sung mục 3. Cần Minh xác nhận bản sửa trên PR |
 | Đạt (`dat532006`) — SP-012/#14 | Xác nhận khóa/ID, UTC/null, cascade, collection/index và thứ tự schema | Còn chờ xác nhận thiết kế Room |
 | Thiện (`PhuocThien06`) — UI F7 | Ngày 10/11 xác nhận draft-2 đủ trường UI và chấp nhận tài liệu + fixture cho W1 | Xác nhận áp dụng cho draft-2 tại [PR #67](https://github.com/nigPeter2503/Social_Pilot/pull/67) |
 
-Draft-3 cần review phần đồng bộ SP-009/SP-012. Các điểm còn mở gồm ngưỡng stale
+Draft-4 cần review phần ánh xạ Social v1 và đề xuất lưu trữ SP-012. Các điểm còn mở gồm ngưỡng stale
 theo lịch thu thực, chọn cặp mốc chung và coverage, alignment measurement windows,
 query/grouping/tie-break và lịch thu W2–3. Chữ ký Java cụ thể chốt khi tích hợp.
 
