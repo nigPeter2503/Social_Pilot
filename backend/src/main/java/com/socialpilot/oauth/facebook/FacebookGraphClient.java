@@ -2,12 +2,15 @@ package com.socialpilot.oauth.facebook;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.socialpilot.oauth.flow.OAuthFlowException;
-import org.springframework.http.HttpHeaders;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 @Component
 public final class FacebookGraphClient {
+    private static final Logger LOGGER = LoggerFactory.getLogger(FacebookGraphClient.class);
     private final FacebookOAuthProperties properties;
     private final RestClient graph;
 
@@ -18,6 +21,7 @@ public final class FacebookGraphClient {
 
     public PageIdentity exchangeCodeForTargetPage(String code) {
         properties.requireConfigured();
+        String stage = "code_exchange";
         try {
             JsonNode tokenResponse = graph.get().uri(uri -> uri
                     .pathSegment(properties.getGraphApiVersion(), "oauth", "access_token")
@@ -27,6 +31,8 @@ public final class FacebookGraphClient {
                     .queryParam("code", code).build())
                     .retrieve().body(JsonNode.class);
             String userToken = text(tokenResponse, "access_token");
+
+            stage = "page_list";
             JsonNode pageList = graph.get().uri(uri -> uri
                     .pathSegment(properties.getGraphApiVersion(), "me", "accounts")
                     .queryParam("fields", "id,name,tasks,access_token").build())
@@ -39,6 +45,8 @@ public final class FacebookGraphClient {
                 String pageName = text(page, "name");
                 String pageToken = text(page, "access_token");
                 if (!hasContentTask(page.get("tasks"))) throw OAuthFlowException.accessDenied();
+
+                stage = "page_identity";
                 JsonNode identity = graph.get().uri(uri -> uri
                         .pathSegment(properties.getGraphApiVersion(), properties.getTargetPageId())
                         .queryParam("fields", "id,name").build())
@@ -50,9 +58,15 @@ public final class FacebookGraphClient {
             }
             throw OAuthFlowException.accessDenied();
         } catch (OAuthFlowException exception) {
+            LOGGER.warn("Facebook OAuth stopped at stage={} code={}", stage, exception.getCode());
             throw exception;
+        } catch (RestClientResponseException exception) {
+            LOGGER.warn("Facebook Graph API failed at stage={} httpStatus={}", stage, exception.getStatusCode().value());
+            throw OAuthFlowException.providerError();
         } catch (RuntimeException exception) {
-            // Provider messages and request URLs can contain credentials; never forward or log them.
+            // Do not log exception messages, request URLs, bodies, tokens, authorization codes, or secrets.
+            LOGGER.warn("Facebook Graph API failed at stage={} exceptionType={}", stage,
+                    exception.getClass().getSimpleName());
             throw OAuthFlowException.providerError();
         }
     }
