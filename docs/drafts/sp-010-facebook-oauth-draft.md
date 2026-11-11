@@ -123,4 +123,5 @@ The owner confirmed that Facebook OAuth completed successfully on a real Android
 - The user reported a successful device connection after the backend change to parse Graph responses independently of the response Content-Type. No credential, authorization code or token is recorded here.
 - The latest supplied Cloudflare tunnel hostname was `planning-theoretical-into-tmp.trycloudflare.com`; confirm the active run matches the configured callback before any further test.
 - SP-010 is stacked on SP-009. Keep the SP-009 commits out of the final SP-010 PR by waiting for SP-009 to merge or rebuilding the SP-010 branch on the updated `main` before opening its PR.
-- No real post has been published. Page publish permissions, one approved post, ID/permalink, token refresh/expiry, restart behavior, and cold-start callback remain unverified.
+- Real Page-post API test: Graph API Explorer `POST /v27.0/1427548503779474/feed` returned object ID `1427548503779474_122109132231532657` on 11/11/2026. This confirms the provider accepted the post request; the `permalink_url` and visible Page content still need read-back verification. No token or authorization code is recorded.
+- Token refresh/expiry, restart behavior, and cold-start callback remain unverified.
