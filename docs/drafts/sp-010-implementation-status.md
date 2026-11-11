@@ -26,14 +26,15 @@ Local verification: Windows, Oracle JDK 21.0.7, Gradle Wrapper 8.13, Android com
 | Backend `.\gradlew.bat test bootJar` | PASS: 39 tests, 0 failures/errors |
 | Android `.\gradlew.bat :app:assembleDebug :app:testDebugUnitTest :app:lintDebug :app:assembleDebugAndroidTest` | PASS: 27 JVM unit tests, app/test APKs built, lint 0 errors (14 warnings) |
 | `git diff --check` | PASS |
-| `:app:connectedDebugAndroidTest` | NOT RUN: `adb devices -l` found no device; `emulator -list-avds` found no AVD; this SDK has no system images |
+| Device instrumentation via ADB AndroidJUnitRunner, 12/11 | PASS: 2 tests on physical Samsung SM-G990E, Android 16 / API 36, source `a6c8a9d` |
+| `:app:connectedDebugAndroidTest` Gradle task | NOT RUN: built APKs installed with `adb install -r` and runner invoked directly, then the original installed APK restored to preserve its configuration; see device evidence |
 
 Regression evidence:
 
 - [Session tests](../../backend/src/test/java/com/socialpilot/oauth/flow/FacebookOAuthSessionServiceTest.java): wrong state/session/verifier, replay, expiry at the exact handoff/session boundary, expiry/cleanup while waiting for the store lock, two concurrent exchanges, callback expiry during suspended provider I/O. These assert rejection of the reviewed bugs, rather than assertions that accept the old broken behavior.
 - [Pagination tests](../../backend/src/test/java/com/socialpilot/oauth/facebook/FacebookPagePaginationTest.java): target on page 2, hostile next URL, cursor encoding/repetition, missing cursor, last page without target, later-page HTTP failure and request limit.
 - [OAuth storage unit tests](../../android/app/src/test/java/com/socialpilot/app/data/security/EncryptedOAuthStoreTest.java): encryption failure before writes, memory-first failed commits with failed cleanup/restart, pending-pair consistency, corruption, unknown version, incomplete credentials, legacy reconnect and record-swap authentication. Cipher and preferences are injected; these tests do not claim Android Keystore execution.
-- [Device tests](../../android/app/src/androidTest/java/com/socialpilot/app/data/security/EncryptedOAuthStoreDeviceTest.java): real Keystore reconnect/pending round trips and corruption handling, using an isolated preferences file with the `sp010_test_` prefix, never the app's normal OAuth file. Compiled, not executed in this remediation; run on supported API 23 and current demo API before accepting device behavior.
+- [Device tests](../../android/app/src/androidTest/java/com/socialpilot/app/data/security/EncryptedOAuthStoreDeviceTest.java): real Keystore reconnect/pending round trips and corruption handling, using an isolated preferences file with the `sp010_test_` prefix, never the app's normal OAuth file. Executed on physical Samsung SM-G990E / API 36 on 12/11: 2 PASS. [Device evidence](../evidence/sp-010-keystore-device-check-2026-11-12.txt) records tested revision/APK hashes, runner command, results and original-APK restoration. API 23, process death and cold-start callback remain untested.
 
 ## Still open
 

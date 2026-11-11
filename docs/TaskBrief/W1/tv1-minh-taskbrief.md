@@ -86,7 +86,7 @@ Khi bàn giao ghi phần đã làm, kiểm thử đã chạy, phần còn thiế
 - **Mốc bàn giao:** Hết ngày làm việc 3, tính từ đầu Tuần 1.
 - **Ước lượng owner:** 8 giờ gồm thiết kế/triển khai, tích hợp, kiểm thử và tài liệu. Review thêm 0,75 giờ/người/PR, tính riêng.
 - **Branch:** `feat/sp-010-facebook-oauth-spike`; đã tích hợp `origin/main` sau khi SP-009 / PR #66 merge và giải conflict trong checkout sửa.
-- **PR:** [#74](https://github.com/nigPeter2503/Social_Pilot/pull/74). Bản sửa bốn feedback có 39 backend test và 27 Android unit test đạt; build/lint và APK test đạt. Test Keystore trên thiết bị chưa chạy vì chưa có device/AVD. Hai reviewer cần xác nhận lại head mới; xem [hồ sơ kiểm chứng](../../drafts/sp-010-implementation-status.md).
+- **PR:** [#74](https://github.com/nigPeter2503/Social_Pilot/pull/74). Bản sửa bốn feedback có 39 backend test và 27 Android unit test đạt; build/lint và APK test đạt. Ngày 12/11, 2 test Keystore đạt trên Samsung SM-G990E / Android 16 / API 36 tại source `a6c8a9d`; đã khôi phục APK ban đầu bằng install -r. API 23 và callback cold-start chưa thử. Hai reviewer cần xác nhận lại head mới; xem [hồ sơ kiểm chứng](../../drafts/sp-010-implementation-status.md).
 
 ### Mục tiêu, phạm vi và khu vực
 
