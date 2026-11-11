@@ -65,10 +65,10 @@ Project đang ở giai đoạn khởi tạo nền tảng:
 - Đã có cấu trúc Android/backend, cấu hình build và Gradle Wrapper riêng.
 - Đã có màn hình nhập topic, kiểm tra đầu vào, lưu bản nháp bằng Room và danh sách gần đây.
 - Đã có tài nguyên giao diện VI/EN theo ngôn ngữ thiết bị và các interface nghiệp vụ để mở rộng.
-- Backend có health check. Nhánh SP-010 đang triển khai Facebook OAuth theo contract SP-009; callback/handoff đã có trong source nhưng chưa qua kiểm thử đầu-cuối. Xem [trạng thái SP-010](docs/drafts/sp-010-implementation-status.md).
+- Backend có health check. SP-010 đã kiểm chứng kết nối Facebook OAuth trên điện thoại thật và một bài Page thật qua Graph API Explorer; xem [trạng thái và bằng chứng SP-010](docs/drafts/sp-010-implementation-status.md). Các ca state/replay, vòng đời token và publish từ hàng đợi ứng dụng còn chưa nghiệm thu.
 - Đã có bộ kiểm thử nền tảng và cấu hình CI; xem [kết quả kiểm tra](docs/build-verification.md).
 
-OAuth thật, AI/BYOK/Keystore, sinh ảnh, duyệt phiên bản, hàng đợi đăng, inbox, analytics và lựa chọn ngôn ngữ trong app còn cần triển khai. Các nhóm chức năng F1–F9 chưa được nghiệm thu đầy đủ.
+OAuth Facebook cơ bản đã được kiểm chứng trong spike SP-010; luồng publish production trong app, AI/BYOK, sinh ảnh, duyệt phiên bản, hàng đợi đăng, inbox, analytics và lựa chọn ngôn ngữ còn cần triển khai. Các nhóm chức năng F1–F9 chưa được nghiệm thu đầy đủ.
 
 ## Cấu trúc thư mục
 

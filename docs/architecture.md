@@ -7,10 +7,7 @@ AI gọi trực tiếp từ thiết bị đến provider. Backend Spring Boot ch
 Hiện đã nối luồng topic → kiểm tra → lưu Room → quan sát danh sách. Room chưa chứa key/token.
 Các interface trong domain/contract là điểm mở rộng, chưa có thực thi AI, đăng bài, ngân sách hoặc đồng bộ.
 
-Hợp đồng social v1 (SP-009) có DTO kênh/capability, request/result đăng,
-lỗi chuẩn hóa và DTO OAuth đồng bộ Android/backend. Xem [hợp đồng social](social-contract.md)
-cho ví dụ, ràng buộc phiên, ownership và ca kiểm chứng. DTO/interface không thay
-adapter OAuth, queue hoặc kiểm chứng API thật; backend SP-010 có flow Facebook OAuth với callback và handoff một lần; chưa có bằng chứng kiểm thử đầu-cuối.
+Hợp đồng social v1 (SP-009) có DTO kênh/capability, request/result đăng, lỗi chuẩn hóa và DTO OAuth đồng bộ Android/backend. Xem [hợp đồng social](social-contract.md) cho ví dụ, ràng buộc phiên, ownership và ca kiểm chứng. Các interface chưa thay thế adapter đăng bài production hoặc queue. SP-010 đã kiểm chứng callback/handoff Facebook trên điện thoại thật và một bài Page qua Graph API Explorer; state/replay, vòng đời token và publish từ app vẫn cần kiểm thử.
 
 ## Quy tắc cần giữ khi triển khai tiếp
 

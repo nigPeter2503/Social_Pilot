@@ -85,7 +85,7 @@ Khi bàn giao ghi phần đã làm, kiểm thử đã chạy, phần còn thiế
 - **Ưu tiên:** Cao, ghi trong issue; board hiện không có field Priority riêng.
 - **Mốc bàn giao:** Hết ngày làm việc 3, tính từ đầu Tuần 1.
 - **Ước lượng owner:** 8 giờ gồm thiết kế/triển khai, tích hợp, kiểm thử và tài liệu. Review thêm 0,75 giờ/người/PR, tính riêng.
-- **Branch dự kiến:** `feat/sp-010-facebook-oauth-spike` (chưa tạo), base `main`.
+- **Branch:** feat/sp-010-facebook-oauth-spike, đã push; branch hiện còn SP-009 ancestry nên cần cập nhật/tách trên main sau khi SP-009 merge trước khi mở PR cuối.
 - **PR:** chưa tạo; liên kết issue ở trên và yêu cầu hai reviewer đã ghi.
 
 ### Mục tiêu, phạm vi và khu vực
@@ -102,14 +102,14 @@ Các đường dẫn package Android rút gọn tính từ `android/app/src/main
 
 ### Đầu ra và tiêu chí đạt
 
-- [ ] Trình duyệt hệ thống → backend → app trả đúng định danh Page qua mã bàn giao; có bằng chứng đường callback thực tế.
+- [x] Trình duyệt hệ thống → backend → app trả đúng định danh Page qua mã bàn giao; owner xác nhận kết nối trên điện thoại thật ngày 11/11/2026.
 - [ ] Sai state, sai phiên, mã hết hạn và đổi mã lần hai bị từ chối; bí mật không có trong URL/log hoặc repo.
-- [ ] Bài thử thật có ID/URL mở đúng bài; bảng quyền phân biệt đã thử, lỗi và chưa được cấp. Refresh chưa thử/không được cấp ghi riêng.
+- [x] Bài Page thật có ID/URL đã được đọc lại qua Graph API Explorer và owner xác nhận permalink mở đúng bài; token refresh/expiry chưa thử và được ghi riêng.
 - [ ] Có ghi nhận HTTPS, restart/cold start của môi trường thử và khả năng ảnh/alt text; không tuyên bố production-ready.
 
 ### Kiểm chứng và bằng chứng cần nộp
 
-MockMvc cho state/TTL/replay, thiết bị/emulator cho browser callback, kiểm tra bài trên Page thật. Lỗi mô phỏng ghi tách khỏi thành công API thật.
+MockMvc cho state/TTL/replay; các ca âm tính/expiry/race vẫn cần hoàn tất. Callback OAuth đã được xác nhận trên thiết bị thật. Bài Page thật được tạo và đọc lại qua Graph API Explorer; không đồng nhất bằng chứng này với publish qua hàng đợi ứng dụng. Lỗi mô phỏng ghi tách khỏi thành công API thật.
 
 Nộp revision/PR khi có, lệnh/ca thử, môi trường, ngày thử, kết quả và phần chưa thử. Log/ảnh không chứa key/token. Prototype, mock và API thật phải có nhãn riêng. Bằng chứng dự kiến đặt trong hồ sơ ticket/PR hoặc tài liệu kiểm chứng được thống nhất; cập nhật bằng chứng thực thi vào issue/PR tương ứng; trạng thái Todo chưa chứng minh tiêu chí đã đạt.
 
@@ -117,7 +117,7 @@ Nộp revision/PR khi có, lệnh/ca thử, môi trường, ngày thử, kết q
 
 Chậm nhất ngày làm việc 3: Nghị nhận Page ID, post ID và cơ chế lấy token qua kênh riêng; Thiện nhận callback mẫu. Chỉ bàn giao log đã che bí mật trong repo.
 
-Không có app/quyền sau bước kiểm kê: ghi blocker ngay, tiếp tục test callback bằng provider giả; yêu cầu đăng thật vẫn chưa đạt. Nếu có nguy cơ trễ mốc, cập nhật phần còn lại và ảnh hưởng lịch trên issue, không coi spike thất bại là W1 đạt.
+Không có app/quyền sau bước kiểm kê: ghi blocker ngay, tiếp tục test callback bằng provider giả; yêu cầu đăng thật vẫn chưa đạt. Cập nhật 11/11/2026: callback trên điện thoại và một bài Page thật đã có bằng chứng; token lifecycle, restart/cold-start và ảnh/alt text còn mở.
 
 Khi bàn giao ghi phần đã làm, kiểm thử đã chạy, phần còn thiếu, contract revision, người nhận và giờ còn lại. Nếu có nguy cơ trễ mốc, cập nhật việc còn lại và phụ thuộc trên issue; chỉ tạo task mới khi đầu ra độc lập, không đánh dấu tiêu chí chưa đạt thành đạt.
 

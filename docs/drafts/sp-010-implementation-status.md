@@ -1,23 +1,24 @@
-# SP-010 implementation status — 11/11/2026
+# SP-010 implementation and verification status — 11/11/2026
 
-This draft records source work on `feat/sp-010-facebook-oauth-spike`, stacked on the current SP-009 contract branch. It does not change the tracker or create a PR.
+## Delivered
 
-## Implemented in source
+- Facebook OAuth backend start/callback, state/session binding and one-time Android handoff on the SP-009 contract.
+- Android browser callback and secure token persistence using Android Keystore.
+- Safe Facebook Graph diagnostics and URI/configuration validation.
+- A real Facebook login completed on a physical Android device; the app returned with the intended Page connected.
+- A real text post was created through Meta Graph API Explorer and read back successfully. Page ID: 1427548503779474; post ID: 1427548503779474_122109132231532657; permalink: https://www.facebook.com/122109132717532657/posts/122109132231532657; created 2026-11-11T06:58:10+0000. The owner confirmed the permalink opens the expected Page and post. No credential or token is recorded.
+- Backend verification: .\gradlew.bat test bootJar passed with 23 tests, 0 failures; git diff --check passed.
 
-- Backend `POST /api/oauth/facebook/start`, Facebook HTTPS authorization URL, ten-minute in-memory state/session, fixed `android-dev` redirect mapping, and server-side callback.
-- Facebook code exchange and target Page lookup using the configured Page ID; checks returned Page identity and `CREATE_CONTENT` or `MANAGE` task before creating a handoff.
-- One-time, 60-second handoff keyed by a digest; exchange requires the matching session and SHA-256 verifier challenge. Handoff removal is synchronized to reject concurrent replay.
-- Android browser launch, `socialpilot://oauth/callback` handling for warm/cold launch, contract exchange, and AES-GCM local storage backed by Android Keystore. The app displays the verified Page name and ID.
-- No App Secret, access token, verifier, authorization code, or handoff code is hardcoded in the source. Backend configuration is supplied from environment variables; Android API base URL comes from an environment variable or Gradle property.
+## Still open
 
-## Still unverified / blocked on owner setup
+- Negative callback/state tests, replay/race and expiry-boundary cases are not fully covered.
+- Token type/expiry/refresh behavior has not been characterized.
+- Restart and Android cold-start callback behavior have not been separately exercised.
+- The real post was made through Graph API Explorer; SocialPilot's app-side publish queue/production publishing flow is not implemented or verified by this spike.
+- Image/alt-text publishing was not tested.
+- The branch contains SP-009 ancestry. Keep SP-009 out of the final SP-010 PR by integrating after SP-009 merges to main, then rechecking the PR diff.
+- GitHub issue/project state was not updated by this work.
 
-- `backend:compileJava` passed. `android :app:compileDebugJavaWithJavac` passed with Android SDK 36. Gradle test suites and lint have not been run. The stale status-controller assertion was updated for the new POST start endpoint; OAuth session, TTL, replay, and race tests are still missing.
-- No live OAuth start/callback, state/session-negative case, TTL boundary, replay/race case, process restart or device cold-start has been exercised.
-- The actual Cloudflare hostname is not set in Meta's Valid OAuth Redirect URI or local environment. The exact callback URL and Android build base URL must use the same current Quick Tunnel host.
-- No live Page token lifecycle/refresh observation and no test post ID/permalink have been recorded. Do not treat source implementation as acceptance evidence.
-- SP-009 PR #66 remains pending human approval per owner update. Keep this branch separate; prepare the SP-010 PR after the dependency is merged and rebase onto `main`.
+## Configuration
 
-## Local configuration names
-
-`FACEBOOK_APP_ID`, `FACEBOOK_APP_SECRET`, `FACEBOOK_REDIRECT_URI`, `FACEBOOK_TARGET_PAGE_ID`, `FACEBOOK_GRAPH_API_VERSION`, and Android `SOCIALPILOT_OAUTH_API_BASE_URL`. Keep secret values in an approved local/managed secret store. The App Secret must not be sent in chat or committed.
+The backend reads FACEBOOK_APP_ID, FACEBOOK_APP_SECRET, FACEBOOK_REDIRECT_URI, FACEBOOK_TARGET_PAGE_ID, and FACEBOOK_GRAPH_API_VERSION. The Android API base URL is supplied through SOCIALPILOT_OAUTH_API_BASE_URL or the documented Gradle property. Keep secrets and tokens in an approved local/managed secret store; never put them in source, logs, screenshots, chat, or Git.

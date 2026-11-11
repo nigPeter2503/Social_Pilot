@@ -1,6 +1,6 @@
 # SP-010 — Facebook OAuth spike: evidence and work plan
 
-> **DRAFT — EVIDENCE SNAPSHOT, 10/11/2026 (Asia/Bangkok).** Records owner-provided Meta screenshots and sanitized Graph API Explorer output. It does not prove OAuth callback completion or a successful Page post. No credentials are stored here.
+> **DRAFT — historical evidence snapshot from 10/11/2026; current verification is appended below (11/11/2026, Asia/Bangkok).** The original tables below retain the state at capture time and are superseded where the current update says so. No credentials are stored here.
 
 ## 1. Task and tracker
 
@@ -12,7 +12,7 @@
 | Requirements | F1.B1, F1.B3, F5.B1, F5.B5; image/alt-text capability inventory relates to F4.N3 |
 | Original milestone | End of workday 3 of Week 1; 8 owner hours. The milestone has passed; do not recalculate it from today. |
 | Issue / Project | OPEN, assigned to `nigPeter2503`, label `question`; Project `In Progress` at last live read on 10/11/2026. |
-| SP-010 branch | `feat/sp-010-facebook-oauth-spike`, based on `main` at `0348982`; no SP-010 PR at draft time. |
+| SP-010 branch | feat/sp-010-facebook-oauth-spike; pushed with OAuth fix and evidence updates. It retains SP-009 ancestry; prepare final PR after SP-009 merges and the branch is updated from main. |
 | SP-009 dependency | PR [#66](https://github.com/nigPeter2503/Social_Pilot/pull/66) was OPEN, `REVIEW_REQUIRED`, with no reviews at last live read. Head `d09819594e5b939d88c810a83cf8165c0abcc12c`. Earlier CI success was reported for another head and does not prove checks for this head. |
 
 Re-read tracker and PR before integration. Tracker and review state can change.
@@ -56,13 +56,13 @@ SP-009 supplies DTOs/wire examples, not session enforcement, provider adapters o
 | Criterion | Status | Evidence still needed |
 |---|---|---|
 | App/Page/scopes inventoried | **PARTIAL** | App mode/use case/tester role; replacement Page-token Debugger metadata; date/version in the final test record. |
-| Page content-creation task | **PARTIAL** | Page tasks include `CREATE_CONTENT`/`MANAGE`; still need a successful publish call. |
-| Browser → HTTPS backend → Android | **NOT TESTED** | Deployed URLs, custom-scheme handling, warm/cold-start evidence. |
+| Page content-creation task | **REAL PASS — manual API test** | A real Page post was created and read back via Graph API Explorer; app-side publishing is still outside the verified path. |
+| Browser → HTTPS backend → Android | **REAL PASS — basic callback** | Owner confirmed Facebook OAuth returned to the app on a physical Android device; negative state/replay and cold-start cases remain open. |
 | State/session binding | **NOT TESTED** | Wrong/missing/replayed state and provider-error tests. |
 | Handoff TTL/verifier/replay/race | **NOT TESTED** | MockMvc/session-store tests for expiry boundary, wrong session/verifier, replay and concurrent exchange. |
-| Real post ID/permalink | **NOT TESTED** | Owner-approved content/audience, one controlled post, verified ID and URL. No blind retry on uncertainty. |
+| Real post ID/permalink | **REAL PASS — manual API test** | Post ID, read-back message, permalink and timestamp are recorded below; owner confirmed the link opens the expected Page and post. |
 | Token lifecycle/refresh | **NOT TESTED** | Page-token type/expiry, actual provider behavior, or a documented blocker. Re-login is not refresh evidence. |
-| HTTPS/restart/cold start | **NOT TESTED** | Tunnel host, environment, device/browser and restart behavior. Do not disable TLS checks. |
+| HTTPS/restart/cold start | **PARTIAL** | HTTPS callback was exercised through the tunnel on a device; restart and cold-start behavior were not separately tested. |
 | Image/alt text | **NOT TESTED** | Separate approved image test and evidence of actual provider behavior. |
 | Secret hygiene | **PARTIAL** | No credential in this file. Recheck source, logs, proxy output and screenshots after implementation. |
 
@@ -70,14 +70,14 @@ SP-009 supplies DTOs/wire examples, not session enforcement, provider adapters o
 
 | ID | Owner action | Current status |
 |---|---|---|
-| FB-D01 / FB-C01 | Confirm selected Page and actual role before publishing | Page ID/tasks observed; explicit publish approval pending. |
+| FB-D01 / FB-C01 | Confirm selected Page and actual role before publishing | Test Page was selected and a real text post succeeded; owner verified the Page/post permalink. |
 | FB-C02 | Record app mode, use case/product and tester role | App name/ID known; remaining metadata unknown. |
-| FB-C03 | Separate granted scopes from endpoint results | User-token scopes granted; Page-token metadata and endpoint-level results missing. |
-| FB-D02 | Record actual Cloudflare HTTPS host, stability/limits, operator and cost ceiling | Tunnel discussed; hostname and operating constraints pending. |
-| FB-D03 | Confirm `socialpilot://oauth/callback` and backend route with Thiện/Đạt | Proposal only; not configured. |
-| FB-D04 | Approve exact post text, audience/visibility, post count and cleanup expectation | Pending; do not publish before approval. |
+| FB-C03 | Separate granted scopes from endpoint results | Page-post endpoint succeeded; Page-token type/expiry metadata was not separately recorded. |
+| FB-D02 | Record actual Cloudflare HTTPS host, stability/limits, operator and cost ceiling | Host planning-theoretical-into-tmp.trycloudflare.com was used for the callback; stability limits and cost ceiling remain undocumented. |
+| FB-D03 | Confirm Android callback and backend route with Thiện/Đạt | Android callback route and backend handoff returned to the app on a physical-device test; cold-start behavior remains unverified. |
+| FB-D04 | Approve exact post text, audience/visibility, post count and cleanup expectation | One text post was published and verified; cleanup expectation was not recorded. |
 | FB-C04 | Store App Secret/tokens only in an approved local/managed secret store; verify old Page token is invalid | No credential values recorded; invalidation and replacement Page-token metadata pending. |
-| FB-D05 | Select device/emulator, browser and test window; coordinate handoff to Nghị | Pending. |
+| FB-D05 | Select device/emulator, browser and test window; coordinate handoff to Nghị | Physical Android device/browser OAuth test completed; separate cold-start and restart tests remain pending. |
 | FB-C05 | Re-read Issue #12, Project #5 and PR #66 before integration | Last read: issue OPEN / Project In Progress; PR #66 OPEN / review required. |
 | Handoff to Nghị | Provide Page ID, post ID/URL, API version, verified scopes/expiry and an approved private token-sharing method if needed | Page ID/tasks available; post and Page-token evidence pending. |
 
@@ -117,11 +117,11 @@ docs(docs): record SP-010 Facebook OAuth evidence [SP-010]
 ```
 ## Owner evidence and implementation update — 11/11/2026
 
-The owner confirmed that Facebook OAuth completed successfully on a real Android device. The tested flow returned to the app with the Facebook Page connected. This validates the live authorization-code exchange and Page-list stage for that test account. It does not verify publishing or the full token lifecycle.
+The owner confirmed Facebook OAuth completed successfully on a real Android device, returning to the app with the intended Page connected. A real text post was also created through Graph API Explorer and read back with the expected message, permalink, and timestamp; the owner confirmed the permalink opens the intended Page and post. This proves the manual Page-post API test, not app-side queue publishing or the full token lifecycle.
 
 - Meta app is in Development mode and the owner account is an Admin. Graph API Explorer showed Page-related permissions available for testing.
 - The user reported a successful device connection after the backend change to parse Graph responses independently of the response Content-Type. No credential, authorization code or token is recorded here.
 - The latest supplied Cloudflare tunnel hostname was `planning-theoretical-into-tmp.trycloudflare.com`; confirm the active run matches the configured callback before any further test.
 - SP-010 is stacked on SP-009. Keep the SP-009 commits out of the final SP-010 PR by waiting for SP-009 to merge or rebuilding the SP-010 branch on the updated `main` before opening its PR.
-- Real Page-post API test: Graph API Explorer `POST /v27.0/1427548503779474/feed` returned object ID `1427548503779474_122109132231532657` on 11/11/2026. A subsequent GET returned message `Bài đăng kiểm thử SocialPilot - 11/11/2026`, permalink `https://www.facebook.com/122109132717532657/posts/122109132231532657`, and created time `2026-11-11T06:58:10+0000`. The post ID prefix matches the target Page ID; the first numeric segment in the permalink differs, so open it and confirm it displays this Page and post before marking URL verification complete. No token or authorization code is recorded.
+- Real Page-post API test: Graph API Explorer POST /v27.0/1427548503779474/feed returned object ID 1427548503779474_122109132231532657 on 11/11/2026. A subsequent GET returned message "Bài đăng kiểm thử SocialPilot - 11/11/2026", permalink https://www.facebook.com/122109132717532657/posts/122109132231532657, and created time 2026-11-11T06:58:10+0000. The owner confirmed this permalink opens the expected Page and post. No token or authorization code is recorded.
 - Token refresh/expiry, restart behavior, and cold-start callback remain unverified.
