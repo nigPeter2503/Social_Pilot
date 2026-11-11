@@ -32,16 +32,27 @@ public final class Brief {
             throw new IllegalArgumentException("at least one target is required");
         }
         Set<String> channelIds = new HashSet<>();
+        Set<String> platforms = new HashSet<>();
         for (Target target : targets) {
             if (target == null || !channelIds.add(target.channelId)) {
                 throw new IllegalArgumentException("targets must be non-null and distinct");
             }
+            if (!platforms.add(target.platform)) {
+                throw new IllegalArgumentException("only one target per platform is supported");
+            }
         }
         this.targets = Collections.unmodifiableList(new ArrayList<>(targets));
-        if (sources == null || sources.contains(null)) {
+        if (sources == null) {
             throw new IllegalArgumentException("sources must be non-null");
         }
-        this.sources = Collections.unmodifiableList(new ArrayList<>(sources));
+        List<Source> sourceCopy = new ArrayList<>();
+        for (Source source : sources) {
+            if (source == null) {
+                throw new IllegalArgumentException("sources must not contain null");
+            }
+            sourceCopy.add(source);
+        }
+        this.sources = Collections.unmodifiableList(sourceCopy);
     }
 
     public String briefId() { return briefId; }

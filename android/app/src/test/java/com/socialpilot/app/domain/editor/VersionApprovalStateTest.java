@@ -21,13 +21,13 @@ public final class VersionApprovalStateTest {
         VersionApprovalState state = new VersionApprovalState(brief());
         ContentVersion facebookV1 = version("fb-v1", FACEBOOK, null, "Facebook text", null);
         ContentVersion linkedinV1 = version("li-v1", LINKEDIN, null, "LinkedIn text", null);
-        state.saveVersion(facebookV1);
-        state.saveVersion(linkedinV1);
+        state.saveVersion(facebookV1, null);
+        state.saveVersion(linkedinV1, null);
         state.approve(FACEBOOK, "fb-v1");
         state.approve(LINKEDIN, "li-v1");
 
         ContentVersion facebookV2 = version("fb-v2", FACEBOOK, "fb-v1", "Edited text", null);
-        state.saveVersion(facebookV2);
+        state.saveVersion(facebookV2, "fb-v1");
 
         assertNull(state.approvedVersionId(FACEBOOK));
         assertSame(linkedinV1, state.requireEnqueueable(LINKEDIN, "li-v1"));
@@ -42,10 +42,10 @@ public final class VersionApprovalStateTest {
     @Test
     public void changingImageAlsoInvalidatesApproval() {
         VersionApprovalState state = new VersionApprovalState(brief());
-        state.saveVersion(version("fb-v1", FACEBOOK, null, "Same text", "image-a"));
+        state.saveVersion(version("fb-v1", FACEBOOK, null, "Same text", "image-a"), null);
         state.approve(FACEBOOK, "fb-v1");
 
-        state.saveVersion(version("fb-v2", FACEBOOK, "fb-v1", "Same text", "image-b"));
+        state.saveVersion(version("fb-v2", FACEBOOK, "fb-v1", "Same text", "image-b"), "fb-v1");
 
         assertNull(state.approvedVersionId(FACEBOOK));
         assertThrows(IllegalStateException.class,
@@ -55,12 +55,12 @@ public final class VersionApprovalStateTest {
     @Test
     public void restoringOldContentCreatesNewUnapprovedVersion() {
         VersionApprovalState state = new VersionApprovalState(brief());
-        state.saveVersion(version("fb-v1", FACEBOOK, null, "Original", null));
-        state.saveVersion(version("fb-v2", FACEBOOK, "fb-v1", "Edited", null));
+        state.saveVersion(version("fb-v1", FACEBOOK, null, "Original", null), null);
+        state.saveVersion(version("fb-v2", FACEBOOK, "fb-v1", "Edited", null), "fb-v1");
         state.approve(FACEBOOK, "fb-v2");
 
         ContentVersion restored = version("fb-v3", FACEBOOK, "fb-v1", "Original", null);
-        state.saveVersion(restored);
+        state.restoreVersion(restored, "fb-v2");
 
         assertEquals("fb-v3", state.currentVersionId(FACEBOOK));
         assertNull(state.approvedVersionId(FACEBOOK));
@@ -73,9 +73,47 @@ public final class VersionApprovalStateTest {
     }
 
     @Test
+    public void lateResultCannotReplaceCurrentApprovedVersion() {
+        VersionApprovalState state = new VersionApprovalState(brief());
+        state.saveVersion(version("fb-v1", FACEBOOK, null, "Original", null), null);
+        ContentVersion approved = version("fb-v2", FACEBOOK, "fb-v1", "Edited", null);
+        state.saveVersion(approved, "fb-v1");
+        state.approve(FACEBOOK, "fb-v2");
+
+        assertThrows(IllegalStateException.class,
+                () -> state.saveVersion(version("fb-v3", FACEBOOK, "fb-v1", "Late AI result", null), "fb-v1"));
+
+        assertEquals("fb-v2", state.currentVersionId(FACEBOOK));
+        assertEquals("fb-v2", state.approvedVersionId(FACEBOOK));
+        assertEquals(2, state.versionsForChannel(FACEBOOK).size());
+        assertSame(approved, state.requireEnqueueable(FACEBOOK, "fb-v2"));
+    }
+
+    @Test
+    public void restoringOldContentRequiresCurrentVersionObservedByUser() {
+        VersionApprovalState state = new VersionApprovalState(brief());
+        state.saveVersion(version("fb-v1", FACEBOOK, null, "Original", null), null);
+        state.saveVersion(version("fb-v2", FACEBOOK, "fb-v1", "Edited", null), "fb-v1");
+        ContentVersion approved = version("fb-v3", FACEBOOK, "fb-v2", "More edits", null);
+        state.saveVersion(approved, "fb-v2");
+        state.approve(FACEBOOK, "fb-v3");
+
+        ContentVersion restore = version("fb-v4", FACEBOOK, "fb-v1", "Original", null);
+        assertThrows(IllegalStateException.class,
+                () -> state.restoreVersion(restore, "fb-v2"));
+        assertSame(approved, state.requireEnqueueable(FACEBOOK, "fb-v3"));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> state.saveVersion(restore, "fb-v3"));
+        state.restoreVersion(restore, "fb-v3");
+        assertEquals("fb-v4", state.currentVersionId(FACEBOOK));
+        assertNull(state.approvedVersionId(FACEBOOK));
+    }
+
+    @Test
     public void missingOrOtherChannelVersionCannotBeApprovedOrEnqueued() {
         VersionApprovalState state = new VersionApprovalState(brief());
-        state.saveVersion(version("fb-v1", FACEBOOK, null, "Facebook text", null));
+        state.saveVersion(version("fb-v1", FACEBOOK, null, "Facebook text", null), null);
         state.approve(FACEBOOK, "fb-v1");
 
         assertThrows(IllegalArgumentException.class,
@@ -90,11 +128,11 @@ public final class VersionApprovalStateTest {
     public void rejectedParentDoesNotChangeExistingApproval() {
         VersionApprovalState state = new VersionApprovalState(brief());
         ContentVersion approved = version("fb-v1", FACEBOOK, null, "Facebook text", null);
-        state.saveVersion(approved);
+        state.saveVersion(approved, null);
         state.approve(FACEBOOK, "fb-v1");
 
         assertThrows(IllegalArgumentException.class,
-                () -> state.saveVersion(version("fb-v2", FACEBOOK, "missing", "Edited", null)));
+                () -> state.saveVersion(version("fb-v2", FACEBOOK, "missing", "Edited", null), "fb-v1"));
 
         assertSame(approved, state.requireEnqueueable(FACEBOOK, "fb-v1"));
     }
@@ -104,9 +142,9 @@ public final class VersionApprovalStateTest {
         VersionApprovalState state = new VersionApprovalState(brief());
         ContentVersion first = version("fb-v1", FACEBOOK, null, "Original", null);
         ContentVersion second = version("fb-v2", FACEBOOK, "fb-v1", "Edited", null);
-        state.saveVersion(first);
+        state.saveVersion(first, null);
         state.approve(FACEBOOK, "fb-v1");
-        state.saveVersion(second);
+        state.saveVersion(second, "fb-v1");
 
         List<ContentVersion> history = state.versionsForChannel(FACEBOOK);
         assertEquals(2, history.size());

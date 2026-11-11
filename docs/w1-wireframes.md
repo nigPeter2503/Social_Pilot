@@ -24,7 +24,7 @@ Nếu phiên bản chưa được duyệt hoặc không tồn tại: không cho 
 
 - Ngôn ngữ: VI hoặc EN.
 
-- Kênh đích: Facebook, LinkedIn hoặc cả hai.
+- Kênh đích: Facebook, LinkedIn hoặc cả hai; tối đa một kênh mỗi nền tảng trong một brief.
 
 - Nguồn tham khảo: văn bản hoặc URL, nếu có.
 

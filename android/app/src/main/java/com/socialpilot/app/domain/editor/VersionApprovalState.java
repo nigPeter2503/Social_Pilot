@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /** In-memory version rules for a brief. A durable queue must repeat these checks in a transaction. */
@@ -26,8 +27,18 @@ public final class VersionApprovalState {
         }
     }
 
-    /** Saving an edit or restoration creates a new version and invalidates approval for that channel. */
-    public synchronized void saveVersion(ContentVersion version) {
+    /** An async result or edit may only advance the version it started from. */
+    public synchronized void saveVersion(ContentVersion version, String expectedCurrentVersionId) {
+        saveVersion(version, expectedCurrentVersionId, false);
+    }
+
+    /** An explicit restore may copy an older version, but must still observe the current head. */
+    public synchronized void restoreVersion(ContentVersion version, String expectedCurrentVersionId) {
+        saveVersion(version, expectedCurrentVersionId, true);
+    }
+
+    private void saveVersion(ContentVersion version, String expectedCurrentVersionId,
+                             boolean restore) {
         if (version == null) throw new IllegalArgumentException("version is required");
         requireTarget(version.channelId());
         if (!briefId.equals(version.briefId())) {
@@ -37,7 +48,13 @@ public final class VersionApprovalState {
             throw new IllegalArgumentException("versionId already exists");
         }
         String currentId = currentVersionIds.get(version.channelId());
+        if (!Objects.equals(currentId, expectedCurrentVersionId)) {
+            throw new IllegalStateException("current version changed before this result was saved");
+        }
         String parentId = version.parentVersionId();
+        if (restore && currentId == null) {
+            throw new IllegalStateException("cannot restore before an initial version exists");
+        }
         if (currentId == null && parentId != null) {
             throw new IllegalArgumentException("initial version cannot have a parent");
         }
@@ -45,6 +62,9 @@ public final class VersionApprovalState {
             ContentVersion parent = versions.get(parentId);
             if (parent == null || !version.channelId().equals(parent.channelId())) {
                 throw new IllegalArgumentException("parent must be an existing version of this channel");
+            }
+            if (!restore && !currentId.equals(parentId)) {
+                throw new IllegalArgumentException("new version must have the current version as parent");
             }
         }
         versions.put(version.versionId(), version);
