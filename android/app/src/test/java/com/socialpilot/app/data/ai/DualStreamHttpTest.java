@@ -178,6 +178,140 @@ public final class DualStreamHttpTest {
         }
     }
 
+    @Test public void cancelSessionStopsBothActiveHttpStreams() throws Exception {
+        AtomicInteger cancelled = new AtomicInteger();
+        CountDownLatch returned = new CountDownLatch(2);
+        server.setDispatcher(new Dispatcher() {
+            @Override public MockResponse dispatch(RecordedRequest request) {
+                String first = ": padding larger than the incoming request body\n"
+                        + ": padding larger than the incoming request body\n" + delta("prefix");
+                return stream().setBody(first + done()).throttleBody(first.length(), 4, TimeUnit.SECONDS);
+            }
+        });
+        AiProvider adapter = adapter(10_000);
+        AiProvider tracked = (req, listener) -> {
+            AiProvider.Attempt actual = adapter.prepare(req, listener);
+            return new AiProvider.Attempt() {
+                @Override public void run() {
+                    try {
+                        actual.run();
+                    } finally {
+                        returned.countDown();
+                    }
+                }
+
+                @Override public void cancel() {
+                    cancelled.incrementAndGet();
+                    actual.cancel();
+                }
+            };
+        };
+        Ledger ledger = new Ledger();
+        try (DualStreamCoordinator coordinator = new DualStreamCoordinator(id -> tracked, ledger, PRICING)) {
+            coordinator.start(request("A", "a1", "session-a"), request("B", "b1", "session-b"));
+            await(coordinator, s -> "prefix".equals(s.first.text) && "prefix".equals(s.second.text));
+            coordinator.cancelSession();
+            assertTrue(returned.await(2, TimeUnit.SECONDS));
+            DualStreamCoordinator.Snapshot result = await(coordinator, s -> s.first.canRetry && s.second.canRetry);
+            assertEquals(CANCELLED, result.first.phase);
+            assertEquals(CANCELLED, result.second.phase);
+            assertEquals("prefix", result.first.text);
+            assertEquals("prefix", result.second.text);
+            assertEquals(2, cancelled.get());
+            assertEquals(2, server.getRequestCount());
+            assertEquals("UNCERTAIN", ledger.state("a1"));
+            assertEquals("UNCERTAIN", ledger.state("b1"));
+            assertEquals(1, ledger.settlements("a1"));
+            assertEquals(1, ledger.settlements("b1"));
+        }
+    }
+
+    @Test public void cancelAfterWorkerEntryBeforeCallAttachDoesNotSendA() throws Exception {
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        AtomicInteger cancelled = new AtomicInteger();
+        server.enqueue(stream().setBody(result("keep", " B")));
+        AiProvider adapter = adapter(10_000);
+        AiProvider tracked = (req, listener) -> {
+            AiProvider.Attempt actual = adapter.prepare(req, listener);
+            if (!"A".equals(req.channelId)) return actual;
+            return new AiProvider.Attempt() {
+                @Override public void run() {
+                    entered.countDown();
+                    boolean interrupted = false;
+                    try {
+                        while (true) {
+                            try {
+                                if (!release.await(5, TimeUnit.SECONDS)) throw new AssertionError("Attach gate timed out");
+                                break;
+                            } catch (InterruptedException expected) {
+                                interrupted = true;
+                            }
+                        }
+                        actual.run();
+                    } finally {
+                        if (interrupted) Thread.currentThread().interrupt();
+                    }
+                }
+
+                @Override public void cancel() {
+                    cancelled.incrementAndGet();
+                    actual.cancel();
+                }
+            };
+        };
+        Ledger ledger = new Ledger();
+        try (DualStreamCoordinator coordinator = new DualStreamCoordinator(id -> tracked, ledger, PRICING)) {
+            coordinator.start(request("A", "a1", "not-sent-a"), request("B", "b1", "keep-b"));
+            assertTrue(entered.await(5, TimeUnit.SECONDS));
+            assertTrue(coordinator.cancelBranch("A"));
+            assertFalse(coordinator.snapshot().first.canRetry);
+            release.countDown();
+            DualStreamCoordinator.Snapshot result = await(coordinator,
+                    s -> s.first.canRetry && s.second.phase == COMPLETED);
+            assertEquals(CANCELLED, result.first.phase);
+            assertEquals("", result.first.text);
+            assertEquals("keep B", result.second.text);
+            assertEquals(1, cancelled.get());
+            assertEquals(1, server.getRequestCount());
+            assertEquals("RELEASED", ledger.state("a1"));
+            assertEquals(1, ledger.settlements("a1"));
+        } finally {
+            release.countDown();
+        }
+    }
+
+    @Test public void retryAfterHttpFailureOnlyAddsOneRequestForA() throws Exception {
+        server.setDispatcher(new Dispatcher() {
+            @Override public MockResponse dispatch(RecordedRequest request) {
+                if (request.getBody().readUtf8().contains("fail-a")) {
+                    return stream().setBody(delta("partial"));
+                }
+                return stream().setBody(result("new", " result"));
+            }
+        });
+        Ledger ledger = new Ledger();
+        try (DualStreamCoordinator coordinator = new DualStreamCoordinator(id -> adapter(10_000), ledger, PRICING)) {
+            coordinator.start(request("A", "a1", "fail-a"), request("B", "b1", "keep-b"));
+            DualStreamCoordinator.Snapshot failed = await(coordinator, s -> s.first.canRetry && s.second.phase == COMPLETED);
+            assertEquals(AiError.Code.INCOMPLETE, failed.first.error.code);
+            assertEquals("partial", failed.first.text);
+            assertEquals(2, server.getRequestCount());
+            assertTrue(coordinator.retry(request("A", "a2", "retry-a")));
+            DualStreamCoordinator.Snapshot result = await(coordinator, s -> s.first.phase == COMPLETED);
+            assertEquals("a2", result.first.requestId);
+            assertEquals("new result", result.first.text);
+            assertEquals(failed.second.requestId, result.second.requestId);
+            assertEquals(failed.second.phase, result.second.phase);
+            assertEquals(failed.second.text, result.second.text);
+            assertEquals(3, server.getRequestCount());
+            assertEquals("UNCERTAIN", ledger.state("a1"));
+            assertEquals(1, ledger.settlements("a1"));
+            assertEquals(1, ledger.settlements("a2"));
+            assertEquals(1, ledger.settlements("b1"));
+        }
+    }
+
     private DualStreamCoordinator coordinator(AiProvider provider) {
         return new DualStreamCoordinator(id -> provider, new Ledger(), PRICING);
     }

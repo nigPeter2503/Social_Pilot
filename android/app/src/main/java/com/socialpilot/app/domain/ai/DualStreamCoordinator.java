@@ -238,12 +238,19 @@ public final class DualStreamCoordinator implements AutoCloseable {
             work.sequence = event.sequence;
             boolean terminal = event.type == AiEvent.Type.COMPLETED || event.type == AiEvent.Type.FAILED
                     || event.type == AiEvent.Type.CANCELLED;
-            if (terminal) settle(work, event);
+            work.mayHaveDispatched |= event.mayHaveDispatched
+                    || event.type == AiEvent.Type.TEXT_DELTA || event.type == AiEvent.Type.COMPLETED;
+            boolean valid = sequential && !work.protocolFailed && recordProgress(work, event)
+                    && (!terminal || event.mayHaveDispatched || !work.mayHaveDispatched);
+            work.protocolFailed |= !valid;
+            if (terminal) settle(work, event, valid);
             // A late terminal still closes the budget reservation. Cancelled UI state stays frozen.
             if (branch.phase != Phase.RUNNING) return;
-            if (!sequential || !applyEvent(work, event)) {
+            if (!valid) {
                 branch.fail(Problem.PROTOCOL, null);
                 stop = !terminal;
+            } else {
+                applyEvent(work, event);
             }
             revision++;
         }
@@ -251,38 +258,53 @@ public final class DualStreamCoordinator implements AutoCloseable {
         notifyObserver();
     }
 
-    private boolean applyEvent(Work work, AiEvent event) {
-        Branch branch = work.branch;
+    private boolean recordProgress(Work work, AiEvent event) {
         switch (event.type) {
             case STARTED:
                 if (work.startedEvent) return false;
                 work.startedEvent = true;
                 return true;
             case TEXT_DELTA:
-                if (!work.startedEvent || event.delta.length() > MAX_TEXT_CHARS - branch.text.length()) return false;
-                branch.text.append(event.delta);
+                if (!work.startedEvent || event.delta.length() > MAX_TEXT_CHARS - work.textChars) return false;
+                work.textChars += event.delta.length();
                 return true;
             case COMPLETED:
-                if (!work.startedEvent || branch.text.length() == 0) return false;
-                branch.usage = event.usage;
-                branch.phase = Phase.COMPLETED;
-                return true;
-            case FAILED:
-                branch.usage = event.usage;
-                branch.fail(Problem.PROVIDER, event.error);
-                return true;
-            case CANCELLED:
-                branch.usage = event.usage;
-                branch.phase = Phase.CANCELLED;
-                return true;
+                return work.startedEvent && work.textChars > 0;
             default:
-                return false;
+                return true;
         }
     }
 
-    private void settle(Work work, AiEvent event) {
+    private void applyEvent(Work work, AiEvent event) {
+        Branch branch = work.branch;
+        switch (event.type) {
+            case STARTED:
+                break;
+            case TEXT_DELTA:
+                branch.text.append(event.delta);
+                break;
+            case COMPLETED:
+                branch.usage = event.usage;
+                branch.phase = Phase.COMPLETED;
+                break;
+            case FAILED:
+                branch.usage = event.usage;
+                branch.fail(Problem.PROVIDER, event.error);
+                break;
+            case CANCELLED:
+                branch.usage = event.usage;
+                branch.phase = Phase.CANCELLED;
+                break;
+            default:
+                break;
+        }
+    }
+
+    private void settle(Work work, AiEvent event, boolean valid) {
         AiRequest request = work.branch.request;
-        if (!event.mayHaveDispatched) {
+        if (!valid) {
+            holdReservation(request.requestId);
+        } else if (!work.mayHaveDispatched) {
             releaseUndispatched(request.requestId);
         } else {
             AiCostEstimate charge = null;
@@ -421,6 +443,9 @@ public final class DualStreamCoordinator implements AutoCloseable {
         AiProvider.Attempt transport;
         boolean entered;
         boolean startedEvent;
+        boolean mayHaveDispatched;
+        boolean protocolFailed;
+        int textChars;
         boolean settled;
         long sequence;
 
