@@ -56,3 +56,27 @@ Error code phân biệt credential sai, thiếu quyền, rate limit, quota cứn
 | Image, budget production, UI BYOK | Theo phạm vi các task sau |
 
 Sau khi có quyền riêng, chạy từ Android tối đa một request mỗi provider với prompt tổng hợp, output cap và trần đã duyệt. Hồ sơ ghi thời điểm, revision, model, request count, output đã che dữ liệu, usage hoặc trạng thái thiếu, bảng giá và estimate. Không đóng #15 hoặc báo F8.B1 đạt chỉ dựa trên fixture.
+
+## 6. Theo dõi review và bằng chứng còn thiếu
+
+[Review của Minh trên PR #72](https://github.com/nigPeter2503/Social_Pilot/pull/72#pullrequestreview-5861096464) yêu cầu hoàn tất hai phép thử text thật. Review ở trạng thái `CHANGES_REQUESTED` trên source `06a49b9`. Phần cần bổ sung là bằng chứng nghiệm thu provider thật.
+
+PR #72 tiếp tục là draft và [issue #15](https://github.com/nigPeter2503/Social_Pilot/issues/15) giữ phạm vi contract cùng hai phép thử. Việc review lại tài liệu hoặc đạt mock tests chưa khép yêu cầu này. Chỉ chuyển Ready for review sau khi có đủ hồ sơ dưới đây cho cả hai provider và đã rà lại gates trên head bàn giao.
+
+| Đầu vào và bằng chứng mỗi provider | OpenAI | Gemini |
+|---|---|---|
+| Model được phép dùng, capability text/stream và output cap | Chờ Đạt xác nhận | Chờ Đạt xác nhận |
+| Credential cục bộ và quota được xác nhận sẵn có | Chưa xác nhận | Chưa xác nhận |
+| Số request và trần chi được cấp riêng | Chưa được cấp. Đề xuất tối đa 1 request | Chưa được cấp. Đề xuất tối đa 1 request |
+| Prompt tổng hợp, nội dung không có dữ liệu người dùng | Chờ chốt cùng quyền thử | Chờ chốt cùng quyền thử |
+| Chạy từ Android tới provider, revision và môi trường | `NOT_RUN` | `NOT_RUN` |
+| Output text, terminal và thời điểm thực tế | Chưa có | Chưa có |
+| Usage do provider trả hoặc nhãn thiếu | Chưa có | Chưa có |
+| Link bảng giá, thời điểm lấy giá, currency và giả định | Chờ model được chọn | Chờ model được chọn |
+| Estimate từ usage và bảng giá, hoặc lý do chưa tính được | Chưa có | Chưa có |
+
+Đạt phụ trách nhận các giới hạn thử, thực hiện từng lượt sau khi được cấp quyền và cập nhật evidence trong PR này. Không ghi key/token hoặc cấu hình chứa credential vào hồ sơ.
+
+Khi thực hiện, ghi request ID, provider/model, output cap và thời điểm trước mỗi lần dispatch. Ghi số request thực tế, kết quả text và usage đã lọc sau terminal. Nếu thiếu usage, giữ `MISSING`, ghi rõ estimate nào còn tính được cùng giả định, và giữ khoản chi chưa xác định theo hợp đồng ngân sách. Lỗi hoặc timeout cần được ghi trước khi xin lượt thử bổ sung. Retry/fallback phải nằm trong số request và trần chi được cấp.
+
+Nếu sau này chọn merge phần contract/adapter trước, cần thống nhất thay đổi phạm vi bàn giao với Đạt và reviewer, cùng ticket có owner và tiêu chí riêng cho live validation. Đến khi có quyết định đó, hai phép thử vẫn được theo dõi trong #15 và #72.
