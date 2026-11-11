@@ -20,7 +20,7 @@ Cần JDK 21 được Gradle tìm thấy (có thể là JDK riêng với IDE). P
 .\gradlew.bat test bootJar
 ```
 Mở `http://127.0.0.1:8080/api/health`. Backend mặc định chỉ lắng nghe localhost.
-`.env.example` là mẫu tham khảo; cần tự đưa biến vào shell/hosting. Chưa cần API key để chạy bộ khung.
+`.env.example` là mẫu tham khảo; Spring không tự nạp file `.env`, cần đưa biến vào shell/hosting. Backend yêu cầu cấu hình OAuth Facebook hợp lệ và sẽ dừng ngay khi thiếu hoặc sai cấu hình.
 
 ## Phiên bản đã khóa
 
@@ -48,10 +48,10 @@ Invoke-RestMethod http://127.0.0.1:8080/api/health
 Kết quả mong đợi (thứ tự các trường có thể khác):
 
 ```json
-{"status":"UP","service":"socialpilot-oauth","oauth":"NOT_CONFIGURED"}
+{"status":"UP","service":"socialpilot-oauth","oauth":"CONFIGURED"}
 ```
 
-`UP` nghĩa là server đang hoạt động. `NOT_CONFIGURED` nghĩa là các biến môi trường OAuth Facebook chưa được cấu hình; `CONFIGURED` chỉ xác nhận backend có cấu hình, chưa chứng minh callback Meta chạy thành công. Nhấn **Ctrl+C** ở terminal đang chạy `bootRun` để dừng server.
+`UP` nghĩa là server đang hoạt động. Backend chỉ khởi động khi cấu hình Facebook hợp lệ; `CONFIGURED` chưa chứng minh callback Meta chạy thành công. Nếu cấu hình thiếu/sai, thông báo fail-fast nêu tên biến cần sửa. Nhấn **Ctrl+C** ở terminal đang chạy `bootRun` để dừng server.
 
 Nếu muốn bỏ thanh phần trăm của Gradle và chỉ xem log:
 
@@ -68,7 +68,7 @@ Lệnh `test bootJar` kết thúc sau khi build và kiểm thử, báo `BUILD SU
 | `80% EXECUTING` sau dòng `Started OAuthApplication` | Bình thường; mở `/api/health` để xác nhận server sẵn sàng |
 | Cổng 8080 đã được sử dụng | Kiểm tra instance cũ đang chạy; dừng đúng instance đó hoặc đổi cổng |
 | Đường dẫn `/` trả 404 | Dùng `/api/health`; backend chưa có trang chủ |
-| OAuth trả `503 AUTH_REQUIRED` | Kiểm tra các biến `FACEBOOK_*` bắt buộc trong phiên backend |
+| Backend dừng lúc khởi động với lỗi Facebook OAuth configuration | Kiểm tra tên biến trong thông báo fail-fast và nguồn cấu hình trong dòng log chẩn đoán an toàn |
 | Không tìm thấy JDK/toolchain 21 | Chọn JDK 21 cho terminal và Gradle |
 
 Đổi cổng cho phiên chạy hiện tại:
@@ -92,7 +92,7 @@ Backend đọc cấu hình từ biến môi trường; không đưa App Secret h
 - `FACEBOOK_TARGET_PAGE_ID` — Page được chọn để thử nghiệm.
 - `FACEBOOK_GRAPH_API_VERSION` — mặc định `v27.0`.
 
-Khởi chạy backend tại cổng 8080, sau đó tạo Cloudflare Quick Tunnel tới `http://localhost:8080`. Mỗi lần hostname Quick Tunnel đổi, cập nhật `FACEBOOK_REDIRECT_URI` và Valid OAuth Redirect URI của Meta cùng lúc rồi khởi động lại backend. Tunnel phải còn chạy trong toàn bộ lượt đăng nhập.
+Đặt đủ các biến trên trong môi trường tiến trình backend, rồi khởi chạy backend tại cổng 8080 và tạo Cloudflare Quick Tunnel tới `http://localhost:8080`. Mỗi lần hostname Quick Tunnel đổi, cập nhật `FACEBOOK_REDIRECT_URI` và Valid OAuth Redirect URI của Meta cùng lúc rồi khởi động lại backend. Tunnel phải còn chạy trong toàn bộ lượt đăng nhập. Dòng log khởi động cho biết app ID, redirect URI, Graph version, độ dài secret, cờ secret từng có khoảng trắng đầu/cuối và tên property source; secret, authorization code, token và URL request không được ghi log. Lỗi Graph tại `code_exchange` chỉ ghi các trường lỗi đã lọc và dấu vân tay SHA-256 8 ký tự của code.
 
 Android nhận base URL qua biến môi trường `SOCIALPILOT_OAUTH_API_BASE_URL` hoặc Gradle property `-PsocialpilotOauthApiBaseUrl=https://<tunnel-host>/`. App chỉ chấp nhận HTTPS. Callback ứng dụng là `socialpilot://oauth/callback`; backend chỉ cho phép `redirectId=android-dev` và route cố định này.
 

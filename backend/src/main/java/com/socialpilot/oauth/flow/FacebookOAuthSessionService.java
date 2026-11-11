@@ -60,14 +60,8 @@ public final class FacebookOAuthSessionService {
         OAuthSession session = new OAuthSession(sessionId, state, request.sessionChallenge, expiresAt);
         sessionsById.put(sessionId, session);
         sessionsByState.put(state, session);
-        String authorizationUrl = UriComponentsBuilder.fromUriString("https://www.facebook.com")
-                .pathSegment(properties.getGraphApiVersion(), "dialog", "oauth")
-                .queryParam("client_id", properties.getAppId())
-                .queryParam("redirect_uri", properties.getRedirectUri())
-                .queryParam("response_type", "code")
-                .queryParam("scope", "public_profile,pages_show_list,pages_read_engagement,pages_manage_posts")
-                .queryParam("state", state)
-                .build().encode().toUriString();
+        String authorizationUrl = com.socialpilot.oauth.facebook.FacebookOAuthUrlBuilder
+                .authorizationUri(properties, state).toASCIIString();
         return new OAuthStartResponse(sessionId, authorizationUrl, UTC_SECONDS.format(expiresAt));
     }
 
