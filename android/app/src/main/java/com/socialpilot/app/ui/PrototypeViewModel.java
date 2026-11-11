@@ -6,11 +6,6 @@ import android.os.Looper;
 import androidx.annotation.NonNull;
 import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
-import androidx.work.Constraints;
-import androidx.work.Data;
-import androidx.work.ExistingWorkPolicy;
-import androidx.work.NetworkType;
-import androidx.work.OneTimeWorkRequest;
 import androidx.work.WorkInfo;
 import androidx.work.WorkManager;
 import com.socialpilot.app.R;
@@ -18,20 +13,23 @@ import com.socialpilot.app.SocialPilotApplication;
 import com.socialpilot.app.data.prototype.SampleRepository;
 import com.socialpilot.app.data.prototype.SampleResultEntity;
 import com.socialpilot.app.prototype.DemoStreamCoordinator;
-import com.socialpilot.app.prototype.SampleCheckpointWorker;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /** UI state survives rotation; a new process marks old streams interrupted without restarting them. */
 public final class PrototypeViewModel extends AndroidViewModel {
     private final SampleRepository repository;
     private final DemoStreamCoordinator streams;
     private final WorkManager workManager;
+    private final Map<String, String> activeRunIds = new HashMap<>();
 
     public PrototypeViewModel(@NonNull Application application) {
         super(application);
         repository = ((SocialPilotApplication) application).container().sampleResults;
-        repository.markInterruptedOnOpen();
         Handler main = new Handler(Looper.getMainLooper());
         streams = new DemoStreamCoordinator((action, delay) -> main.postDelayed(action, delay));
         workManager = WorkManager.getInstance(application);
@@ -53,25 +51,29 @@ public final class PrototypeViewModel extends AndroidViewModel {
 
     private void start(String channel, int firstChunk, int secondChunk) {
         Application app = getApplication();
+        String runId = UUID.randomUUID().toString();
+        AtomicBoolean firstUpdate = new AtomicBoolean();
         if (streams.start(channel, Arrays.asList(app.getString(firstChunk), app.getString(secondChunk)),
-                (id, phase, text) -> repository.save(id, text, phase.name()))) {
-            workManager.cancelUniqueWork(workName(channel));
+                (id, phase, text) -> {
+                    if (firstUpdate.compareAndSet(false, true)) {
+                        repository.startRun(id, runId, workManager);
+                    } else {
+                        repository.updateRun(id, runId, text, phase.name());
+                    }
+                })) {
+            activeRunIds.put(channel, runId);
         }
     }
 
     private void cancel(String channel) {
         streams.cancel(channel);
-        workManager.cancelUniqueWork(workName(channel));
+        String runId = activeRunIds.get(channel);
+        if (runId != null) repository.cancelWork(channel, runId, workManager);
     }
 
     public void enqueueSample(String channel) {
         if (!"A".equals(channel) && !"B".equals(channel)) return;
-        Constraints constraints = new Constraints.Builder()
-                .setRequiredNetworkType(NetworkType.CONNECTED).build();
-        Data data = new Data.Builder().putString(SampleCheckpointWorker.KEY_CHANNEL_ID, channel).build();
-        OneTimeWorkRequest request = new OneTimeWorkRequest.Builder(SampleCheckpointWorker.class)
-                .setConstraints(constraints).setInputData(data).build();
-        workManager.enqueueUniqueWork(workName(channel), ExistingWorkPolicy.REPLACE, request);
+        repository.enqueueCheckpoint(channel, workManager);
     }
 
     public static String workName(String channel) { return "sample-checkpoint-" + channel; }

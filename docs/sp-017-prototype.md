@@ -6,6 +6,8 @@ Màn hình “Bản mẫu hai luồng” mở từ màn hình topic. A và B là
 
 `DemoStreamCoordinator` dùng generation ID để bỏ callback đến sau khi hủy, lỗi hoặc khởi chạy lại. Bắt đầu lượt mới hoặc bấm Hủy sẽ hủy unique WorkManager job mẫu đang chờ của cùng kênh; nếu job đã hoàn tất, checkpoint đã ghi không được rollback. `PrototypeViewModel` sống qua xoay màn hình nên không khởi tạo lại luồng. Nếu process chết, hàng `RUNNING` trong Room được đổi thành `INTERRUPTED` khi mở lại; chỉ thao tác Bắt đầu của người dùng mới tạo luồng mẫu mới.
 
+Sau review, mỗi kết quả có `runId` bền vững và `workRequestId` của job checkpoint hiện hành. Worker chỉ ghi digest bằng `UPDATE` có điều kiện trên kênh, run, job và trạng thái `COMPLETE`; hủy job xóa ID trước khi yêu cầu WorkManager hủy. Kết quả/job cũ không thể ghi lên lượt mới. UI lọc `WorkInfo` theo ID job của row đang hiển thị. Recovery `RUNNING → INTERRUPTED` được xếp đúng một lần khi `AppContainer` khởi tạo trong process mới, trước các thao tác stream mới; việc tạo ViewModel thứ hai trong cùng process không chạy recovery lại. Database mẫu nâng từ v1 lên v2 bằng migration giữ nguyên text, state và checkpoint của hàng cũ.
+
 Kết quả mẫu nằm trong Room database `socialpilot-prototype.db`, tách khỏi `socialpilot.db` của topic v1. Không sửa schema topic và không dùng migration phá hủy. `SampleCheckpointWorker` chỉ tính SHA-256 cho kết quả mẫu đã hoàn tất và lưu checkpoint vào Room. WorkRequest có ràng buộc `NetworkType.CONNECTED`; đây là công việc mẫu hữu hạn, **không phải job AI nền hay queue đăng thật**. Worker trả thành công sau khi checkpoint được ghi. Sau force-stop, thời điểm hệ điều hành cho Worker chạy lại không được bảo đảm.
 
 SP-012 vẫn cần chốt schema chung; SP-014 cần bàn giao runtime hai luồng trước khi thay luồng giả bằng adapter thật. Payload mẫu lấy ý tưởng từ SP-016 nhưng không import contract chưa merge. Những điểm này là phụ thuộc tích hợp, không được báo là API thật đã đạt.
@@ -33,3 +35,7 @@ Máy kiểm tra: Windows, Temurin JDK 21.0.13, Android SDK Platform 36, Build To
 | Gây lỗi A và thử lại | API 36 | Lỗi A không xóa B; A thử lại được | Đạt qua UI dump | [Log thiết bị và build](evidence/sp-017-device-check-2026-11-11.txt) |
 
 Chưa thử trên điện thoại thật trong SP-017. Chưa tích hợp runtime SP-014, schema chung SP-012, AI thật, queue đăng bài, hoặc hành vi Worker chạy ngay sau force-stop. CI của commit bàn giao phải được dẫn riêng trên PR sau khi push.
+
+## Kiểm chứng bản sửa review — 12/11/2026
+
+Trên Windows, JDK 21.0.13 và Android SDK 36, `assembleDebug`, `testDebugUnitTest`, `lintDebug` và `assembleDebugAndroidTest` đều đạt: 5 unit test, lint 0 lỗi/13 cảnh báo. Trên AVD API 36, `connectedDebugAndroidTest` đạt 5/5 ca, gồm kiểm tra migration v1→v2, worker cũ không ghi sau hủy/thay run và tạo ViewModel thứ hai khi stream đầu còn chạy. Thử thủ công force-stop app trong lúc A đang chạy rồi mở lại: A hiển thị `INTERRUPTED` và không tự chạy lại. Bắt đầu A mới sau một job cũ: UI hiển thị chưa có job cho lượt mới, không lấy trạng thái job cũ. Xem [hồ sơ kiểm tra](evidence/sp-017-review-verification-2026-11-12.md).

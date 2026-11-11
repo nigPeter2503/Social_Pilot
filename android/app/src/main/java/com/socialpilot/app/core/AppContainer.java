@@ -17,7 +17,9 @@ public final class AppContainer {
         database = Room.databaseBuilder(context.getApplicationContext(), AppDatabase.class, "socialpilot.db").build();
         drafts = new DraftRepository(database.drafts(), io);
         prototypeDatabase = Room.databaseBuilder(context.getApplicationContext(),
-                PrototypeDatabase.class, "socialpilot-prototype.db").build();
+                PrototypeDatabase.class, "socialpilot-prototype.db")
+                .addMigrations(PrototypeDatabase.MIGRATION_1_2).build();
         sampleResults = new SampleRepository(prototypeDatabase.results(), Executors.newSingleThreadExecutor());
+        sampleResults.markInterruptedOnOpen();
     }
 }

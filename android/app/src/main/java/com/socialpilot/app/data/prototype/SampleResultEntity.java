@@ -11,14 +11,19 @@ public final class SampleResultEntity {
     @NonNull public String text;
     @NonNull public String state;
     @NonNull public String checkpoint;
+    @NonNull public String runId;
+    public String workRequestId;
     public long updatedAt;
 
     public SampleResultEntity(@NonNull String channelId, @NonNull String text,
-                              @NonNull String state, @NonNull String checkpoint, long updatedAt) {
+                              @NonNull String state, @NonNull String checkpoint,
+                              @NonNull String runId, String workRequestId, long updatedAt) {
         this.channelId = channelId;
         this.text = text;
         this.state = state;
         this.checkpoint = checkpoint;
+        this.runId = runId;
+        this.workRequestId = workRequestId;
         this.updatedAt = updatedAt;
     }
 }
