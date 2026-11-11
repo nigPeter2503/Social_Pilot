@@ -51,7 +51,7 @@ Kết quả mong đợi (thứ tự các trường có thể khác):
 {"status":"UP","service":"socialpilot-oauth","oauth":"NOT_CONFIGURED"}
 ```
 
-`UP` nghĩa là server đang hoạt động. `NOT_CONFIGURED` nghĩa là phần tích hợp OAuth chưa triển khai. Nhấn **Ctrl+C** ở terminal đang chạy `bootRun` để dừng server.
+`UP` nghĩa là server đang hoạt động. `NOT_CONFIGURED` nghĩa là các biến môi trường OAuth Facebook chưa được cấu hình; `CONFIGURED` chỉ xác nhận backend có cấu hình, chưa chứng minh callback Meta chạy thành công. Nhấn **Ctrl+C** ở terminal đang chạy `bootRun` để dừng server.
 
 Nếu muốn bỏ thanh phần trăm của Gradle và chỉ xem log:
 
@@ -68,7 +68,7 @@ Lệnh `test bootJar` kết thúc sau khi build và kiểm thử, báo `BUILD SU
 | `80% EXECUTING` sau dòng `Started OAuthApplication` | Bình thường; mở `/api/health` để xác nhận server sẵn sàng |
 | Cổng 8080 đã được sử dụng | Kiểm tra instance cũ đang chạy; dừng đúng instance đó hoặc đổi cổng |
 | Đường dẫn `/` trả 404 | Dùng `/api/health`; backend chưa có trang chủ |
-| OAuth trả `501 OAUTH_NOT_CONFIGURED` | Adapter OAuth chưa triển khai |
+| OAuth trả `503 AUTH_REQUIRED` | Kiểm tra các biến `FACEBOOK_*` bắt buộc trong phiên backend |
 | Không tìm thấy JDK/toolchain 21 | Chọn JDK 21 cho terminal và Gradle |
 
 Đổi cổng cho phiên chạy hiện tại:
@@ -81,3 +81,19 @@ $env:PORT = '8081'
 Sau đó kiểm tra `http://127.0.0.1:8081/api/health`.
 
 Tham khảo: [Spring Boot về tác vụ bootRun](https://docs.spring.io/spring-boot/3.5/gradle-plugin/running.html).
+
+## Thử nghiệm Facebook OAuth (SP-010)
+
+Backend đọc cấu hình từ biến môi trường; không đưa App Secret hoặc access token vào source, `application.properties`, log hay Git:
+
+- `FACEBOOK_APP_ID`
+- `FACEBOOK_APP_SECRET`
+- `FACEBOOK_REDIRECT_URI` — URI HTTPS chính xác `https://<tunnel-host>/api/oauth/facebook/callback`, phải trùng URI trong Meta dashboard.
+- `FACEBOOK_TARGET_PAGE_ID` — Page được chọn để thử nghiệm.
+- `FACEBOOK_GRAPH_API_VERSION` — mặc định `v27.0`.
+
+Khởi chạy backend tại cổng 8080, sau đó tạo Cloudflare Quick Tunnel tới `http://localhost:8080`. Mỗi lần hostname Quick Tunnel đổi, cập nhật `FACEBOOK_REDIRECT_URI` và Valid OAuth Redirect URI của Meta cùng lúc rồi khởi động lại backend. Tunnel phải còn chạy trong toàn bộ lượt đăng nhập.
+
+Android nhận base URL qua biến môi trường `SOCIALPILOT_OAUTH_API_BASE_URL` hoặc Gradle property `-PsocialpilotOauthApiBaseUrl=https://<tunnel-host>/`. App chỉ chấp nhận HTTPS. Callback ứng dụng là `socialpilot://oauth/callback`; backend chỉ cho phép `redirectId=android-dev` và route cố định này.
+
+Phiên đăng nhập nằm trong bộ nhớ backend (10 phút), handoff dùng một lần (60 giây). Khởi động lại backend sẽ làm mất các phiên đang chờ. OAuth token và verifier trên Android được mã hóa bằng Android Keystore, không lưu trong Room. Chưa có kiểm thử callback trên thiết bị, xác nhận token lifecycle hoặc đăng bài thật trong bản triển khai này.

@@ -115,3 +115,13 @@ Suggested commit title:
 ```text
 docs(docs): record SP-010 Facebook OAuth evidence [SP-010]
 ```
+
+## Owner evidence and implementation update — 11/11/2026
+
+The owner later supplied Meta dashboard and Graph API Explorer evidence that supersedes the earlier “unknown” rows in this 10/11 snapshot:
+
+- App is in Development mode; the selected use case is Page management; Minh Ngg has the app Admin role.
+- Meta lists `pages_show_list`, `pages_read_engagement`, `pages_read_user_content`, `pages_manage_posts`, `public_profile`, and `business_management` as ready for testing. `pages_manage_engagement` was not added.
+- The owner confirmed a valid Page token for Demo Page MD 24-31 (`1427548503779474`) and a read-only `GET /<PAGE_ID>?fields=id,name` returning the expected Page name and ID. No token value is stored here.
+- The owner has `cloudflared` 2026.10.7 installed. A Quick Tunnel host has not yet been started/registered, so the exact HTTPS callback URI remains pending.
+- Source work is now in progress on the SP-010 branch stacked on SP-009. This does not replace required Gradle checks or live callback evidence; no post has been published.

@@ -10,7 +10,7 @@ Các interface trong domain/contract là điểm mở rộng, chưa có thực t
 Hợp đồng social v1 (SP-009) có DTO kênh/capability, request/result đăng,
 lỗi chuẩn hóa và DTO OAuth đồng bộ Android/backend. Xem [hợp đồng social](social-contract.md)
 cho ví dụ, ràng buộc phiên, ownership và ca kiểm chứng. DTO/interface không thay
-adapter OAuth, queue hoặc kiểm chứng API thật; endpoint OAuth vẫn trả 501.
+adapter OAuth, queue hoặc kiểm chứng API thật; backend SP-010 có flow Facebook OAuth với callback và handoff một lần; chưa có bằng chứng kiểm thử đầu-cuối.
 
 ## Quy tắc cần giữ khi triển khai tiếp
 
