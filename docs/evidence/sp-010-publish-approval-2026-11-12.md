@@ -48,3 +48,5 @@ Bản ghi POST/GET và xác nhận mở permalink được lưu trong [hồ sơ 
 - **Chưa được chứng minh bởi ảnh này:** thời điểm duyệt trước khi gửi, request/response POST, ID/URL của bài, đầy đủ scope/API permission, ca thiếu quyền, token type/expiry/refresh, browser callback hay publish từ ứng dụng.
 - Ca thiếu quyền thực tế và metadata/vòng đời Page token vẫn chưa có bằng chứng bổ sung trong lượt này; không tự chuyển thành PASS hoặc BLOCKED. Owner tiếp tục theo dõi tại Issue #12, không cần thu thập hay ghi giá trị token vào tài liệu.
 - Tài liệu này bổ sung một phần feedback của Thiện trên head `cd03134`; không tự đóng Issue #12, thay approval của reviewer hoặc nghiệm thu toàn bộ F1/F5.
+
+Cập nhật sau cùng ngày: owner đã cung cấp riêng ca lỗi quyền và chuỗi ảnh metadata Page token trước/sau bước mở rộng cùng GET kiểm tra. Xem [bằng chứng bổ sung](sp-010-permission-token-lifecycle-2026-11-12.md); ghi chú chưa có bằng chứng ở trên là trạng thái tại lúc ghi nhận duyệt bài, không còn là kết luận cuối về metadata/phép thử provider thủ công.

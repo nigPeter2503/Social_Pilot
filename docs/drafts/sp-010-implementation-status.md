@@ -8,6 +8,7 @@
 - A real Facebook login completed on a physical Android device; the app returned with the intended Page connected.
 - A real text post was created through Meta Graph API Explorer and read back successfully. Page ID: 1427548503779474; post ID: 1427548503779474_122109132231532657; permalink: https://www.facebook.com/122109132717532657/posts/122109132231532657; created 2026-11-11T06:58:10+0000. The owner confirmed the permalink opens the expected Page and post. No credential or token is recorded.
 - On 12/11 the owner retrospectively confirmed reviewing the content, preparing the POST, checking the intended Page and deliberately sending the API request. A supplied screenshot shows the matching text on Demo Page MD 24-31 and the visible publisher label Social Management MD. [Approval and screenshot evidence](../evidence/sp-010-publish-approval-2026-11-12.md) distinguishes that historical attestation from the later screenshot; no exact approval/capture time is invented and no post was repeated.
+- On 12/11 the owner supplied a real Page-feed permission/admin rejection (`OAuthException`, JSON error code `200`), Page-token Debugger metadata before/after manual extension (expiry changes from a timestamp to “Never”; data-access expiry remains separate), and a GET returning the intended Page. [Permission and token evidence](../evidence/sp-010-permission-token-lifecycle-2026-11-12.md) records the results and image hashes. These are manual Meta-tool checks, not automatic refresh in SocialPilot.
 - The 11/11 owner verification used 23 backend tests. Review remediation below supersedes those build/test counts; the real device and Page-post evidence above has not been rerun in this remediation.
 
 ## Review remediation — 11–12/11/2026, Asia/Bangkok
@@ -39,9 +40,9 @@ Regression evidence:
 
 ## Still open
 
-- The real missing-permission case has no supplied provider evidence yet. Owner: Minh; tracked in Issue #12. This remains NOT TESTED, not a proven external blocker or a passing acceptance result.
+- The previously missing real permission/admin error and Page-token metadata/manual extension evidence are now recorded in the supplement above; reviewers must confirm the final evidence scope. The permission response is safely transcribed because the local raw PNG still exposes part of a credential; it is not committed.
 - Negative callback/state, replay/race and expiry boundaries now have service-level tests with a fake provider; live negative callback behavior and device lifecycle still need evidence.
-- Earlier User-token Debugger metadata is recorded in the historical evidence; Page-token type/expiry and actual refresh/extension behavior remain uncharacterized. Owner: Minh; tracked in Issue #12. The approval statement and screenshot do not supply these results.
+- Page-token type/expiry and manual extension outcome are recorded. Automatic app refresh, real expiry/revocation and application recovery are not verified; F1.B3 is not fully accepted by the provider-tool demonstration. Owner: Minh; tracked in Issue #12.
 - Restart and Android cold-start callback behavior have not been separately exercised.
 - The real post was made through Graph API Explorer; SocialPilot's app-side publish queue/production publishing flow is not implemented or verified by this spike.
 - Image/alt-text publishing was not tested.

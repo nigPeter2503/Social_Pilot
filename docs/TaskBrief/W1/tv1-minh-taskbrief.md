@@ -104,8 +104,9 @@ Các đường dẫn package Android rút gọn tính từ `android/app/src/main
 
 - [x] Trình duyệt hệ thống → backend → app trả đúng định danh Page qua mã bàn giao; owner xác nhận kết nối trên điện thoại thật ngày 11/11/2026.
 - [ ] Sai state, sai phiên, mã hết hạn và đổi mã lần hai bị từ chối; bí mật không có trong URL/log hoặc repo.
-- [x] Bài Page thật có ID/URL đã được đọc lại qua Graph API Explorer và owner xác nhận permalink mở đúng bài; token refresh/expiry chưa thử và được ghi riêng.
-- Ghi nhận bổ sung 12/11: owner xác nhận đã xem/duyệt nội dung, kiểm tra Page rồi chủ động gửi POST. [Ảnh bài và xác nhận lịch sử](../../evidence/sp-010-publish-approval-2026-11-12.md) được lưu riêng; ảnh không chứng minh thời điểm duyệt, ca thiếu quyền hoặc metadata Page token. Các phần thiếu này vẫn theo dõi tại Issue #12, owner Minh; chưa đủ điều kiện đóng task.
+- [x] Bài Page thật có ID/URL đã được đọc lại qua Graph API Explorer và owner xác nhận permalink mở đúng bài; metadata Page token/mở rộng thủ công đã có bằng chứng riêng ngày 12/11, chưa đồng nghĩa app tự refresh hoặc đã thử token hết hạn/thu hồi.
+- Ghi nhận bổ sung 12/11: owner xác nhận đã xem/duyệt nội dung, kiểm tra Page rồi chủ động gửi POST. [Ảnh bài và xác nhận lịch sử](../../evidence/sp-010-publish-approval-2026-11-12.md) được lưu riêng; phần duyệt trước dựa trên xác nhận của người thực hiện. Bằng chứng quyền/token được ghi trong mục tiếp theo; Issue #12, owner Minh vẫn theo dõi các điều kiện hoàn tất còn mở.
+- Cập nhật tiếp 12/11: [lỗi quyền thật, metadata và mở rộng Page token thủ công](../../evidence/sp-010-permission-token-lifecycle-2026-11-12.md) đã có ảnh/kết quả riêng. Debugger sau thao tác ghi Page token hợp lệ, hạn token “Không bao giờ”, hạn truy cập dữ liệu vẫn riêng; GET nhận đúng Page. Chưa chứng minh app tự refresh hoặc xử lý token hết hạn/thu hồi. Các ghi chú NOT TESTED cũ về metadata/provider extension được thay bằng bằng chứng này; restart/cold-start và ảnh/alt text vẫn cần chốt theo phạm vi spike với reviewer.
 - [ ] Có ghi nhận HTTPS, restart/cold start của môi trường thử và khả năng ảnh/alt text; không tuyên bố production-ready.
 
 ### Kiểm chứng và bằng chứng cần nộp
