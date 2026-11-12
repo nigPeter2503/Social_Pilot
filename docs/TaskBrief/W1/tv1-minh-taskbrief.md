@@ -86,7 +86,7 @@ Khi bàn giao ghi phần đã làm, kiểm thử đã chạy, phần còn thiế
 - **Mốc bàn giao:** Hết ngày làm việc 3, tính từ đầu Tuần 1.
 - **Ước lượng owner:** 8 giờ gồm thiết kế/triển khai, tích hợp, kiểm thử và tài liệu. Review thêm 0,75 giờ/người/PR, tính riêng.
 - **Branch:** `feat/sp-010-facebook-oauth-spike`; đã tích hợp `origin/main` sau khi SP-009 / PR #66 merge và giải conflict trong checkout sửa.
-- **PR:** [#74](https://github.com/nigPeter2503/Social_Pilot/pull/74). Bản sửa bốn feedback có 39 backend test và 27 Android unit test đạt; build/lint và APK test đạt. Ngày 12/11, 2 test Keystore đạt trên Samsung SM-G990E / Android 16 / API 36 tại source `a6c8a9d`; đã khôi phục APK ban đầu bằng install -r. API 23 và callback cold-start chưa thử. Hai reviewer cần xác nhận lại head mới; xem [hồ sơ kiểm chứng](../../drafts/sp-010-implementation-status.md).
+- **PR:** [#74](https://github.com/nigPeter2503/Social_Pilot/pull/74). Bản sửa bốn feedback có 39 backend test và 27 Android unit test đạt; build/lint và APK test đạt. Ngày 12/11, 2 test Keystore đạt trên Samsung SM-G990E / Android 16 / API 36 tại source `a6c8a9d`; đã khôi phục APK ban đầu sau lượt instrumentation. Sau đó app được build/cài lại với tunnel mới tại source `2004a97`, owner thử thành công callback sau khi dừng tiến trình và ca backend restart giữa phiên OAuth theo bằng chứng bên dưới. API 23 chưa thử. Hai reviewer cần xác nhận lại head mới; xem [hồ sơ kiểm chứng](../../drafts/sp-010-implementation-status.md).
 
 ### Mục tiêu, phạm vi và khu vực
 
@@ -108,6 +108,7 @@ Các đường dẫn package Android rút gọn tính từ `android/app/src/main
 - Ghi nhận bổ sung 12/11: owner xác nhận đã xem/duyệt nội dung, kiểm tra Page rồi chủ động gửi POST. [Ảnh bài và xác nhận lịch sử](../../evidence/sp-010-publish-approval-2026-11-12.md) được lưu riêng; phần duyệt trước dựa trên xác nhận của người thực hiện. Bằng chứng quyền/token được ghi trong mục tiếp theo; Issue #12, owner Minh vẫn theo dõi các điều kiện hoàn tất còn mở.
 - Cập nhật tiếp 12/11: [lỗi quyền thật, metadata và mở rộng Page token thủ công](../../evidence/sp-010-permission-token-lifecycle-2026-11-12.md) đã có ảnh/kết quả riêng. Debugger sau thao tác ghi Page token hợp lệ, hạn token “Không bao giờ”, hạn truy cập dữ liệu vẫn riêng; GET nhận đúng Page. Chưa chứng minh app tự refresh hoặc xử lý token hết hạn/thu hồi. Các ghi chú NOT TESTED cũ về metadata/provider extension được thay bằng bằng chứng này; restart/cold-start và ảnh/alt text vẫn cần chốt theo phạm vi spike với reviewer.
 - [ ] Có ghi nhận HTTPS, restart/cold start của môi trường thử và khả năng ảnh/alt text; không tuyên bố production-ready.
+- Bổ sung 12/11 tại source `2004a97`: [callback sau khi dừng tiến trình Android](../../evidence/sp-010-cold-start-callback-2026-11-12.md) đạt trong ca owner thực hiện trên thiết bị thật. Ảnh terminal xác nhận không còn PID trước xác nhận Facebook; owner báo callback mở lại app và kết nối đúng Page. Ca [backend restart](../../evidence/sp-010-backend-restart-callback-2026-11-12.md) cũng đạt theo trình tự owner xác nhận: ảnh cho thấy phiên cũ trả `INVALID_STATE`, phiên mới hiện thông báo kết nối thành công đúng Page. Ảnh/alt text chưa có kết quả và chưa được chấp thuận thay đổi phạm vi; tiêu chí tổng hợp phía trên tiếp tục để mở.
 
 ### Kiểm chứng và bằng chứng cần nộp
 
