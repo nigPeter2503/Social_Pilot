@@ -78,15 +78,15 @@ Khi bàn giao ghi phần đã làm, kiểm thử đã chạy, phần còn thiế
 - **Issue:** [SP-010](https://github.com/nigPeter2503/Social_Pilot/issues/12) — #12.
 - **Issue cha:** [SP-002](https://github.com/nigPeter2503/Social_Pilot/issues/4).
 - **Project:** [Social Pilot - Development Board 2024_31_MD_2](https://github.com/users/nigPeter2503/projects/5).
-- **Trạng thái đã kiểm chứng:** Issue OPEN; Project **Todo (Chưa làm)**; đã assign cho `nigPeter2503`.
+- **Trạng thái đã kiểm chứng trong lượt sửa 11–12/11:** Issue OPEN; Project **In Progress (Đang làm)**; đã assign cho `nigPeter2503`. Chưa Hoàn tất; mốc W1 ban đầu đã trễ.
 - **Yêu cầu:** F1.B1, F1.B3, F5.B1, F5.B5.
 - **Owner:** TV1 — Ngô Gia Minh (`nigPeter2503`).
 - **Hai reviewer khi có PR:** Nguyễn Đức Đạt (`dat532006`); Đỗ Phước Thiện (`PhuocThien06`).
 - **Ưu tiên:** Cao, ghi trong issue; board hiện không có field Priority riêng.
 - **Mốc bàn giao:** Hết ngày làm việc 3, tính từ đầu Tuần 1.
 - **Ước lượng owner:** 8 giờ gồm thiết kế/triển khai, tích hợp, kiểm thử và tài liệu. Review thêm 0,75 giờ/người/PR, tính riêng.
-- **Branch dự kiến:** `feat/sp-010-facebook-oauth-spike` (chưa tạo), base `main`.
-- **PR:** chưa tạo; liên kết issue ở trên và yêu cầu hai reviewer đã ghi.
+- **Branch:** `feat/sp-010-facebook-oauth-spike`; đã tích hợp `origin/main` sau khi SP-009 / PR #66 merge và giải conflict trong checkout sửa.
+- **PR:** [#74](https://github.com/nigPeter2503/Social_Pilot/pull/74). Bản sửa bốn feedback có 39 backend test và 27 Android unit test đạt; build/lint và APK test đạt. Ngày 12/11, 2 test Keystore đạt trên Samsung SM-G990E / Android 16 / API 36 tại source `a6c8a9d`; đã khôi phục APK ban đầu sau lượt instrumentation. Sau đó app được build/cài lại với tunnel mới tại source `2004a97`, owner thử thành công callback sau khi dừng tiến trình và ca backend restart giữa phiên OAuth theo bằng chứng bên dưới. API 23 chưa thử. Hai reviewer cần xác nhận lại head mới; xem [hồ sơ kiểm chứng](../../drafts/sp-010-implementation-status.md).
 
 ### Mục tiêu, phạm vi và khu vực
 
@@ -102,14 +102,18 @@ Các đường dẫn package Android rút gọn tính từ `android/app/src/main
 
 ### Đầu ra và tiêu chí đạt
 
-- [ ] Trình duyệt hệ thống → backend → app trả đúng định danh Page qua mã bàn giao; có bằng chứng đường callback thực tế.
-- [ ] Sai state, sai phiên, mã hết hạn và đổi mã lần hai bị từ chối; bí mật không có trong URL/log hoặc repo.
-- [ ] Bài thử thật có ID/URL mở đúng bài; bảng quyền phân biệt đã thử, lỗi và chưa được cấp. Refresh chưa thử/không được cấp ghi riêng.
-- [ ] Có ghi nhận HTTPS, restart/cold start của môi trường thử và khả năng ảnh/alt text; không tuyên bố production-ready.
+- [x] Trình duyệt hệ thống → backend → app trả đúng định danh Page qua mã bàn giao; owner xác nhận kết nối trên điện thoại thật ngày 11/11/2026.
+- [x] Sai state, sai phiên, mã hết hạn và đổi mã lần hai bị từ chối; bí mật không có trong URL/log hoặc repo. Các ca state/session/verifier/TTL/replay có test service với provider giả trong bộ 39 backend test; ca `INVALID_STATE` sau backend restart có bằng chứng thật riêng. Không diễn giải thành đã chạy mọi ca âm tính trên Meta; chỉ lưu bằng chứng đã loại credential, không commit PNG thô còn hiện token.
+- [x] Bài Page thật có ID/URL đã được đọc lại qua Graph API Explorer và owner xác nhận permalink mở đúng bài; metadata Page token/mở rộng thủ công đã có bằng chứng riêng ngày 12/11, chưa đồng nghĩa app tự refresh hoặc đã thử token hết hạn/thu hồi.
+- Ghi nhận bổ sung 12/11: owner xác nhận đã xem/duyệt nội dung, kiểm tra Page rồi chủ động gửi POST. [Ảnh bài và xác nhận lịch sử](../../evidence/sp-010-publish-approval-2026-11-12.md) được lưu riêng; phần duyệt trước dựa trên xác nhận của người thực hiện. Bằng chứng quyền/token được ghi trong mục tiếp theo; Issue #12, owner Minh vẫn theo dõi các điều kiện hoàn tất còn mở.
+- Cập nhật tiếp 12/11: [lỗi quyền thật, metadata và mở rộng Page token thủ công](../../evidence/sp-010-permission-token-lifecycle-2026-11-12.md) đã có ảnh/kết quả riêng. Debugger sau thao tác ghi Page token hợp lệ, hạn token “Không bao giờ”, hạn truy cập dữ liệu vẫn riêng; GET nhận đúng Page. Chưa chứng minh app tự refresh hoặc xử lý token hết hạn/thu hồi. Các ghi chú NOT TESTED cũ về metadata/provider extension được thay bằng bằng chứng này; restart/cold-start và ảnh/alt text vẫn cần chốt theo phạm vi spike với reviewer.
+- [x] Có ghi nhận HTTPS, restart/cold start của môi trường thử và khả năng ảnh/alt text; không tuyên bố production-ready. Hai ca lifecycle có hồ sơ bên dưới; [ảnh và custom alt text](../../evidence/sp-010-photo-alt-text-2026-11-12.md) đã đăng/đọc lại thành công qua Explorer v27.0.
+- Bổ sung 12/11 tại source `2004a97`: [callback sau khi dừng tiến trình Android](../../evidence/sp-010-cold-start-callback-2026-11-12.md) đạt trong ca owner thực hiện trên thiết bị thật. Ảnh terminal xác nhận không còn PID trước xác nhận Facebook; owner báo callback mở lại app và kết nối đúng Page. Ca [backend restart](../../evidence/sp-010-backend-restart-callback-2026-11-12.md) cũng đạt theo trình tự owner xác nhận: ảnh cho thấy phiên cũ trả `INVALID_STATE`, phiên mới hiện thông báo kết nối thành công đúng Page.
+- Bổ sung tiếp 12/11: owner duyệt phép thử ảnh tối thiểu, tự gửi POST qua Explorer, cung cấp photo/post ID và GET có `alt_text_custom` khớp chính xác; xác nhận link mở đúng ảnh. Photo `122109617541532657`, post `1427548503779474_122109617565532657`, thời gian tạo 14:15:30 UTC+07:00. [Hồ sơ ảnh/alt text](../../evidence/sp-010-photo-alt-text-2026-11-12.md) thay thế trạng thái chưa kiểm chứng ở ghi chú trước; dùng JSON an toàn vì PNG cục bộ còn hiện một phần token. Đây là capability spike, không nghiệm thu tính năng editor/publish production. Các checkbox trên ghi mức bằng chứng của task; hoàn tất vẫn cần hai approval và merge theo CONTRIBUTING.
 
 ### Kiểm chứng và bằng chứng cần nộp
 
-MockMvc cho state/TTL/replay, thiết bị/emulator cho browser callback, kiểm tra bài trên Page thật. Lỗi mô phỏng ghi tách khỏi thành công API thật.
+State/TTL/replay/race đã có test service với provider giả trong bản sửa review; không dùng kết quả này thay bằng chứng callback âm tính/lifecycle trên thiết bị. Callback OAuth cơ bản đã được owner xác nhận trên thiết bị thật trước bản sửa. Bài Page thật được tạo và đọc lại qua Graph API Explorer; không đồng nhất bằng chứng này với publish qua hàng đợi ứng dụng. Lỗi mô phỏng ghi tách khỏi thành công API thật.
 
 Nộp revision/PR khi có, lệnh/ca thử, môi trường, ngày thử, kết quả và phần chưa thử. Log/ảnh không chứa key/token. Prototype, mock và API thật phải có nhãn riêng. Bằng chứng dự kiến đặt trong hồ sơ ticket/PR hoặc tài liệu kiểm chứng được thống nhất; cập nhật bằng chứng thực thi vào issue/PR tương ứng; trạng thái Todo chưa chứng minh tiêu chí đã đạt.
 
@@ -117,7 +121,7 @@ Nộp revision/PR khi có, lệnh/ca thử, môi trường, ngày thử, kết q
 
 Chậm nhất ngày làm việc 3: Nghị nhận Page ID, post ID và cơ chế lấy token qua kênh riêng; Thiện nhận callback mẫu. Chỉ bàn giao log đã che bí mật trong repo.
 
-Không có app/quyền sau bước kiểm kê: ghi blocker ngay, tiếp tục test callback bằng provider giả; yêu cầu đăng thật vẫn chưa đạt. Nếu có nguy cơ trễ mốc, cập nhật phần còn lại và ảnh hưởng lịch trên issue, không coi spike thất bại là W1 đạt.
+Không có app/quyền sau bước kiểm kê: ghi blocker ngay, tiếp tục test callback bằng provider giả; yêu cầu đăng thật vẫn chưa đạt. Cập nhật 11/11/2026: callback trên điện thoại và một bài Page thật đã có bằng chứng; token lifecycle, restart/cold-start và ảnh/alt text còn mở.
 
 Khi bàn giao ghi phần đã làm, kiểm thử đã chạy, phần còn thiếu, contract revision, người nhận và giờ còn lại. Nếu có nguy cơ trễ mốc, cập nhật việc còn lại và phụ thuộc trên issue; chỉ tạo task mới khi đầu ra độc lập, không đánh dấu tiêu chí chưa đạt thành đạt.
 
