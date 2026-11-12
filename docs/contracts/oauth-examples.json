@@ -1,0 +1,31 @@
+{
+  "oauthStartRequest": {
+    "provider": "FACEBOOK",
+    "redirectId": "android-demo",
+    "sessionChallenge": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "oauthStartResponse": {
+    "sessionId": "session-demo-01",
+    "authorizationUrl": "https://example.com/oauth/authorize?state=fake-demo-state",
+    "expiresAt": "2026-11-07T12:10:00Z"
+  },
+  "oauthHandoffExchangeRequest": {
+    "sessionId": "session-demo-01",
+    "handoffCode": "fake-demo-handoff",
+    "sessionVerifier": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "oauthExchangeResponse": {
+    "sessionId": "session-demo-01",
+    "provider": "FACEBOOK",
+    "externalAccountId": "page-demo-01",
+    "accountType": "PAGE",
+    "displayName": "CLB Demo",
+    "accessToken": "FAKE_TEST_ACCESS_TOKEN",
+    "refreshToken": null,
+    "tokenType": "Bearer",
+    "expiresAt": "2026-11-07T13:00:00Z"
+  },
+  "oauthFailure": {
+    "code": "HANDOFF_ALREADY_USED"
+  }
+}
