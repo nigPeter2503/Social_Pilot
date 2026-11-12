@@ -26,6 +26,7 @@ adapter OAuth, queue hoặc kiểm chứng API thật; endpoint OAuth vẫn tr�
 
 TV4 — Tô Lãng Nghị sở hữu API, snapshot, repository, công thức, lưu mục tiêu/tính tiến độ và F7.N2 (nghiệp vụ cùng giao diện báo cáo AI). TV3 — Đỗ Phước Thiện sở hữu XML/ViewModel F7.B1 (số liệu từng bài), F7.B2 (đường tăng trưởng), F7.B3 (dashboard), F7.N1 (phân tích theo nhóm), F7.N3 (mục tiêu); không tính lại chỉ số trong UI. Snapshot thật bắt đầu từ tuần 2–3 khi có quyền API, tuần 4 dùng lịch sử đã tích lũy; thiếu quyền phải ghi blocker, giữ khoảng trống dữ liệu.
 
+[Hợp đồng dữ liệu Room SP-012](room-schema-contract.md) ghi quy ước ID, quan hệ, ownership, khóa duy nhất, xóa theo kênh và kế hoạch migration từ v1. Các quyết định retention và reconnect còn mở được ghi cùng người phụ trách trong hợp đồng.
 Nguyễn Đức Đạt (TV2) điều phối schema Room, phiên bản database và chuỗi migration theo [CONTRIBUTING mục 6](../CONTRIBUTING.md#6-phối-hợp-phần-dùng-chung). Chủ module đề xuất entity/DAO, migration và kiểm thử phần mình; Đạt chốt thứ tự tích hợp phần chung. Quy ước chi tiết cần được nhóm chốt trong tuần 1; phân công này chưa đồng nghĩa thiết kế schema đã hoàn tất.
 
 ## Bản đề xuất dữ liệu F6/F7 để review
