@@ -1,0 +1,59 @@
+SP-014 review verification
+Date: 2026-11-12, Asia/Bangkok
+Author verification, by Codex for dat532006
+Review: https://github.com/nigPeter2503/Social_Pilot/pull/73#pullrequestreview-5861818770
+SP-014 source commit: 452b607892fbfd03e9e5ce0b58e09c4ddde18881
+SP-014 source tree: eee8fcb774014f9bfb6da1d8cad416019bb875af
+SP-013 dependency: 82bf8c651a1a398f2719037aeeef3b174b6e1328
+Integrated test tree: 3f9a24947a908730f767ab644dbd1e414008dcf5
+Base of the two feature branches: 0348982c8f295d946815da91eae491bd9645ac94
+Environment: Windows, Microsoft OpenJDK 21.0.13, SDK Platform 36, Gradle Wrapper 8.13
+
+Preparation
+- Build an integration tree with git merge-tree --write-tree <SP-013 dependency> <SP-014 source commit>.
+- Export that tree with git archive into a scratch directory.
+- Run the Android Wrapper from the exported android/ directory.
+- The feature branch retains only SP-014 changes. SP-013 is still an unmerged dependency.
+
+Regression demonstration
+- Run invalidTerminalCannotReleaseAfterTextAndDuplicateCannotSettleAgain using the new test and the old coordinator from a4243f1.
+- Expected: FAIL. Actual: FAIL, Gradle exit 1.
+- Restore the fixed coordinator before the passing verification below.
+- The test covers both sequential and skipped terminal sequence, with a false dispatch flag after text, and duplicate terminal emission.
+
+Command
+.\gradlew.bat :app:assembleDebug :app:testDebugUnitTest :app:lintDebug --console=plain
+
+Expected
+- Build succeeds, all 46 unit tests pass, lint has no errors.
+Actual
+- BUILD SUCCESSFUL.
+- AiProvidersTest: 19 tests, 0 failures/errors.
+- DualStreamHttpTest: 7 tests, 0 failures/errors.
+- DualStreamCoordinatorTest: 7 tests, 0 failures/errors.
+- DualStreamReviewRegressionTest: 6 tests, 0 failures/errors.
+- BudgetContractTest: 4 tests, 0 failures/errors.
+- DraftValidatorTest: 3 tests, 0 failures/errors.
+- Total 46 tests, including 20 SP-014 tests.
+- Lint 0 errors, 12 warnings in app/build.gradle.
+- Mock HTTP overlap in microseconds since test start: A=[8717,11789], B=[8717,11643].
+
+Review coverage
+1. Invalid terminal cannot release after text. Invalid sequence without dispatch evidence remains uncertain.
+   A valid undispatched terminal releases once. Duplicate terminal does not settle twice.
+2. Both running Futures and both transport handles cancel. Both active HTTP streams exit.
+   Cancel after worker entry before Call attachment sends no request for A and releases once.
+   Success and failure terminals are gated to arrive before and after cancellation.
+3. HTTP failure -> retry sends only one additional A request.
+   FAILED -> retry with full queue -> FAILED/EXECUTOR releases the rejected attempt once.
+   A fresh request succeeds after the queue drains. Old callbacks do not change its state or ledger.
+   B keeps the same request ID, phase and text across those operations.
+4. Method mapping T01-T12 and explicit retry handoff are in docs/dual-stream-prototype.md.
+
+Pending
+- Android CI for the PR branch against main, after SP-013 merges and the branch is synchronized.
+- Emulator with SP-017 runtime wiring, durable Room checkpoint restore and production budget ledger.
+- Real provider calls are not part of these tests.
+
+Source/test files in the integrated tree match source commit 452b607.
+The subsequent documentation commit adds only this evidence and the handoff/method mapping.
