@@ -105,6 +105,7 @@ Các đường dẫn package Android rút gọn tính từ `android/app/src/main
 - [x] Trình duyệt hệ thống → backend → app trả đúng định danh Page qua mã bàn giao; owner xác nhận kết nối trên điện thoại thật ngày 11/11/2026.
 - [ ] Sai state, sai phiên, mã hết hạn và đổi mã lần hai bị từ chối; bí mật không có trong URL/log hoặc repo.
 - [x] Bài Page thật có ID/URL đã được đọc lại qua Graph API Explorer và owner xác nhận permalink mở đúng bài; token refresh/expiry chưa thử và được ghi riêng.
+- Ghi nhận bổ sung 12/11: owner xác nhận đã xem/duyệt nội dung, kiểm tra Page rồi chủ động gửi POST. [Ảnh bài và xác nhận lịch sử](../../evidence/sp-010-publish-approval-2026-11-12.md) được lưu riêng; ảnh không chứng minh thời điểm duyệt, ca thiếu quyền hoặc metadata Page token. Các phần thiếu này vẫn theo dõi tại Issue #12, owner Minh; chưa đủ điều kiện đóng task.
 - [ ] Có ghi nhận HTTPS, restart/cold start của môi trường thử và khả năng ảnh/alt text; không tuyên bố production-ready.
 
 ### Kiểm chứng và bằng chứng cần nộp
