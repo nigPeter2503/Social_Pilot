@@ -1,0 +1,92 @@
+{
+    "source": "MO_PHONG",
+    "description": "Synthetic SP-019 examples; no API calls, real identities, credentials or copied responses.",
+    "documentationVersionCandidate": "202610",
+    "liveApiVersion": null,
+    "context": {
+        "source": "MO_PHONG",
+        "sourceRef": "synthetic-linkedin-comments",
+        "channelId": "synthetic-member-channel",
+        "channelUrn": "urn:li:person:synthetic-member",
+        "accountType": "MEMBER",
+        "connectionRevision": 1,
+        "apiVersion": "202610",
+        "postUrn": "urn:li:share:9000000000000000001",
+        "targetUrn": "urn:li:share:9000000000000000001",
+        "queryKey": "comments:synthetic-query-v1",
+        "collectedAtMs": 1794189600000
+    },
+    "pages": [
+        {
+            "elements": [
+                {
+                    "id": "9000000000000000101",
+                    "object": "urn:li:activity:9000000000000000002",
+                    "commentUrn": "urn:li:comment:(urn:li:activity:9000000000000000002,9000000000000000101)",
+                    "actor": "urn:li:person:synthetic-author",
+                    "created": {"time": 1794186000000},
+                    "lastModified": {"time": 1794186000000},
+                    "message": {"text": "Bình luận mô phỏng"}
+                },
+                {
+                    "id": "9000000000000000102",
+                    "object": "urn:li:activity:9000000000000000002",
+                    "message": {"text": ""}
+                }
+            ],
+            "paging": {
+                "start": 0, "count": 2, "total": 3,
+                "links": [{"rel": "next", "href": "https://example.invalid/synthetic-next?start=2&count=2"}]
+            }
+        },
+        {
+            "elements": [
+                {
+                    "id": "9000000000000000101",
+                    "object": "urn:li:activity:9000000000000000002",
+                    "message": {"text": "Nội dung cập nhật mô phỏng"}
+                },
+                {
+                    "id": "9000000000000000103",
+                    "object": "urn:li:activity:9000000000000000002",
+                    "parentComment": "urn:li:comment:(urn:li:activity:9000000000000000002,9000000000000000101)"
+                }
+            ],
+            "paging": {"start": 2, "count": 2, "total": 3, "links": []}
+        }
+    ],
+    "empty": {"elements": [], "paging": {"start": 0, "count": 2, "total": 0, "links": []}},
+    "memberFollowers": {"elements": [{"memberFollowersCount": 0}]},
+    "organizationContext": {
+        "source": "MO_PHONG",
+        "sourceRef": "synthetic-organization-stats",
+        "channelId": "synthetic-organization-channel",
+        "channelUrn": "urn:li:organization:9000000000000000010",
+        "accountType": "ORGANIZATION",
+        "connectionRevision": 1,
+        "apiVersion": "202610",
+        "queryKey": "networkSizes:COMPANY_FOLLOWED_BY_MEMBER",
+        "postUrn": "urn:li:share:9000000000000000001",
+        "collectedAtMs": 1794189600000
+    },
+    "organizationFollowers": {"firstDegreeSize": 150},
+    "organizationPostStatistics": {
+        "elements": [{
+            "organizationalEntity": "urn:li:organization:9000000000000000010",
+            "share": "urn:li:share:9000000000000000001",
+            "totalShareStatistics": {"impressionCount": 100, "commentCount": 0, "shareCount": 2, "likeCount": -1, "engagement": 0.03}
+        }]
+    },
+    "errors": [
+        {"httpStatus": 401, "body": {"status": 401, "serviceErrorCode": 0, "message": "Synthetic auth error"}, "reason": "AUTH_REQUIRED"},
+        {"httpStatus": 403, "body": {"status": 403, "message": "Synthetic access denied"}, "reason": "ACCESS_DENIED_UNVERIFIED_CAUSE"},
+        {"httpStatus": 429, "body": {"status": 429, "message": "Synthetic throttle"}, "reason": "RATE_LIMITED"},
+        {"httpStatus": 500, "body": {}, "reason": "TEMPORARILY_UNAVAILABLE"},
+        {"httpStatus": 400, "body": {"status": 400}, "reason": "UNVERIFIED"}
+    ],
+    "replyAccepted": {
+        "source": "MO_PHONG", "httpStatus": 201,
+        "headers": {"X-RestLi-Id": "9000000000000000104"},
+        "body": {"id": "9000000000000000104", "commentUrn": "urn:li:comment:(urn:li:activity:9000000000000000002,9000000000000000104)"}
+    }
+}
