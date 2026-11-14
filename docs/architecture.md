@@ -7,10 +7,11 @@ AI gọi trực tiếp từ thiết bị đến provider. Backend Spring Boot ch
 Hiện đã nối luồng topic → kiểm tra → lưu Room → quan sát danh sách. Room chưa chứa key/token.
 Các interface trong domain/contract là điểm mở rộng, chưa có thực thi AI, đăng bài, ngân sách hoặc đồng bộ.
 
-Hợp đồng social v1 (SP-009) có DTO kênh/capability, request/result đăng,
-lỗi chuẩn hóa và DTO OAuth đồng bộ Android/backend. Xem [hợp đồng social](social-contract.md)
-cho ví dụ, ràng buộc phiên, ownership và ca kiểm chứng. DTO/interface không thay
-adapter OAuth, queue hoặc kiểm chứng API thật; endpoint OAuth vẫn trả 501.
+Hợp đồng social v1 (SP-009) có DTO kênh/capability, request/result đăng, lỗi chuẩn hóa và DTO OAuth đồng bộ Android/backend. Xem [hợp đồng social](social-contract.md) cho ví dụ, ràng buộc phiên, ownership và ca kiểm chứng. Các interface chưa thay thế adapter đăng bài production hoặc queue. SP-010 đã ghi nhận callback/handoff Facebook trên điện thoại thật và một bài Page qua Graph API Explorer. State/replay, TTL và race có test hồi quy với provider giả; vòng đời token và publish từ app vẫn chưa nghiệm thu.
+
+Kho phiên OAuth một instance dùng chung khóa cho các index, cleanup và consume; gọi Graph ngoài khóa và kiểm lại phiên trước khi phát hành handoff. `Clock` server quyết định TTL phiên 10 phút và handoff 60 giây, từ chối tại đúng hạn. Danh sách Page duyệt tối đa 25 request, kiểm ngân sách 30 giây giữa các request; dựng URL Graph cố định từ cursor, không gọi trực tiếp `paging.next`.
+
+Android lưu `connected_v2` (toàn bộ Page/credential/metadata) và `pending_v2` (session/verifier) thành hai payload AES-GCM riêng, có version và AAD theo tên record. Mỗi payload được mã hóa trước rồi ghi một commit. Lỗi ghi hoặc giải mã làm record không khả dụng, không hiển thị metadata kết nối thiếu token. Dữ liệu OAuth v1 từng trường bị loại bỏ và yêu cầu kết nối lại vì không thể xác minh chúng chưa bị ghi dở; không đổi hay xóa Room/bản nháp.
 
 ## Quy tắc cần giữ khi triển khai tiếp
 
