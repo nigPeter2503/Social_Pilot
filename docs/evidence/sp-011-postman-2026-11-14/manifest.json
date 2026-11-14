@@ -1,0 +1,68 @@
+[
+  {
+    "File": "01-app-settings.png",
+    "SourceAttachment": "codex-clipboard-66bba799-b000-4967-8144-a614bb25b540.png",
+    "SHA256": "7356D28F47574E057B88DA8B04A03D84993D5535B9BFB0C06D46782EE7CDA89D",
+    "MaskedRegions": 0
+  },
+  {
+    "File": "02-products.png",
+    "SourceAttachment": "codex-clipboard-eb35b6cf-8a5b-416c-8d6f-8d4c4fe7d914.png",
+    "SHA256": "FCABE2C1385E5FE4500ED8DD2C8BBE041469753E445C5BEB9D66087B3777A0D9",
+    "MaskedRegions": 0
+  },
+  {
+    "File": "03-scopes-callback.png",
+    "SourceAttachment": "codex-clipboard-b57c7e3c-1ae8-45ae-bde4-b39943b0f691.png",
+    "SHA256": "32C5DFB3C264D4F40876C30F4063CFA90D4AE0CDB9893B333C84792D7B796008",
+    "MaskedRegions": 0
+  },
+  {
+    "File": "04-auth-settings.png",
+    "SourceAttachment": "codex-clipboard-d9206489-aac3-471a-acf6-ac1e07df3498.png",
+    "SHA256": "376C8B3EA2F35CEA1D10A141FEF5F540A6E8A63417CB1191BD74B36002ECFBBC",
+    "MaskedRegions": 0
+  },
+  {
+    "File": "05-postman-oauth.png",
+    "SourceAttachment": "codex-clipboard-fa9e8e07-c596-4af5-8a2c-ca64d400450d.png",
+    "SHA256": "D08F34BC01212C43FDBCC0D8CCE1EAC278358E08D67633F3038C3CA5A48A98BE",
+    "MaskedRegions": 2
+  },
+  {
+    "File": "06-token-metadata.png",
+    "SourceAttachment": "codex-clipboard-0aa393cc-4be1-4033-a6d3-b9ade89e54aa.png",
+    "SHA256": "7DE1EE915F77B443179ADCA9C403AA6CD216F847F404619450C8C1ABAEDD2C09",
+    "MaskedRegions": 2
+  },
+  {
+    "File": "07-token-flow-metadata.png",
+    "SourceAttachment": "codex-clipboard-e3f29014-0ff2-46c9-84a6-5dbd3004d268.png",
+    "SHA256": "C3E2BAC9EAC2AC1AD3C076F7A007DFDD87967F9567CEEEF77A72F28AA6B07189",
+    "MaskedRegions": 1
+  },
+  {
+    "File": "08-token-metadata-additional.png",
+    "SourceAttachment": "codex-clipboard-d4948fbd-f52d-4de5-b500-ec0fabf662e7.png",
+    "SHA256": "7DE1EE915F77B443179ADCA9C403AA6CD216F847F404619450C8C1ABAEDD2C09",
+    "MaskedRegions": 2
+  },
+  {
+    "File": "09-publish-body-response.png",
+    "SourceAttachment": "codex-clipboard-6196d800-cca6-4d55-9cf8-0a3b78222375.png",
+    "SHA256": "C7BAAD476E4A1FF337ECC7FBD9273242961EDC2CDFAC7079C75905DC468B93EE",
+    "MaskedRegions": 1
+  },
+  {
+    "File": "10-userinfo.png",
+    "SourceAttachment": "codex-clipboard-2927ef54-2a46-41d5-b71a-56eac66febfc.png",
+    "SHA256": "27716DFA5A5A4338EFE1AF32EDEBC5864A3AF7DC84FFF49D93288BF9A67501E4",
+    "MaskedRegions": 0
+  },
+  {
+    "File": "11-publish-response-headers.png",
+    "SourceAttachment": "codex-clipboard-095c8c1d-898d-4151-ad7f-eff4a55b669f.png",
+    "SHA256": "3384B140CA9BC3B078C27E5862F18ADED6617D2F87BF08DAC5EE9032374D0F2E",
+    "MaskedRegions": 1
+  }
+]

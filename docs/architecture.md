@@ -7,10 +7,11 @@ AI gọi trực tiếp từ thiết bị đến provider. Backend Spring Boot ch
 Hiện đã nối luồng topic → kiểm tra → lưu Room → quan sát danh sách. Room chưa chứa key/token.
 Các interface trong domain/contract là điểm mở rộng, chưa có thực thi AI, đăng bài, ngân sách hoặc đồng bộ.
 
-Hợp đồng social v1 (SP-009) có DTO kênh/capability, request/result đăng,
-lỗi chuẩn hóa và DTO OAuth đồng bộ Android/backend. Xem [hợp đồng social](social-contract.md)
-cho ví dụ, ràng buộc phiên, ownership và ca kiểm chứng. DTO/interface không thay
-adapter OAuth, queue hoặc kiểm chứng API thật; endpoint OAuth vẫn trả 501.
+Hợp đồng social v1 (SP-009) có DTO kênh/capability, request/result đăng, lỗi chuẩn hóa và DTO OAuth đồng bộ Android/backend. Xem [hợp đồng social](social-contract.md) cho ví dụ, ràng buộc phiên, ownership và ca kiểm chứng. Các interface chưa thay thế adapter đăng bài production hoặc queue. SP-010 đã ghi nhận callback/handoff Facebook trên điện thoại thật và một bài Page qua Graph API Explorer. State/replay, TTL và race có test hồi quy với provider giả; vòng đời token và publish từ app vẫn chưa nghiệm thu.
+
+Kho phiên OAuth một instance dùng chung khóa cho các index, cleanup và consume; gọi Graph ngoài khóa và kiểm lại phiên trước khi phát hành handoff. `Clock` server quyết định TTL phiên 10 phút và handoff 60 giây, từ chối tại đúng hạn. Danh sách Page duyệt tối đa 25 request, kiểm ngân sách 30 giây giữa các request; dựng URL Graph cố định từ cursor, không gọi trực tiếp `paging.next`.
+
+Android lưu `connected_v2` (toàn bộ Page/credential/metadata) và `pending_v2` (session/verifier) thành hai payload AES-GCM riêng, có version và AAD theo tên record. Mỗi payload được mã hóa trước rồi ghi một commit. Lỗi ghi hoặc giải mã làm record không khả dụng, không hiển thị metadata kết nối thiếu token. Dữ liệu OAuth v1 từng trường bị loại bỏ và yêu cầu kết nối lại vì không thể xác minh chúng chưa bị ghi dở; không đổi hay xóa Room/bản nháp.
 
 ## Quy tắc cần giữ khi triển khai tiếp
 
@@ -38,3 +39,16 @@ capability/error và đề xuất lưu trữ còn chờ Minh và Đạt xác nh�
 [Fixture có nhãn MO_PHONG](contracts/analytics-examples.json) và
 [hồ sơ kiểm tra](sp-020-verification.md) phục vụ review, không phải bằng chứng API thật.
 Chưa thêm Java DTO/repository, thay SocialConnector hoặc đổi Room version/migration.
+
+
+## Bổ sung SP-011: hai OAuth provider
+
+Backend dùng OAuthSessionService/registry OAuthProviderAdapter cho phiên/state,
+challenge/verifier và handoff. FacebookGraphClient giữ trong Facebook adapter;
+LinkedInOAuthClient đổi code và UserInfo; client secret chỉ ở backend. DTO wire
+SP-009 giữ nguyên. Android dùng OAuthCoordinator với đường dẫn provider và
+EncryptedOAuthStore v3 phân vùng provider, nâng dữ liệu v2 Facebook có kiểm thử.
+LinkedInSocialConnector gọi Posts API từ Android qua snapshot đã duyệt và ledger
+attempt của harness; chưa thay PublishQueue/Room hoặc toàn bộ F4/F5. URL bài trong
+harness chỉ chuyển SUCCESS sau xác nhận đã mở/đối chiếu của người dùng.
+Xem [hồ sơ triển khai](sp-011-implementation.md) và [bằng chứng Postman](evidence/sp-011-postman-verification.md).
