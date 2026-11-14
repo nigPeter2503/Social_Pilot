@@ -101,3 +101,53 @@ Phiên đăng nhập nằm trong bộ nhớ backend (10 phút), handoff dùng m�
 Bản sửa review SP-010 chuyển OAuth secure storage sang hai payload `connected_v2` và `pending_v2`. Lần đọc dữ liệu OAuth kiểu v1 sẽ xóa các trường OAuth cũ và yêu cầu kết nối lại; không xóa Room hay bản nháp. Không tự ghép/migrate các trường cũ vì có thể đã chứa Page/token không cùng lượt kết nối. Lỗi ghi không báo kết nối thành công; bản ghi hỏng được vô hiệu toàn bộ.
 
 Kiểm thử Keystore bổ sung: tại `android`, chạy `.\gradlew.bat :app:connectedDebugAndroidTest` trên emulator/thiết bị thử. Test dùng credential giả và file preferences riêng có tiền tố `sp010_test_`, không sửa file OAuth thông thường, không gọi Meta hoặc đăng bài. `:app:assembleDebugAndroidTest` chỉ xác nhận build APK test, không chứng minh test đã chạy trên thiết bị.
+
+
+## LinkedIn OAuth và đăng chữ thử nghiệm (SP-011)
+
+Dùng worktree/nhánh SP-011, không chạy checkout SP-009 skeleton. Backend có
+`POST /api/oauth/{provider}/start`, `GET /api/oauth/{provider}/callback`,
+`POST /api/oauth/{provider}/exchange`, với provider `facebook` hoặc `linkedin`.
+DTO body dùng FACEBOOK/LINKEDIN theo social contract. Các route Facebook cũ giữ nguyên.
+
+1. Đặt `FACEBOOK_OAUTH_ENABLED=false` nếu chỉ chạy LinkedIn; Facebook mặc định bật
+   để giữ hành vi SP-010. Khi bật Facebook vẫn cần đầy đủ cấu hình Facebook.
+2. Đặt `LINKEDIN_OAUTH_ENABLED=true`, `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`
+   trong môi trường terminal backend; không lưu secret vào file được Git theo dõi.
+3. Chạy backend và tunnel HTTPS. Đặt `LINKEDIN_OAUTH_REDIRECT_URI` bằng
+   `https://<host>/api/oauth/linkedin/callback`, đăng ký chính xác URL này trong
+   LinkedIn Developer Portal, rồi restart backend. Callback Postman không thay
+   callback này. Health có trạng thái riêng `facebook`/`linkedin`.
+4. Android: đặt `SOCIALPILOT_OAUTH_API_BASE_URL=https://<host>/` và
+   `LINKEDIN_API_VERSION=<YYYYMM còn hỗ trợ đã kiểm tra>` trước build/install.
+   Có thể thay bằng Gradle properties `socialpilotOauthApiBaseUrl` và
+   `socialpilotLinkedinApiVersion`. Version trống vẫn cho build và OAuth nhưng
+   harness từ chối gửi bài; không có version mặc định tự suy từ tháng hiện tại.
+5. Chọn Kết nối LinkedIn cá nhân, đồng ý OAuth trong trình duyệt hệ thống; app
+   nhận callback và lưu LINKEDIN/PERSON. Facebook/PAGE được lưu độc lập.
+6. Nhập nội dung vào phần đăng thử; đọc dialog duyệt bài công khai rồi tự chọn
+   đồng ý đăng. Đây là harness thử nghiệm, chưa phải editor/hàng đợi production.
+7. 201 và post ID được giữ ở PUBLISHED_URL_PENDING. Mở bài trên LinkedIn, sao chép
+   link gốc, dán vào ô link trong app và chỉ xác nhận khi đã kiểm tra đúng tác giả,
+   nội dung. SUCCESS lúc này có provenance OWNER_CONFIRMED, không phải API tự xác minh.
+8. UNKNOWN hoặc request đã từng gửi cùng snapshot/kênh sẽ không tự POST lại.
+   Ledger trong preferences giữ attempt trước gửi và kết quả sau gửi; restart
+   không bỏ khóa. Không xóa ledger hoặc đổi nội dung chỉ để vượt đối soát.
+
+Kho token giữ alias Keystore cũ; connected_v2/pending_v2 Facebook được nâng thành
+record v3 có phân vùng provider, mã hóa lại theo AAD mới. Bản cũ chỉ bị bỏ sau khi
+bản mới đã ghi thành công; v3 hợp lệ ưu tiên khi cả hai tồn tại. Không xóa Room.
+Một kết nối mỗi provider được hỗ trợ trong spike; reconnect cùng tài khoản tăng
+revision. Đổi sang tài khoản khác bị từ chối ở luồng hiện tại để tránh thay thế
+âm thầm; API kho chỉ cho phép thay thế khi caller có xác nhận rõ ràng.
+
+Phiên backend vẫn trong bộ nhớ, TTL 10 phút; handoff 60 giây dùng một lần. Backend
+restart cần bắt đầu OAuth lại. Android lưu pending theo provider, phục hồi sau
+process death; chỉ nhận response khớp sessionId/provider/accountType. Token hết
+hạn hoặc 401 chuyển trạng thái cần kết nối lại. Refresh chưa được nghiệm thu,
+không có endpoint refresh giả và không coi reconnect là refresh.
+
+Kiểm thử thiết bị: kết nối thiết bị/emulator rồi chạy từ android
+`.\gradlew.bat :app:connectedDebugAndroidTest`. Instrumentation dùng preferences
+riêng và credential giả; không tự đăng bài thật. Cần tự thu video/ảnh OAuth,
+Facebook vẫn kết nối sau khi thêm LinkedIn, cold start và restart backend.

@@ -1,6 +1,9 @@
 plugins { id 'com.android.application' }
 def oauthApiBaseUrl = providers.gradleProperty('socialpilotOauthApiBaseUrl').getOrElse(
         System.getenv('SOCIALPILOT_OAUTH_API_BASE_URL') ?: 'https://127.0.0.1/')
+def linkedinApiVersion = providers.gradleProperty('socialpilotLinkedinApiVersion').getOrElse(System.getenv('LINKEDIN_API_VERSION') ?: '')
+if (!(linkedinApiVersion ==~ /[0-9]{6}/) && !linkedinApiVersion.isEmpty()) { throw new GradleException('LinkedIn API version must be YYYYMM') }
+
 def escapedOauthApiBaseUrl = oauthApiBaseUrl.replace('\\', '\\\\').replace('"', '\\"')
 android {
     namespace 'com.socialpilot.app'
@@ -12,6 +15,7 @@ android {
         versionCode 1
         versionName '0.1.0'
         buildConfigField 'String', 'OAUTH_API_BASE_URL', '"' + escapedOauthApiBaseUrl + '"'
+        buildConfigField 'String', 'LINKEDIN_API_VERSION', '"' + linkedinApiVersion + '"'
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         javaCompileOptions { annotationProcessorOptions {
             arguments += ['room.schemaLocation': "$projectDir/schemas".toString()]

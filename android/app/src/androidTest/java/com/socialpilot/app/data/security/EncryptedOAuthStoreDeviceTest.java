@@ -42,17 +42,17 @@ public class EncryptedOAuthStoreDeviceTest {
         assertEquals("pending-session", reloaded.getPending().sessionId);
         assertEquals(verifier, reloaded.getPending().verifier);
         assertEquals(2, preferences.getAll().size());
-        assertFalse(preferences.getString("connected_v2", "").contains("fake-new-token"));
+        assertFalse(preferences.getString("connected_v3_FACEBOOK", "").contains("fake-new-token"));
     }
 
     @Test public void damagedRecordNeverLeavesConnectedPageMetadata() {
         EncryptedOAuthStore store = new EncryptedOAuthStore(context);
         store.saveConnected(connection("test-page", "fake-test-token"));
-        preferences.edit().putString("connected_v2", "invalid-ciphertext").commit();
+        preferences.edit().putString("connected_v3_FACEBOOK", "invalid-ciphertext").commit();
         EncryptedOAuthStore reloaded = new EncryptedOAuthStore(context);
         assertNull(reloaded.pageSummary());
         assertNull(reloaded.accessToken());
-        assertFalse(preferences.contains("connected_v2"));
+        assertFalse(preferences.contains("connected_v3_FACEBOOK"));
     }
 
     private OAuthExchangeResponse connection(String page, String token) {

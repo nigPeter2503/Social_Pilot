@@ -7,11 +7,12 @@ import com.socialpilot.app.domain.contract.oauth.OAuthContract.OAuthStartRespons
 import retrofit2.Call;
 import retrofit2.http.Body;
 import retrofit2.http.POST;
+import retrofit2.http.Path;
 
 public interface OAuthApi {
-    @POST("api/oauth/facebook/start")
-    Call<OAuthStartResponse> start(@Body OAuthStartRequest request);
+    @POST("api/oauth/{provider}/start")
+    Call<OAuthStartResponse> start(@Path("provider") String provider, @Body OAuthStartRequest request);
 
-    @POST("api/oauth/facebook/exchange")
-    Call<OAuthExchangeResponse> exchange(@Body OAuthHandoffExchangeRequest request);
+    @POST("api/oauth/{provider}/exchange")
+    Call<OAuthExchangeResponse> exchange(@Path("provider") String provider, @Body OAuthHandoffExchangeRequest request);
 }

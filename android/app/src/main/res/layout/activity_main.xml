@@ -28,6 +28,26 @@
     <TextView android:id="@+id/facebookPageStatus" android:layout_width="match_parent"
         android:layout_height="wrap_content" android:layout_marginTop="8dp"
         android:text="@string/facebook_not_connected" />
+    <com.google.android.material.button.MaterialButton android:id="@+id/connectLinkedinButton"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="16dp" android:text="@string/connect_linkedin" />
+    <TextView android:id="@+id/linkedinStatus" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:layout_marginTop="8dp"
+        android:text="@string/linkedin_not_connected" />
+    <EditText android:id="@+id/linkedinText" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:inputType="textMultiLine|textCapSentences"
+        android:minHeight="48dp" android:hint="@string/linkedin_text_hint" />
+    <com.google.android.material.button.MaterialButton android:id="@+id/publishLinkedinButton"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="@string/linkedin_publish" />
+    <TextView android:id="@+id/linkedinPublishStatus" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:textIsSelectable="true" />
+    <EditText android:id="@+id/linkedinPostUrl" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:inputType="textUri" android:minHeight="48dp"
+        android:hint="@string/linkedin_post_url_hint" />
+    <com.google.android.material.button.MaterialButton android:id="@+id/confirmLinkedinUrlButton"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="@string/linkedin_verify_title" />
     <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
         android:layout_marginTop="32dp" android:text="@string/integration_status" />
   </LinearLayout>

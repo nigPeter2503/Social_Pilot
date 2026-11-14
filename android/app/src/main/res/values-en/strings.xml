@@ -13,6 +13,24 @@
   <string name="facebook_not_connected">No Facebook Page connected.</string>
   <string name="facebook_connected">Connected Page: %1$s</string>
   <string name="facebook_connected_short">Facebook Page connected.</string>
-  <string name="oauth_error">Could not connect to Facebook (%1$s).</string>
-  <string name="integration_status">Facebook connection is available for development; LinkedIn and AI integrations are pending.</string>
+  <string name="oauth_error">Could not connect (%1$s).</string>
+  <string name="integration_status">Facebook and LinkedIn require a configured OAuth backend.</string>
+  <string name="connect_linkedin">Connect LinkedIn profile</string>
+  <string name="linkedin_not_connected">LinkedIn is not connected.</string>
+  <string name="linkedin_connected">LinkedIn connected: %1$s</string>
+  <string name="social_connected_short">Account connected.</string>
+  <string name="social_reauth_required">Reconnect required: %1$s</string>
+  <string name="linkedin_text_hint">LinkedIn test post text</string>
+  <string name="linkedin_publish">Review and publish LinkedIn test</string>
+  <string name="linkedin_approve_title">Approve public post</string>
+  <string name="linkedin_approve_message">This will publish publicly to your connected LinkedIn profile.\n\n%1$s</string>
+  <string name="linkedin_approve_send">Approve and publish</string>
+  <string name="linkedin_publish_pending">Post ID received. Open LinkedIn and verify the post link; do not resend.\n%1$s</string>
+  <string name="linkedin_publish_unknown">Check the outcome on LinkedIn before another attempt.\n%1$s</string>
+  <string name="linkedin_publish_other">Test publish result: %1$s</string>
+  <string name="linkedin_post_url_hint">Paste the post link after checking it on LinkedIn</string>
+  <string name="linkedin_verify_title">Verify post link</string>
+  <string name="linkedin_verify_message">I opened this link on LinkedIn and confirmed the account and content match the post just published.</string>
+  <string name="linkedin_verify_confirm">Confirmed matching post</string>
+  <string name="linkedin_publish_success">Published; link verified by the user.\n%1$s</string>
 </resources>

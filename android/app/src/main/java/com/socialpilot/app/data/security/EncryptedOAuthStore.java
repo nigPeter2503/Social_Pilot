@@ -17,132 +17,151 @@ import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 
-/** Versioned, authenticated OAuth records. A Page and its credentials are read/written together. */
+/** Provider-partitioned, authenticated records. Never stores OAuth credentials in Room. */
 public final class EncryptedOAuthStore {
-    private static final String KEY_ALIAS = "socialpilot.oauth.v1";
-    private static final String PENDING = "pending_v2";
-    private static final String CONNECTED = "connected_v2";
-    private static final String[] LEGACY_PENDING = {"pending_session", "pending_verifier"};
-    private static final String[] LEGACY_CONNECTED = {"page_id", "page_name", "access_token", "token_type", "expires_at"};
+    private static EncryptedOAuthStore shared;
+    public static synchronized EncryptedOAuthStore shared(Context context){
+        if(shared==null)shared=new EncryptedOAuthStore(context.getApplicationContext());
+        return shared;
+    }
+    private static final String KEY_ALIAS="socialpilot.oauth.v1";
+    private static final String[] EMPTY=new String[0];
+    private static final String[] LEGACY_PENDING={"pending_session","pending_verifier"};
+    private static final String[] LEGACY_CONNECTED={"page_id","page_name","access_token","token_type","expires_at"};
     private final SharedPreferences preferences;
     private final RecordCipher cipher;
-    private final Gson gson = new Gson();
-    private final Set<String> unavailable = new HashSet<>();
-
-    public EncryptedOAuthStore(Context context) {
-        this(context.getApplicationContext().getSharedPreferences("oauth_secure_v1", Context.MODE_PRIVATE),
-                new KeystoreCipher());
+    private final Gson gson=new Gson();
+    private final Set<String> unavailable=new HashSet<>();
+    public EncryptedOAuthStore(Context context){this(context.getApplicationContext().getSharedPreferences("oauth_secure_v1",Context.MODE_PRIVATE),new KeystoreCipher());}
+    EncryptedOAuthStore(SharedPreferences p,RecordCipher c){preferences=p;cipher=c;}
+    private static String provider(String p){if(!"FACEBOOK".equals(p)&&!"LINKEDIN".equals(p)) throw storageUnavailable();return p;}
+    private static String key(String type,String p){return type+"_v3_"+provider(p);}
+    // Compatibility methods continue to mean Facebook, never whichever account connected last.
+    public synchronized void savePending(String id,String verifier){savePending("FACEBOOK",id,verifier,null);}
+    public synchronized Pending getPending(){return getPending("FACEBOOK");}
+    public synchronized void clearPending(){clearPending("FACEBOOK");}
+    public synchronized String pageSummary(){return summary("FACEBOOK");}
+    public synchronized String accessToken(){return accessToken("FACEBOOK");}
+    public synchronized void savePending(String p,String id,String verifier,String expiresAt){
+        PendingRecord r=new PendingRecord();r.version=3;r.provider=provider(p);r.sessionId=id;r.verifier=verifier;r.expiresAt=expiresAt;r.validate(p);
+        write(key("pending",p),r,EMPTY);
     }
-
-    // Injection keeps failure tests independent of a device's Keystore and disk availability.
-    EncryptedOAuthStore(SharedPreferences preferences, RecordCipher cipher) {
-        this.preferences = preferences;
-        this.cipher = cipher;
+    public synchronized Pending getPending(String p){
+        migrate("pending",p);
+        PendingRecord r=read(key("pending",p),PendingRecord.class,EMPTY);
+        if(r==null)return null;
+        try{r.validate(p);return new Pending(r.provider,r.sessionId,r.verifier,r.expiresAt);}
+        catch(RuntimeException e){invalidate(key("pending",p),EMPTY);return null;}
     }
-
-    public synchronized void savePending(String sessionId, String verifier) {
-        PendingRecord record = new PendingRecord(sessionId, verifier);
-        record.validate();
-        write(PENDING, record, LEGACY_PENDING);
-    }
-
-    public synchronized Pending getPending() {
-        PendingRecord record = read(PENDING, PendingRecord.class, LEGACY_PENDING);
-        if (record == null) return null;
-        try {
-            record.validate();
-            return new Pending(record.sessionId, record.verifier);
-        } catch (RuntimeException exception) {
-            invalidate(PENDING, LEGACY_PENDING);
-            return null;
+    public synchronized Pending findPending(String session){
+        Pending found=null;
+        for(String p:new String[]{"FACEBOOK","LINKEDIN"}){
+            Pending next=getPending(p);
+            if(next!=null&&next.sessionId.equals(session)){if(found!=null)return null;found=next;}
         }
+        return found;
     }
-
-    public synchronized void clearPending() { invalidate(PENDING, LEGACY_PENDING); }
-
-    public synchronized void saveConnected(OAuthExchangeResponse response) {
-        ConnectedRecord record = new ConnectedRecord(response);
-        record.validate();
-        write(CONNECTED, record, LEGACY_CONNECTED);
+    public synchronized void clearPending(String p){
+        invalidate(key("pending",p), "FACEBOOK".equals(p)?new String[]{"pending_v2","pending_session","pending_verifier"}:EMPTY);
     }
-
-    public synchronized String pageSummary() {
-        ConnectedRecord record = connected();
-        return record == null ? null : record.connection.displayName + " (" + record.connection.externalAccountId + ")";
+    public synchronized void clearPending(String p,String expectedSession){
+        Pending r=getPending(p);if(r!=null&&r.sessionId.equals(expectedSession))clearPending(p);
     }
-
-    /** Token access is kept out of Room and should only be consumed by a provider adapter. */
-    public synchronized String accessToken() {
-        ConnectedRecord record = connected();
-        return record == null ? null : record.connection.accessToken;
-    }
-
-    private ConnectedRecord connected() {
-        ConnectedRecord record = read(CONNECTED, ConnectedRecord.class, LEGACY_CONNECTED);
-        if (record == null) return null;
-        try {
-            record.validate();
-            return record;
-        } catch (RuntimeException exception) {
-            invalidate(CONNECTED, LEGACY_CONNECTED);
-            return null;
+    public synchronized void saveConnected(OAuthExchangeResponse response){saveConnected(response,false);}
+    public synchronized void saveConnected(OAuthExchangeResponse response,boolean replaceAccount){
+        response.validate();String p=provider(response.provider);
+        ConnectedRecord previous=connected(p);
+        if(previous!=null&&!previous.connection.externalAccountId.equals(response.externalAccountId)){
+            if(!replaceAccount)throw storageUnavailable();
+            previous=null;
         }
+        ConnectedRecord r=new ConnectedRecord();r.version=3;r.connection=response;
+        r.channelId=previous==null?p+":"+response.externalAccountId:previous.channelId;
+        if(previous!=null&&previous.revision==Long.MAX_VALUE)throw storageUnavailable();
+        r.revision=previous==null?1:previous.revision+1;
+        r.validate(p);write(key("connected",p),r,EMPTY);
     }
-
-    private void write(String name, Object record, String[] legacy) {
-        final String encrypted;
-        try {
-            // Encryption/serialization must succeed before touching preferences.
-            encrypted = cipher.encrypt(name, gson.toJson(record));
-        } catch (Exception exception) {
-            throw storageUnavailable();
-        }
-        try {
-            SharedPreferences.Editor editor = preferences.edit().putString(name, encrypted);
-            for (String key : legacy) editor.remove(key);
-            if (!editor.commit()) throw storageUnavailable();
-            unavailable.remove(name);
-        } catch (RuntimeException exception) {
-            // commit(false) can still change SharedPreferences' in-memory map. Do not trust it.
-            invalidate(name, legacy);
-            throw storageUnavailable();
-        }
+    public synchronized String summary(String p){
+        ConnectedRecord r=connected(p);return r==null?null:r.connection.displayName+" ("+r.connection.externalAccountId+")";
     }
-
-    private <T> T read(String name, Class<T> type, String[] legacy) {
-        if (unavailable.contains(name)) return null;
-        try {
-            String encrypted = preferences.getString(name, null);
-            if (encrypted == null) {
-                // v1 fields may already contain mixed credentials. Require reconnect rather than migrate them.
-                for (String key : legacy) {
-                    if (preferences.contains(key)) { invalidate(name, legacy); break; }
-                }
-                return null;
+    public synchronized OAuthExchangeResponse connection(String p){ConnectedRecord r=connected(p);return r==null?null:r.connection;}
+    public synchronized String accessToken(String p){OAuthExchangeResponse r=connection(p);return r==null?null:r.accessToken;}
+    public synchronized String tokenFor(String p,String channelId,long revision){
+        ConnectedRecord r=connected(p);
+        return r!=null && r.channelId.equals(channelId) && r.revision==revision && !r.reauth && !expired(r.connection.expiresAt)?r.connection.accessToken:null;
+    }
+    public synchronized com.socialpilot.app.domain.contract.social.ChannelInfo channel(String p){
+        ConnectedRecord r=connected(p);if(r==null)return null;
+        var c=r.connection;
+        var status=r.reauth||expired(c.expiresAt)?com.socialpilot.app.domain.contract.social.ConnectionStatus.REAUTH_REQUIRED:com.socialpilot.app.domain.contract.social.ConnectionStatus.CONNECTED;
+        return new com.socialpilot.app.domain.contract.social.ChannelInfo(r.channelId,
+            com.socialpilot.app.domain.contract.social.Platform.valueOf(p),c.externalAccountId,
+            com.socialpilot.app.domain.contract.social.AccountType.valueOf(c.accountType),c.displayName,status,r.revision,key("connected",p));
+    }
+    public synchronized void requireReauth(String p,long revision){
+        ConnectedRecord r=connected(p);if(r!=null&&r.revision==revision){r.reauth=true;write(key("connected",p),r,EMPTY);}
+    }
+    private ConnectedRecord connected(String p){
+        migrate("connected",p);ConnectedRecord r=read(key("connected",p),ConnectedRecord.class,EMPTY);
+        if(r==null)return null;
+        try{r.validate(p);return r;}catch(RuntimeException e){invalidate(key("connected",p),EMPTY);return null;}
+    }
+    private void migrate(String type,String p){
+        provider(p);if(!"FACEBOOK".equals(p))return;
+        String dest=key(type,p),old=type+"_v2";
+        if(unavailable.contains(dest)||preferences.contains(dest))return;
+        String[] legacy="pending".equals(type)?LEGACY_PENDING:LEGACY_CONNECTED;
+        com.google.gson.JsonObject json=read(old,com.google.gson.JsonObject.class,legacy);
+        if(json==null)return;
+        try{
+            if(!json.has("version")||json.get("version").getAsInt()!=2)throw storageUnavailable();
+            json.addProperty("version",3);
+            if("pending".equals(type)){
+                json.addProperty("provider","FACEBOOK");PendingRecord r=gson.fromJson(json,PendingRecord.class);r.validate(p);
+                write(dest,r,EMPTY);
+            }else{
+                ConnectedRecord r=gson.fromJson(json,ConnectedRecord.class);
+                r.channelId="FACEBOOK:"+r.connection.externalAccountId;r.revision=1;r.validate(p);
+                write(dest,r,EMPTY);
             }
-            T record = gson.fromJson(cipher.decrypt(name, encrypted), type);
-            if (record == null) throw storageUnavailable();
-            return record;
-        } catch (Exception exception) {
-            invalidate(name, legacy);
-            return null;
+            // Only remove the source after the new encrypted record was durably committed.
+            preferences.edit().remove(old).commit();
+        }catch(RuntimeException e){
+            // Preserve source until a successful migration. Never claim a failed save is connected.
+            unavailable.add(dest);
         }
     }
-
-    private void invalidate(String name, String[] legacy) {
+    private void write(String name,Object record,String[] legacy){
+        final String encrypted;
+        try{encrypted=cipher.encrypt(name,gson.toJson(record));}catch(Exception e){throw storageUnavailable();}
+        try{
+            SharedPreferences.Editor editor=preferences.edit().putString(name,encrypted);
+            for(String k:legacy)editor.remove(k);
+            if(!editor.commit())throw storageUnavailable();
+            unavailable.remove(name);
+        }catch(RuntimeException e){invalidate(name,EMPTY);throw storageUnavailable();}
+    }
+    private <T>T read(String name,Class<T> type,String[] legacy){
+        if(unavailable.contains(name))return null;
+        try{
+            String encrypted=preferences.getString(name,null);
+            if(encrypted==null){for(String k:legacy)if(preferences.contains(k)){invalidate(name,legacy);break;}return null;}
+            T r=gson.fromJson(cipher.decrypt(name,encrypted),type);if(r==null)throw storageUnavailable();return r;
+        }catch(Exception e){invalidate(name,legacy);return null;}
+    }
+    private void invalidate(String name,String[] legacy){
         unavailable.add(name);
-        try {
-            SharedPreferences.Editor editor = preferences.edit().remove(name);
-            for (String key : legacy) editor.remove(key);
-            // Remain unavailable even if cleanup cannot reach disk; a successful save restores access.
-            editor.commit();
-        } catch (RuntimeException ignored) { }
+        try{SharedPreferences.Editor e=preferences.edit().remove(name);for(String k:legacy)e.remove(k);e.commit();}catch(RuntimeException ignored){}
     }
-
-    private static IllegalStateException storageUnavailable() {
-        return new IllegalStateException("Secure storage unavailable");
+    public static boolean expired(String timestamp){
+        if(timestamp==null)return false;
+        try{
+            java.text.SimpleDateFormat f=new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'",java.util.Locale.ROOT);
+            f.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));f.setLenient(false);
+            return !f.parse(timestamp).after(new java.util.Date());
+        }catch(Exception e){return true;}
     }
-
+    private static IllegalStateException storageUnavailable(){return new IllegalStateException("Secure storage unavailable");}
     interface RecordCipher {
         String encrypt(String name, String plaintext) throws Exception;
         String decrypt(String name, String ciphertext) throws Exception;
@@ -186,29 +205,21 @@ public final class EncryptedOAuthStore {
     }
 
     private static final class PendingRecord {
-        private int version = 2;
-        private final String sessionId, verifier;
-        PendingRecord(String sessionId, String verifier) { this.sessionId = sessionId; this.verifier = verifier; }
-        void validate() {
-            if (version != 2 || sessionId == null || sessionId.trim().isEmpty() || verifier == null
-                    || !verifier.matches("[A-Za-z0-9._~-]{43,128}")) throw storageUnavailable();
+        int version;String provider,sessionId,verifier,expiresAt;
+        void validate(String p){
+            if(version!=3||!p.equals(provider)||sessionId==null||sessionId.trim().isEmpty()||verifier==null||!verifier.matches("[A-Za-z0-9._~-]{43,128}"))throw storageUnavailable();
         }
     }
-
     private static final class ConnectedRecord {
-        private int version = 2;
-        private final OAuthExchangeResponse connection;
-        ConnectedRecord(OAuthExchangeResponse connection) { this.connection = connection; }
-        void validate() {
-            if (version != 2 || connection == null) throw storageUnavailable();
+        int version;OAuthExchangeResponse connection;String channelId;long revision;boolean reauth;
+        void validate(String p){
+            if(version!=3||connection==null||channelId==null||channelId.trim().isEmpty()||revision<=0)throw storageUnavailable();
             connection.validate();
-            if (!"FACEBOOK".equals(connection.provider) || !"PAGE".equals(connection.accountType)) throw storageUnavailable();
+            if(!p.equals(connection.provider)||!("FACEBOOK".equals(p)?"PAGE":"PERSON").equals(connection.accountType))throw storageUnavailable();
         }
     }
-
     public static final class Pending {
-        public final String sessionId;
-        public final String verifier;
-        private Pending(String sessionId, String verifier) { this.sessionId = sessionId; this.verifier = verifier; }
+        public final String provider,sessionId,verifier,expiresAt;
+        Pending(String p,String id,String v,String expiry){provider=p;sessionId=id;verifier=v;expiresAt=expiry;}
     }
 }

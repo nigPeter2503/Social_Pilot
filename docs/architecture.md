@@ -39,3 +39,16 @@ capability/error và đề xuất lưu trữ còn chờ Minh và Đạt xác nh�
 [Fixture có nhãn MO_PHONG](contracts/analytics-examples.json) và
 [hồ sơ kiểm tra](sp-020-verification.md) phục vụ review, không phải bằng chứng API thật.
 Chưa thêm Java DTO/repository, thay SocialConnector hoặc đổi Room version/migration.
+
+
+## Bổ sung SP-011: hai OAuth provider
+
+Backend dùng OAuthSessionService/registry OAuthProviderAdapter cho phiên/state,
+challenge/verifier và handoff. FacebookGraphClient giữ trong Facebook adapter;
+LinkedInOAuthClient đổi code và UserInfo; client secret chỉ ở backend. DTO wire
+SP-009 giữ nguyên. Android dùng OAuthCoordinator với đường dẫn provider và
+EncryptedOAuthStore v3 phân vùng provider, nâng dữ liệu v2 Facebook có kiểm thử.
+LinkedInSocialConnector gọi Posts API từ Android qua snapshot đã duyệt và ledger
+attempt của harness; chưa thay PublishQueue/Room hoặc toàn bộ F4/F5. URL bài trong
+harness chỉ chuyển SUCCESS sau xác nhận đã mở/đối chiếu của người dùng.
+Xem [hồ sơ triển khai](sp-011-implementation.md) và [bằng chứng Postman](evidence/sp-011-postman-verification.md).

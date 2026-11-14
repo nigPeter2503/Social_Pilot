@@ -68,6 +68,8 @@ Project đang ở giai đoạn khởi tạo nền tảng:
 - Backend có health check. SP-010 đã ghi nhận kết nối Facebook OAuth trên điện thoại thật và một bài Page thật qua Graph API Explorer; xem [trạng thái và bằng chứng SP-010](docs/drafts/sp-010-implementation-status.md). State/replay/TTL/race có test hồi quy với provider giả; vòng đời token và publish từ hàng đợi ứng dụng còn chưa nghiệm thu.
 - Đã có bộ kiểm thử nền tảng và cấu hình CI; xem [kết quả kiểm tra](docs/build-verification.md).
 
+SP-011 bổ sung code OAuth LinkedIn cá nhân, kho hai kết nối và harness duyệt/đăng chữ, với gate local đã đạt; kiểm thử trên thiết bị và API thật qua ứng dụng còn chờ. Xem [hồ sơ SP-011](docs/sp-011-implementation.md).
+
 OAuth Facebook cơ bản đã được kiểm chứng trong spike SP-010; luồng publish production trong app, AI/BYOK, sinh ảnh, duyệt phiên bản, hàng đợi đăng, inbox, analytics và lựa chọn ngôn ngữ còn cần triển khai. Các nhóm chức năng F1–F9 chưa được nghiệm thu đầy đủ.
 
 ## Cấu trúc thư mục

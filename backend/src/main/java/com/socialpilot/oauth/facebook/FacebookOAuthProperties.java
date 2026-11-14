@@ -11,6 +11,9 @@ import org.springframework.stereotype.Component;
 @Component
 @ConfigurationProperties(prefix = "socialpilot.facebook")
 public class FacebookOAuthProperties {
+    private boolean enabled=true;
+    public boolean isEnabled(){return enabled;}
+    public void setEnabled(boolean v){enabled=v;}
     private String appId = "";
     private String appSecret = "";
     private String redirectUri = "";
@@ -36,6 +39,7 @@ public class FacebookOAuthProperties {
 
     @PostConstruct
     public void validateConfiguration() {
+        if (!enabled) return;
         List<String> errors = new ArrayList<>();
         if (appId.isBlank()) errors.add("FACEBOOK_APP_ID is required");
         else if (!appId.matches("[0-9]{5,30}")) errors.add("FACEBOOK_APP_ID must contain 5 to 30 digits");
@@ -54,7 +58,7 @@ public class FacebookOAuthProperties {
     }
 
     public boolean isConfigured() {
-        return appId.matches("[0-9]{5,30}") && !appSecret.isBlank()
+        return enabled && appId.matches("[0-9]{5,30}") && !appSecret.isBlank()
                 && !hasWhitespaceOrControl(appSecret) && !isWrappedInQuotes(appSecret)
                 && validCallback() && targetPageId.matches("[0-9]{5,30}")
                 && graphApiVersion.matches("v[0-9]+\\.[0-9]+");

@@ -22,6 +22,7 @@ public final class FacebookOAuthStartupLogger {
 
     @PostConstruct
     public void logEffectiveConfiguration() {
+        if (!properties.isEnabled()) { LOGGER.info("Facebook OAuth disabled"); return; }
         LOGGER.info("Facebook OAuth configuration appId={} appSecretLength={} appSecretHadOuterWhitespace={} "
                         + "redirectUri={} graphApiVersion={} configSources[appId={},appSecret={},redirectUri={},graphApiVersion={}]",
                 properties.getAppId(),
