@@ -41,7 +41,9 @@ public class EncryptedOAuthStoreDeviceTest {
         assertEquals("fake-new-token", reloaded.accessToken());
         assertEquals("pending-session", reloaded.getPending().sessionId);
         assertEquals(verifier, reloaded.getPending().verifier);
-        assertEquals(2, preferences.getAll().size());
+        assertTrue(preferences.contains("pending_v3_FACEBOOK"));
+        assertTrue(preferences.contains("revision_v1_FACEBOOK:old-page"));
+        assertTrue(preferences.contains("revision_v1_FACEBOOK:new-page"));
         assertFalse(preferences.getString("connected_v3_FACEBOOK", "").contains("fake-new-token"));
     }
 
@@ -105,6 +107,26 @@ public class EncryptedOAuthStoreDeviceTest {
                 reloaded.channel("LINKEDIN").connectionStatus);
         assertNull(reloaded.tokenFor("LINKEDIN", reloaded.channel("LINKEDIN").channelId, revision));
         assertEquals("fake-fb-token", reloaded.accessToken("FACEBOOK"));
+    }
+
+    @Test public void recoveryRetainsRevisionAndLostMarkerChangesChannel() {
+        EncryptedOAuthStore store=new EncryptedOAuthStore(context);
+        store.saveConnected(linkedin("2099-01-01T00:00:00Z"));
+        var old=store.channel("LINKEDIN");
+        preferences.edit().putString("connected_v3_LINKEDIN","broken").commit();
+        store=new EncryptedOAuthStore(context);
+        assertNull(store.channel("LINKEDIN"));
+        store.saveConnected(linkedin("2099-01-01T00:00:00Z"));
+        var restored=store.channel("LINKEDIN");
+        assertEquals(old.channelId,restored.channelId);
+        assertTrue(restored.connectionRevision>old.connectionRevision);
+        assertNull(store.tokenFor("LINKEDIN",old.channelId,old.connectionRevision));
+        preferences.edit().remove("connected_v3_LINKEDIN").remove("revision_v1_LINKEDIN:fake-member").commit();
+        store=new EncryptedOAuthStore(context);
+        store.saveConnected(linkedin("2099-01-01T00:00:00Z"));
+        assertNotEquals(restored.channelId,store.channel("LINKEDIN").channelId);
+        store.requireReauth("LINKEDIN",restored.channelId,store.channel("LINKEDIN").connectionRevision);
+        assertEquals(com.socialpilot.app.domain.contract.social.ConnectionStatus.CONNECTED,store.channel("LINKEDIN").connectionStatus);
     }
 
     private OAuthExchangeResponse linkedin(String expiry) {

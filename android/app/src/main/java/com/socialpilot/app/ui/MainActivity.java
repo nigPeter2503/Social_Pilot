@@ -55,16 +55,32 @@ public final class MainActivity extends AppCompatActivity {
         binding.publishLinkedinButton.setOnClickListener(view -> {
             final String text=String.valueOf(binding.linkedinText.getText()).trim();
             if(text.isEmpty()){binding.linkedinText.setError(getString(R.string.required));return;}
-            new androidx.appcompat.app.AlertDialog.Builder(this).setTitle(R.string.linkedin_approve_title)
-                .setMessage(getString(R.string.linkedin_approve_message,text))
-                .setNegativeButton(android.R.string.cancel,null)
-                .setPositiveButton(R.string.linkedin_approve_send,(dialog,which)->model.publishApprovedLinkedInText(text)).show();
+            model.prepareLinkedInReview(text, review -> {
+                if (isFinishing() || isDestroyed()) return;
+                String message=getString(R.string.linkedin_approve_message,review.text);
+                if (review.errorCode != null) {
+                    int guidance="AUTH_REQUIRED".equals(review.errorCode) ? R.string.linkedin_retry_auth
+                            : "PERMISSION_REQUIRED".equals(review.errorCode) ? R.string.linkedin_retry_permission
+                             : "RATE_LIMITED".equals(review.errorCode) ? R.string.linkedin_retry_rate
+                            : R.string.linkedin_retry_content;
+                    message=getString(guidance) + "\n\n" + message;
+                }
+                if (review.retryAt > System.currentTimeMillis()) {
+                    Toast.makeText(this,getString(R.string.linkedin_retry_after,
+                            java.text.DateFormat.getDateTimeInstance().format(new java.util.Date(review.retryAt))),Toast.LENGTH_LONG).show();
+                    return;
+                }
+                new androidx.appcompat.app.AlertDialog.Builder(this).setTitle(R.string.linkedin_approve_title)
+                    .setMessage(message).setNegativeButton(android.R.string.cancel,null)
+                    .setPositiveButton(R.string.linkedin_approve_send,(dialog,which)->model.publishApprovedLinkedInText(review)).show();
+            });
         });
         binding.confirmLinkedinUrlButton.setOnClickListener(view->{
             final String url=String.valueOf(binding.linkedinPostUrl.getText()).trim();
+            final var target=model.confirmation();
             new androidx.appcompat.app.AlertDialog.Builder(this).setTitle(R.string.linkedin_verify_title)
                 .setMessage(R.string.linkedin_verify_message).setNegativeButton(android.R.string.cancel,null)
-                .setPositiveButton(R.string.linkedin_verify_confirm,(dialog,which)->model.confirmOpenedLinkedInUrl(url)).show();
+                .setPositiveButton(R.string.linkedin_verify_confirm,(dialog,which)->model.confirmOpenedLinkedInUrl(target,url)).show();
         });
         model.publishing().observe(this,busy->{publishBusy=Boolean.TRUE.equals(busy);refreshActionButtons();});
         model.publishState().observe(this,result->{
@@ -73,7 +89,10 @@ public final class MainActivity extends AppCompatActivity {
                 result.startsWith("UNKNOWN")?R.string.linkedin_publish_unknown:
                 result.startsWith("SUCCESS")?R.string.linkedin_publish_success:
                 result.startsWith("URL_FORMAT_REQUIRED")?R.string.linkedin_url_format_required:
-                result.startsWith("URL_NOT_VERIFIED")?R.string.linkedin_url_not_verified:R.string.linkedin_publish_other;
+                result.startsWith("URL_NOT_VERIFIED")?R.string.linkedin_url_not_verified:
+                result.contains("AUTH_REQUIRED")?R.string.linkedin_retry_auth:
+                result.contains("PERMISSION_REQUIRED")?R.string.linkedin_permission_guidance:
+                result.contains("RATE_LIMITED")?R.string.linkedin_rate_guidance:R.string.linkedin_publish_other;
             binding.linkedinPublishStatus.setText(getString(label,result));
             if(result.startsWith("URL_")){
                 binding.linkedinPostUrl.setError(getString(label,result));
@@ -112,8 +131,7 @@ public final class MainActivity extends AppCompatActivity {
         if (intent == null || intent.getData() == null) return;
         Uri data = intent.getData();
         if (!"socialpilot".equals(data.getScheme())) return;
-        intent.setData(null);
-        model.handleOAuthCallback(data);
+        if (model.handleOAuthCallback(data)) intent.setData(null);
     }
 
     @Override protected void onResume() { super.onResume(); if(model!=null) refreshConnectionSummaries(); }

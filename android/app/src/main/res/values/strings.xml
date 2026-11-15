@@ -36,4 +36,11 @@
   <string name="linkedin_url_format_required">Hãy mở link lnkd.in trong trình duyệt rồi dán URL bài đầy đủ dạng https://www.linkedin.com/feed/update/… hoặc https://www.linkedin.com/posts/…</string>
   <string name="linkedin_url_not_verified">Chưa xác nhận được link. Hãy kiểm tra app đang giữ ID bài vừa đăng và link đúng bài đó. Không cần đăng lại.</string>
   <string name="linkedin_url_verified">Đã lưu xác nhận link bài.</string>
+  <string name="linkedin_retry_auth">Hãy kết nối lại LinkedIn, sau đó duyệt lại bài để thử gửi.</string>
+  <string name="linkedin_retry_permission">Tôi đã xử lý quyền đăng LinkedIn và xác nhận thử gửi lại bài này.</string>
+  <string name="linkedin_retry_rate">Tôi đã chờ hết giới hạn và xác nhận thử gửi lại bài này.</string>
+  <string name="linkedin_retry_after">LinkedIn yêu cầu chờ đến %1$s trước khi thử lại.</string>
+  <string name="linkedin_permission_guidance">Hãy xử lý quyền đăng LinkedIn rồi duyệt lại bài để thử gửi.</string>
+  <string name="linkedin_rate_guidance">LinkedIn đang giới hạn yêu cầu. Hãy chờ rồi duyệt lại bài để thử gửi.</string>
+  <string name="linkedin_retry_content">Hãy chỉnh sửa nội dung theo lỗi được báo rồi duyệt lại bài.</string>
 </resources>

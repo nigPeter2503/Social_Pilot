@@ -76,10 +76,40 @@ public final class EncryptedOAuthStore {
             previous=null;
         }
         ConnectedRecord r=new ConnectedRecord();r.version=3;r.connection=response;
-        r.channelId=previous==null?p+":"+response.externalAccountId:previous.channelId;
-        if(previous!=null&&previous.revision==Long.MAX_VALUE)throw storageUnavailable();
-        r.revision=previous==null?1:previous.revision+1;
-        r.validate(p);write(key("connected",p),r,EMPTY);
+        String revisionKey = "revision_v1_" + p + ":" + response.externalAccountId;
+        RevisionRecord marker = read(revisionKey, RevisionRecord.class, EMPTY);
+        if (marker != null && (marker.channelId == null || marker.revision < 1)) marker = null;
+        if (previous != null && (marker == null || previous.revision > marker.revision)) {
+            marker = new RevisionRecord();
+            marker.channelId = previous.channelId;
+            marker.revision = previous.revision;
+        }
+        if (marker == null) {
+            marker = new RevisionRecord();
+            marker.channelId = p + ":" + response.externalAccountId + ":" + java.util.UUID.randomUUID();
+        }
+        if (marker.revision == Long.MAX_VALUE) throw storageUnavailable();
+        r.channelId = marker.channelId;
+        r.revision = marker.revision + 1;
+        marker.revision = r.revision;
+        r.validate(p);
+        writeConnected(p,r);
+    }
+    private void writeConnected(String provider,ConnectedRecord record) {
+        String connectionKey=key("connected",provider);
+        String revisionKey="revision_v1_"+provider+":"+record.connection.externalAccountId;
+        RevisionRecord marker=new RevisionRecord();
+        marker.channelId=record.channelId;marker.revision=record.revision;
+        try {
+            String encryptedMarker=cipher.encrypt(revisionKey,gson.toJson(marker));
+            String encryptedConnection=cipher.encrypt(connectionKey,gson.toJson(record));
+            if (!preferences.edit().putString(revisionKey,encryptedMarker)
+                    .putString(connectionKey,encryptedConnection).commit()) {
+                invalidate(connectionKey,EMPTY);
+                throw storageUnavailable();
+            }
+            unavailable.remove(revisionKey);unavailable.remove(connectionKey);
+        } catch(Exception e) { throw storageUnavailable(); }
     }
     public synchronized String summary(String p){
         ConnectedRecord r=connected(p);return r==null?null:r.connection.displayName+" ("+r.connection.externalAccountId+")";
@@ -101,10 +131,26 @@ public final class EncryptedOAuthStore {
     public synchronized void requireReauth(String p,long revision){
         ConnectedRecord r=connected(p);if(r!=null&&r.revision==revision){r.reauth=true;write(key("connected",p),r,EMPTY);}
     }
+    public synchronized void requireReauth(String p,String channelId,long revision) {
+        ConnectedRecord current=connected(p);
+        if (current!=null && current.channelId.equals(channelId) && current.revision==revision) {
+            current.reauth=true;
+            write(key("connected",p),current,EMPTY);
+        }
+    }
     private ConnectedRecord connected(String p){
         migrate("connected",p);ConnectedRecord r=read(key("connected",p),ConnectedRecord.class,EMPTY);
         if(r==null)return null;
-        try{r.validate(p);return r;}catch(RuntimeException e){invalidate(key("connected",p),EMPTY);return null;}
+        try { r.validate(p); }
+        catch (RuntimeException e) { invalidate(key("connected",p),EMPTY); return null; }
+        String revisionKey="revision_v1_"+p+":"+r.connection.externalAccountId;
+        RevisionRecord marker=read(revisionKey,RevisionRecord.class,EMPTY);
+        if (marker==null || marker.channelId==null || marker.revision<r.revision) {
+            marker=new RevisionRecord(); marker.channelId=r.channelId; marker.revision=r.revision;
+            try { write(revisionKey,marker,EMPTY); }
+            catch (RuntimeException e) { return null; }
+        }
+        return r;
     }
     private void migrate(String type,String p){
         provider(p);if(!"FACEBOOK".equals(p))return;
@@ -122,7 +168,7 @@ public final class EncryptedOAuthStore {
             }else{
                 ConnectedRecord r=gson.fromJson(json,ConnectedRecord.class);
                 r.channelId="FACEBOOK:"+r.connection.externalAccountId;r.revision=1;r.validate(p);
-                write(dest,r,EMPTY);
+                writeConnected(p,r);
             }
             // Only remove the source after the new encrypted record was durably committed.
             preferences.edit().remove(old).commit();
@@ -130,6 +176,10 @@ public final class EncryptedOAuthStore {
             // Preserve source until a successful migration. Never claim a failed save is connected.
             unavailable.add(dest);
         }
+    }
+    private static final class RevisionRecord {
+        String channelId;
+        long revision;
     }
     private void write(String name,Object record,String[] legacy){
         final String encrypted;

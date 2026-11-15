@@ -36,4 +36,11 @@
   <string name="linkedin_url_format_required">Open the lnkd.in link in a browser, then paste the full post URL: https://www.linkedin.com/feed/update/… or https://www.linkedin.com/posts/…</string>
   <string name="linkedin_url_not_verified">The link could not be verified. Check that the app has the post ID and that the link matches that post. Do not publish again.</string>
   <string name="linkedin_url_verified">Post link confirmation saved.</string>
+  <string name="linkedin_retry_auth">Reconnect LinkedIn, then review the post again to retry.</string>
+  <string name="linkedin_retry_permission">I have resolved the LinkedIn publishing permission and confirm retrying this post.</string>
+  <string name="linkedin_retry_rate">I have waited for the rate limit and confirm retrying this post.</string>
+  <string name="linkedin_retry_after">LinkedIn requires waiting until %1$s before retrying.</string>
+  <string name="linkedin_permission_guidance">Resolve the LinkedIn publishing permission, then review the post to retry.</string>
+  <string name="linkedin_rate_guidance">LinkedIn is rate limiting requests. Wait, then review the post to retry.</string>
+  <string name="linkedin_retry_content">Edit the content to resolve the reported error, then review the post again.</string>
 </resources>

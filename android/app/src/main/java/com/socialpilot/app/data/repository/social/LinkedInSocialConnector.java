@@ -27,6 +27,7 @@ public final class LinkedInSocialConnector implements SocialConnector {
         boolean begin(PublishRequest request);
         void record(PublishResult result);
         default PublishResult existing(PublishRequest request){return null;}
+        default void retryAfter(long epochMillis) {}
     }
     private final ChannelInfo channel;
     private final Credentials credentials;
@@ -79,15 +80,19 @@ public final class LinkedInSocialConnector implements SocialConnector {
                 distribution.add("targetEntities",new com.google.gson.JsonArray());distribution.add("thirdPartyDistributionChannels",new com.google.gson.JsonArray());json.add("distribution",distribution);
                 Request http=new Request.Builder().url(endpoint).header("Authorization","Bearer "+token)
                     .header("LinkedIn-Version",version).header("X-Restli-Protocol-Version","2.0.0")
-                    .post(RequestBody.create(json.toString(),MediaType.get("application/json; charset=utf-8"))).build();
+                    .post(oneShotBody(json.toString())).build();
                 Call call=client.newCall(http);active.set(call);if(cancelled.get())call.cancel();
                 try(Response response=call.execute()){
                     if(response.code()==201){String id=response.header("x-restli-id");
                         if(id==null||!id.matches("urn:li:(share|ugcPost):[0-9]+"))result=PublishResult.unknown(request);
                         else{verifiedAt=utcNow();result=PublishResult.publishedUrlPending(request,id);}
                     }else if(response.code()==401){credentials.requireReauth(channel.connectionRevision);result=reject(request,SocialError.Code.AUTH_REQUIRED,SocialError.NextAction.RECONNECT);}
-                    else if(response.code()==403)result=reject(request,SocialError.Code.PERMISSION_REQUIRED,SocialError.NextAction.RESOLVE_PERMISSION);
-                    else if(response.code()==429)result=reject(request,SocialError.Code.RATE_LIMITED,SocialError.NextAction.WAIT);
+                    else if(response.code()==403 || response.code()==429) {
+                        attempts.retryAfter(retryAfterMillis(response.header("Retry-After"),System.currentTimeMillis()));
+                        result=response.code()==403
+                            ? reject(request,SocialError.Code.PERMISSION_REQUIRED,SocialError.NextAction.RESOLVE_PERMISSION)
+                            : reject(request,SocialError.Code.RATE_LIMITED,SocialError.NextAction.WAIT);
+                    }
                     else if(response.code()==400||response.code()==422)result=reject(request,SocialError.Code.INVALID_CONTENT,SocialError.NextAction.EDIT_CONTENT);
                     else result=PublishResult.unknown(request);
                 }
@@ -96,6 +101,30 @@ public final class LinkedInSocialConnector implements SocialConnector {
             deliver(callback,cancelled,result);
         });
         return ()->{cancelled.set(true);Call call=active.get();if(call!=null)call.cancel();};
+    }
+    static long retryAfterMillis(String header, long now) {
+        if (header == null) return 0;
+        try {
+            long seconds = Long.parseLong(header.trim());
+            if (seconds < 0) return 0;
+            if (seconds > (Long.MAX_VALUE - now) / 1000) return Long.MAX_VALUE;
+            return now + seconds * 1000;
+        } catch (NumberFormatException ignored) {
+            java.text.SimpleDateFormat format = new java.text.SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss zzz", java.util.Locale.US);
+            format.setLenient(false);
+            java.text.ParsePosition position = new java.text.ParsePosition(0);
+            java.util.Date date = format.parse(header.trim(), position);
+            return date != null && position.getIndex() == header.trim().length() ? Math.max(now,date.getTime()) : 0;
+        }
+    }
+    private static RequestBody oneShotBody(String json) {
+        RequestBody delegate = RequestBody.create(json, MediaType.get("application/json; charset=utf-8"));
+        return new RequestBody() {
+            @Override public MediaType contentType() { return delegate.contentType(); }
+            @Override public long contentLength() throws IOException { return delegate.contentLength(); }
+            @Override public boolean isOneShot() { return true; }
+            @Override public void writeTo(okio.BufferedSink sink) throws IOException { delegate.writeTo(sink); }
+        };
     }
     private static void deliver(Result cb,AtomicBoolean cancelled,PublishResult r){if(!cancelled.get()){try{cb.onResult(r);}catch(RuntimeException ignored){ /* Consumer failure must not deliver twice. */ }}}
     private static PublishResult reject(PublishRequest r,SocialError.Code code,SocialError.NextAction action){return PublishResult.rejected(r,new SocialError(code,action));}

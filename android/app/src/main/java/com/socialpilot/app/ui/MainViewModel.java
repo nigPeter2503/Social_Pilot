@@ -33,22 +33,67 @@ public final class MainViewModel extends AndroidViewModel {
     private volatile com.socialpilot.app.domain.contract.Cancelable activePublish;
     private final java.util.concurrent.atomic.AtomicBoolean closed=new java.util.concurrent.atomic.AtomicBoolean();
     @Override protected void onCleared(){closed.set(true);var active=activePublish;if(active!=null)active.cancel();super.onCleared();}
-    public void publishApprovedLinkedInText(String text){
+    public interface ReviewReady {
+        void show(com.socialpilot.app.data.repository.social.LinkedInSpikePublisher.Review review);
+    }
+    private com.socialpilot.app.data.repository.social.LinkedInSpikePublisher.Confirmation confirmation;
+    public com.socialpilot.app.data.repository.social.LinkedInSpikePublisher.Confirmation confirmation() { return confirmation; }
+    public void prepareLinkedInReview(String text, ReviewReady ready) {
+        if (Boolean.TRUE.equals(publishing.getValue())) return;
+        publishing.setValue(true);
+        ((SocialPilotApplication)getApplication()).container().io.execute(() -> {
+            try {
+                var review = publisher.review(text);
+                new Handler(Looper.getMainLooper()).post(() -> {
+                    if (closed.get()) return;
+                    publishing.setValue(false);
+                    ready.show(review);
+                });
+            } catch (RuntimeException e) {
+                new Handler(Looper.getMainLooper()).post(() -> {
+                    if (closed.get()) return;
+                    publishing.setValue(false); publishState.setValue("AUTH_REQUIRED");
+                });
+            }
+        });
+    }
+    public void publishApprovedLinkedInText(com.socialpilot.app.data.repository.social.LinkedInSpikePublisher.Review review){
         if(Boolean.TRUE.equals(publishing.getValue()))return;
         publishing.setValue(true);
         ((SocialPilotApplication)getApplication()).container().io.execute(()->{
-            try{activePublish=publisher.publishApprovedText(text,r->new Handler(Looper.getMainLooper()).post(()->{
-                if(closed.get())return;
-                publishing.setValue(false);publishState.setValue(r.outcome.name()+(r.postId==null?"":"\n"+r.postId));
-            }));if(closed.get())activePublish.cancel();}catch(RuntimeException e){if(!closed.get()){publishing.postValue(false);publishState.postValue("NOT_SENT");}}
+            try {
+                activePublish=publisher.publishApprovedText(review,result -> {
+                    var state=publisher.stateForResult(review,result);
+                    new Handler(Looper.getMainLooper()).post(() -> {
+                        if (closed.get()) return;
+                        confirmation=state.confirmation;
+                        publishState.setValue(state.summary);
+                        publishing.setValue(false);
+                    });
+                });
+                if (closed.get()) activePublish.cancel();
+            } catch (RuntimeException e) {
+                if (!closed.get()) { publishing.postValue(false); publishState.postValue("NOT_SENT"); }
+            }
         });
     }
-    public void confirmOpenedLinkedInUrl(String url){
-        if(Boolean.TRUE.equals(publishing.getValue()))return;
-        ((SocialPilotApplication)getApplication()).container().io.execute(()->{
-            try{publisher.confirmOpenedPostUrl(url);publishState.postValue(publisher.lastResult());}
-            catch(IllegalArgumentException e){publishState.postValue("URL_FORMAT_REQUIRED");}
-            catch(RuntimeException e){publishState.postValue("URL_NOT_VERIFIED");}
+    public void confirmOpenedLinkedInUrl(
+            com.socialpilot.app.data.repository.social.LinkedInSpikePublisher.Confirmation target, String url) {
+        if(Boolean.TRUE.equals(publishing.getValue())) return;
+        publishing.setValue(true);
+        ((SocialPilotApplication)getApplication()).container().io.execute(() -> {
+            try {
+                var state=publisher.confirmOpenedPostUrl(target,url);
+                new Handler(Looper.getMainLooper()).post(() -> {
+                    if (closed.get()) return;
+                    confirmation=state.confirmation; publishState.setValue(state.summary); publishing.setValue(false);
+                });
+            } catch (RuntimeException e) {
+                if (!closed.get()) {
+                    publishState.postValue(e instanceof IllegalArgumentException ? "URL_FORMAT_REQUIRED" : "URL_NOT_VERIFIED");
+                    publishing.postValue(false);
+                }
+            }
         });
     }
     private final MutableLiveData<SaveState> saveState = new MutableLiveData<>(SaveState.IDLE);
@@ -60,7 +105,9 @@ public final class MainViewModel extends AndroidViewModel {
         com.socialpilot.app.core.AppContainer appContainer = ((SocialPilotApplication) application).container();
         repository = appContainer.drafts;
         oauth = appContainer.oauth;
-        publisher=appContainer.linkedinPublisher;publishState.setValue(publisher.lastResult());
+        publisher=appContainer.linkedinPublisher;
+        var initial=publisher.state();
+        confirmation=initial.confirmation; publishState.setValue(initial.summary);
     }
 
     public LiveData<List<DraftEntity>> drafts() { return repository.observeRecent(); }
@@ -98,9 +145,9 @@ public final class MainViewModel extends AndroidViewModel {
         oauth.start("LINKEDIN",oauthListener());
     }
 
-    public void handleOAuthCallback(Uri callback) {
+    public boolean handleOAuthCallback(Uri callback) {
         oauthState.setValue(new OAuthUiState(OAuthStatus.EXCHANGING, null));
-        oauth.handleCallback(callback, oauthListener());
+        return oauth.handleCallback(callback, oauthListener());
     }
 
     public void consumeAuthorizationUrl() {

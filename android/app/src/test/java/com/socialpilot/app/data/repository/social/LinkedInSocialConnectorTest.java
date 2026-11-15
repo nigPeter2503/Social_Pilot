@@ -30,6 +30,14 @@ public class LinkedInSocialConnectorTest {
         AtomicReference<PublishResult> result=new AtomicReference<>();CountDownLatch done=new CountDownLatch(1);
         connector.publish(request,r->{result.set(r);done.countDown();});assertTrue(done.await(5,TimeUnit.SECONDS));return result.get();
     }
+    @Test public void unavailableDoesNotRepeatApprovedPost() throws Exception {
+        server.enqueue(new MockResponse().setResponseCode(503).addHeader("Retry-After","0"));
+        server.enqueue(new MockResponse().setResponseCode(201).addHeader("x-restli-id","urn:li:share:123"));
+        assertEquals(PublishResult.Outcome.UNKNOWN,send(request()).outcome);
+        assertEquals(PublishResult.Outcome.UNKNOWN,send(request()).outcome);
+        assertEquals(1,server.getRequestCount());
+        assertEquals(PublishResult.Outcome.UNKNOWN,persisted.get().outcome);
+    }
     @Test public void createdIdIsPendingUntilUrlIsVerified() throws Exception {
         server.enqueue(new MockResponse().setResponseCode(201).addHeader("x-restli-id","urn:li:share:123"));
         var r=send(request());assertEquals(PublishResult.Outcome.PUBLISHED_URL_PENDING,r.outcome);assertNull(r.postUrl);
@@ -59,7 +67,7 @@ public class LinkedInSocialConnectorTest {
         assertEquals(SocialError.Code.AUTH_REQUIRED,persisted.get().error.code);
         // This fixture only counts reauth calls; production credentials also change channel status.
         // A duplicate with unchanged fixture credentials still must not send another request.
-        assertEquals(PublishResult.Outcome.UNKNOWN,send(request()).outcome);
+        assertEquals(SocialError.Code.AUTH_REQUIRED,send(request()).error.code);
         assertEquals(1,server.getRequestCount());
     }
     @Test public void forbiddenAndRateLimitHaveDistinctActions() throws Exception {

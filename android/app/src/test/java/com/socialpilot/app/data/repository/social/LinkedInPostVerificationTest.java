@@ -6,6 +6,15 @@ import static org.junit.Assert.*;
 public class LinkedInPostVerificationTest {
     PublishRequest request=new PublishRequest("req","channel",1,"version");
     String json(PublishResult r){return new Gson().toJson(r);}
+    @Test public void conflictingSameTypeUrnIsRejected(){
+        for(String type:new String[]{"share","ugcPost"}){
+            String payload=json(PublishResult.publishedUrlPending(request,"urn:li:"+type+":123"));
+            assertThrows(IllegalArgumentException.class,()->LinkedInPostVerification.ownerConfirmed(
+                payload,"https://www.linkedin.com/feed/update/urn:li:"+type+":456/"));
+            assertEquals(PublishResult.Outcome.SUCCESS,LinkedInPostVerification.ownerConfirmed(
+                payload,"https://www.linkedin.com/feed/update/urn:li:"+type+":123/").outcome);
+        }
+    }
     @Test public void ownerCanConfirmActivityUrlForKnownShareId(){
         var r=LinkedInPostVerification.ownerConfirmed(json(PublishResult.publishedUrlPending(request,"urn:li:share:123")),"https://www.linkedin.com/feed/update/urn:li:activity:456/");
         assertEquals(PublishResult.Outcome.SUCCESS,r.outcome);assertEquals("urn:li:share:123",r.postId);assertEquals("req",r.requestId);

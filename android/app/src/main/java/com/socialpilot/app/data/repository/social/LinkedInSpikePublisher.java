@@ -1,81 +1,106 @@
 package com.socialpilot.app.data.repository.social;
+
 import android.content.Context;
 import android.content.SharedPreferences;
-import com.google.gson.Gson;
 import com.socialpilot.app.data.security.EncryptedOAuthStore;
 import com.socialpilot.app.domain.contract.Cancelable;
 import com.socialpilot.app.domain.contract.SocialConnector;
 import com.socialpilot.app.domain.contract.social.*;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
-import okhttp3.OkHttpClient;
 import okhttp3.HttpUrl;
-/** Explicitly approved text harness. Not a production editor or queue. Never automatically retries. */
+import okhttp3.OkHttpClient;
+
+/** Explicit approval and durable attempts for the LinkedIn text spike. */
 public final class LinkedInSpikePublisher {
-    private final EncryptedOAuthStore store;
-    private final SharedPreferences attempts;
-    private final ExecutorService io;
-    private final String version;
-    private final Gson gson=new Gson();
-    public LinkedInSpikePublisher(Context context,ExecutorService io,String version){
-        this.io=io;this.version=version;store=EncryptedOAuthStore.shared(context);
-        attempts=context.getApplicationContext().getSharedPreferences("linkedin_spike_attempts_v1",Context.MODE_PRIVATE);
-    }
-    public String lastResult(){return attempts.getString("last_result",null);}
-    public Cancelable publishApprovedText(String text,SocialConnector.Result callback){
-        ChannelInfo channel=store.channel("LINKEDIN");
-        if(channel==null)throw new IllegalStateException("AUTH_REQUIRED");
-        if(!version.matches("[0-9]{6}"))throw new IllegalStateException("API_VERSION_REQUIRED");
-        String snapshotId=hash(text);
-        PublishRequest request=new PublishRequest(UUID.randomUUID().toString(),channel.channelId,channel.connectionRevision,snapshotId);
-        LinkedInSocialConnector.Credentials credentials=new LinkedInSocialConnector.Credentials(){
-            public ChannelInfo current(){return store.channel("LINKEDIN");}
-            public String accessToken(){return store.tokenFor("LINKEDIN",channel.channelId,channel.connectionRevision);}
-            public void requireReauth(long rev){store.requireReauth("LINKEDIN",rev);}
-        };
-        LinkedInSocialConnector.Attempts ledger=new LinkedInSocialConnector.Attempts(){
-            public PublishResult existing(PublishRequest r){
-                synchronized(attempts){
-                    String key="attempt_"+hash(r.channelId+":"+r.approvedVersionId);
-                    return LinkedInPostVerification.previousResult(r,attempts.getString(key,""));
-                }
-            }
-            public boolean begin(PublishRequest r){
-                synchronized(attempts){
-                    String key="attempt_"+hash(r.channelId+":"+r.approvedVersionId);
-                    if(attempts.contains(key))return false;
-                    return attempts.edit().putString(key,"UNKNOWN:"+r.requestId).putString("last_result","UNKNOWN").remove("last_payload").remove("last_key").commit();
-                }
-            }
-            public void record(PublishResult result){
-                synchronized(attempts){
-                    String key="attempt_"+hash(result.channelId+":"+request.approvedVersionId);
-                    String summary=result.outcome.name()+(result.postId==null?"":"\n"+result.postId);
-                    if(!attempts.edit().putString(key,gson.toJson(result)).putString("last_result",summary).putString("last_payload",gson.toJson(result)).putString("last_key",key).commit())throw new IllegalStateException("Cannot save result");
-                }
-            }
-        };
-        var connector=new LinkedInSocialConnector(channel,credentials,
-            r->new LinkedInSocialConnector.Snapshot(snapshotId,text,true),ledger,
-            new OkHttpClient(),HttpUrl.get("https://api.linkedin.com/rest/posts"),version,io);
-        return connector.publish(request,callback);
-    }
-    /** Called only after the operator opened the URL and explicitly confirmed author/content. */
-    public void confirmOpenedPostUrl(String url){
-        synchronized(attempts){
-            String raw=attempts.getString("last_payload",null),key=attempts.getString("last_key",null);
-            if(raw==null||key==null)throw new IllegalStateException("No post ID to verify");
-            PublishResult verified=LinkedInPostVerification.ownerConfirmed(raw,url);
-            if(!attempts.edit().putString(key,gson.toJson(verified)).putString("last_payload",gson.toJson(verified))
-                .putString("url_verification_source","OWNER_CONFIRMED")
-                .putString("last_result","SUCCESS\n"+verified.postId+"\n"+verified.postUrl).commit())throw new IllegalStateException("Cannot save URL verification");
+    public static final class Review {
+        public final String text, errorCode;
+        public final long retryAt;
+        private final String key, previousRequestId;
+        private final ChannelInfo channel;
+        private Review(String text, String key, String previousRequestId, ChannelInfo channel,
+                String errorCode, long retryAt) {
+            this.text=text; this.key=key; this.previousRequestId=previousRequestId;
+            this.channel=channel; this.errorCode=errorCode; this.retryAt=retryAt;
         }
     }
-    private static String hash(String value){
-        try{byte[] digest=MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
-            StringBuilder s=new StringBuilder();for(byte b:digest)s.append(String.format(java.util.Locale.ROOT,"%02x",b&255));return s.toString();
-        }catch(Exception e){throw new IllegalStateException("Hash unavailable");}
+    public static final class Confirmation {
+        private final LinkedInAttemptLedger.Target target;
+        private Confirmation(LinkedInAttemptLedger.Target target) { this.target=target; }
     }
+    public static final class State {
+        public final String summary;
+        public final Confirmation confirmation;
+        private State(String summary, LinkedInAttemptLedger.Target target) {
+            this.summary=summary; this.confirmation=target==null ? null : new Confirmation(target);
+        }
+    }
+    private final EncryptedOAuthStore store;
+    private final SharedPreferences preferences;
+    private final LinkedInAttemptLedger ledger;
+    private final ExecutorService io;
+    private final String version;
+    private final OkHttpClient client;
+    private final HttpUrl endpoint;
+    public LinkedInSpikePublisher(Context context, ExecutorService io, String version) {
+        this(EncryptedOAuthStore.shared(context), context.getApplicationContext()
+                .getSharedPreferences("linkedin_spike_attempts_v1", Context.MODE_PRIVATE), io, version,
+                new OkHttpClient(), HttpUrl.get("https://api.linkedin.com/rest/posts"));
+    }
+    LinkedInSpikePublisher(EncryptedOAuthStore store, SharedPreferences preferences, ExecutorService io,
+            String version, OkHttpClient client, HttpUrl endpoint) {
+        this.store=store; this.preferences=preferences; this.io=io; this.version=version;
+        this.client=client; this.endpoint=endpoint;
+        ledger=new LinkedInAttemptLedger(preferences, System::currentTimeMillis);
+    }
+    public State state() {
+        synchronized (preferences) {
+            return new State(preferences.getString("last_result",null), ledger.target());
+        }
+    }
+    public State stateForResult(Review review, PublishResult result) {
+        synchronized (preferences) {
+            return new State(summary(result), result.postId == null ? null : ledger.target(review.key));
+        }
+    }
+    public Review review(String text) {
+        ChannelInfo channel=store.channel("LINKEDIN");
+        if(channel==null) throw new IllegalStateException("AUTH_REQUIRED");
+        String snapshotId=LinkedInAttemptLedger.hash(text);
+        String key=ledger.key(channel,snapshotId);
+        PublishRequest request=new PublishRequest(UUID.randomUUID().toString(),channel.channelId,channel.connectionRevision,snapshotId);
+        PublishResult previous=ledger.existing(key,request);
+        String retryId=ledger.confirmedRetry(key);
+        return new Review(text,key,retryId,channel,
+                retryId==null ? null : previous.error.code.name(),ledger.retryAt(key));
+    }
+    public Cancelable publishApprovedText(Review review, SocialConnector.Result callback) {
+        if(!version.matches("[0-9]{6}")) throw new IllegalStateException("API_VERSION_REQUIRED");
+        ChannelInfo channel=review.channel;
+        String snapshotId=LinkedInAttemptLedger.hash(review.text);
+        PublishRequest request=new PublishRequest(UUID.randomUUID().toString(),channel.channelId,channel.connectionRevision,snapshotId);
+        LinkedInSocialConnector.Credentials credentials=new LinkedInSocialConnector.Credentials() {
+            public ChannelInfo current() { return store.channel("LINKEDIN"); }
+            public String accessToken() { return store.tokenFor("LINKEDIN",channel.channelId,channel.connectionRevision); }
+            public void requireReauth(long revision) { store.requireReauth("LINKEDIN",channel.channelId,revision); }
+        };
+        LinkedInSocialConnector.Attempts attempts=new LinkedInSocialConnector.Attempts() {
+            private long retryAt;
+            public PublishResult existing(PublishRequest r) { return ledger.existing(review.key,r); }
+            public boolean begin(PublishRequest r) { return ledger.begin(review.key,r,review.previousRequestId); }
+            public void retryAfter(long value) { retryAt=value; }
+            public void record(PublishResult result) { ledger.record(review.key,result,retryAt); }
+        };
+        return new LinkedInSocialConnector(channel,credentials,
+                r->new LinkedInSocialConnector.Snapshot(snapshotId,review.text,true),attempts,
+                client,endpoint,version,io).publish(request,callback);
+    }
+    public State confirmOpenedPostUrl(Confirmation confirmation, String url) {
+        if (confirmation==null) throw new IllegalStateException("Open the post again");
+        synchronized (preferences) {
+            ledger.confirm(confirmation.target,url);
+            return state();
+        }
+    }
+    public static String summary(PublishResult result) { return LinkedInAttemptLedger.summary(result); }
 }

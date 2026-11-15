@@ -35,7 +35,7 @@ public class EncryptedOAuthStoreTest {
     @Test public void connectionIsOneEncryptedCommitAndSurvivesReload() {
         store.saveConnected(connection("old-page", "fake-old-token"));
         assertEquals(1, preferences.commits);
-        assertEquals(1, preferences.memory.size());
+        assertEquals(2, preferences.memory.size());
         assertFalse(preferences.getString("connected_v3_FACEBOOK", "").contains("fake-old-token"));
         EncryptedOAuthStore reloaded = new EncryptedOAuthStore(preferences.reboot(), cipher);
         assertEquals("old-page (old-page)", reloaded.pageSummary());
@@ -197,6 +197,60 @@ public class EncryptedOAuthStoreTest {
         reload.requireReauth("LINKEDIN",2);assertNull(reload.tokenFor("LINKEDIN",reload.channel("LINKEDIN").channelId,2));assertEquals(com.socialpilot.app.domain.contract.social.ConnectionStatus.REAUTH_REQUIRED,reload.channel("LINKEDIN").connectionStatus);
     }
 
+    public static EncryptedOAuthStore testStore(SharedPreferences preferences) {
+        return new EncryptedOAuthStore(preferences,new TestCipher());
+    }
+    @Test public void recoveryKeepsRevisionAndSwapBackAdvancesIt() {
+        store.saveConnected(linkedin("member"));
+        var old=store.channel("LINKEDIN");
+        preferences.edit().putString("connected_v3_LINKEDIN","broken").commit();
+        assertNull(store.channel("LINKEDIN"));
+        store.saveConnected(linkedin("member"));
+        var recovered=store.channel("LINKEDIN");
+        assertEquals(old.channelId,recovered.channelId);
+        assertTrue(recovered.connectionRevision>old.connectionRevision);
+        assertNull(store.tokenFor("LINKEDIN",old.channelId,old.connectionRevision));
+        store.saveConnected(linkedin("other"),true);
+        store.saveConnected(linkedin("member"),true);
+        var reloaded=new EncryptedOAuthStore(preferences.reboot(),cipher);
+        assertEquals(old.channelId,reloaded.channel("LINKEDIN").channelId);
+        assertTrue(reloaded.channel("LINKEDIN").connectionRevision>recovered.connectionRevision);
+        reloaded.requireReauth("LINKEDIN",old.connectionRevision);
+        assertEquals(com.socialpilot.app.domain.contract.social.ConnectionStatus.CONNECTED,reloaded.channel("LINKEDIN").connectionStatus);
+    }
+    @Test public void lostMarkerAndCredentialCreateNewIdentity() {
+        store.saveConnected(linkedin("member"));
+        var old=store.channel("LINKEDIN");
+        preferences.edit().remove("connected_v3_LINKEDIN").remove("revision_v1_LINKEDIN:member").commit();
+        var reloaded=new EncryptedOAuthStore(preferences.reboot(),cipher);
+        reloaded.saveConnected(linkedin("member"));
+        assertNotEquals(old.channelId,reloaded.channel("LINKEDIN").channelId);
+        assertNull(reloaded.tokenFor("LINKEDIN",old.channelId,old.connectionRevision));
+        reloaded.requireReauth("LINKEDIN",old.channelId,old.connectionRevision);
+        assertEquals(com.socialpilot.app.domain.contract.social.ConnectionStatus.CONNECTED,reloaded.channel("LINKEDIN").connectionStatus);
+    }
+    @Test public void existingV3SeedsMarkerWithoutChangingChannel() throws Exception {
+        String json="{\"version\":3,\"channelId\":\"LINKEDIN:member\",\"revision\":9,\"connection\":"
+            +new com.google.gson.Gson().toJson(linkedin("member"))+"}";
+        preferences.edit().putString("connected_v3_LINKEDIN",cipher.encrypt("connected_v3_LINKEDIN",json)).commit();
+        store.saveConnected(linkedin("member"));
+        assertEquals("LINKEDIN:member",store.channel("LINKEDIN").channelId);
+        assertEquals(10,store.channel("LINKEDIN").connectionRevision);
+    }
+
+    @Test public void markerWriteFailurePreservesExistingV3ForRecovery() throws Exception {
+        String json="{\"version\":3,\"channelId\":\"LINKEDIN:member\",\"revision\":9,\"connection\":"
+            +new com.google.gson.Gson().toJson(linkedin("member"))+"}";
+        preferences.edit().putString("connected_v3_LINKEDIN",cipher.encrypt("connected_v3_LINKEDIN",json)).commit();
+        preferences.failCommits=1;
+        assertNull(store.channel("LINKEDIN"));
+        assertTrue(preferences.reboot().contains("connected_v3_LINKEDIN"));
+        var recovered=new EncryptedOAuthStore(preferences.reboot(),cipher);
+        assertEquals(9,recovered.channel("LINKEDIN").connectionRevision);
+        recovered.saveConnected(linkedin("member"));
+        assertEquals(10,recovered.channel("LINKEDIN").connectionRevision);
+    }
+
     private static final class TestCipher implements EncryptedOAuthStore.RecordCipher {
         boolean failEncryption;
         private final SecretKeySpec key = new SecretKeySpec(new byte[32], "AES");
@@ -221,11 +275,11 @@ public class EncryptedOAuthStoreTest {
     }
 
     /** Models Android's memory-first commit, including failure without rollback. */
-    private static final class MemoryPreferences implements SharedPreferences {
+    public static final class MemoryPreferences implements SharedPreferences {
         final Map<String, String> memory = new HashMap<>();
         final Map<String, String> disk = new HashMap<>();
         int commits, failCommits;
-        MemoryPreferences reboot() {
+        public MemoryPreferences reboot() {
             MemoryPreferences result = new MemoryPreferences();
             result.memory.putAll(disk); result.disk.putAll(disk); return result;
         }
