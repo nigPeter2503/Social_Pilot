@@ -239,7 +239,8 @@ public final class DualStreamCoordinator implements AutoCloseable {
             boolean terminal = event.type == AiEvent.Type.COMPLETED || event.type == AiEvent.Type.FAILED
                     || event.type == AiEvent.Type.CANCELLED;
             work.mayHaveDispatched |= event.mayHaveDispatched
-                    || event.type == AiEvent.Type.TEXT_DELTA || event.type == AiEvent.Type.COMPLETED;
+                    || event.type == AiEvent.Type.TEXT_DELTA || event.type == AiEvent.Type.COMPLETED
+                    || (terminal && (event.partial || event.usage.state != AiUsage.State.MISSING));
             boolean valid = sequential && !work.protocolFailed && recordProgress(work, event)
                     && (!terminal || event.mayHaveDispatched || !work.mayHaveDispatched);
             work.protocolFailed |= !valid;

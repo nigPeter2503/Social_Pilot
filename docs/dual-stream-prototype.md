@@ -19,7 +19,7 @@ Prototype nhận hai yêu cầu text thuộc cùng phiên nhưng khác kênh. Ru
 
 - Hai worker thuộc một `ThreadPoolExecutor` có queue hữu hạn. Coordinator nhận tối đa hai attempt đang chạy hoặc đang dọn. Mọi transition của phiên đi qua cùng monitor. Worker áp dụng event đồng bộ trước khi tiếp tục đọc stream, tạo backpressure mà không xếp hàng từng token trên UI. Observer chỉ được gọi ngoài monitor.
 - State nhận event khớp session/channel/revision/step/request/provider/model. Sequence tăng liên tục. Event cũ/lặp bị bỏ. Gap hoặc vượt giới hạn text chuyển lỗi protocol. Text được tích lũy một lần, snapshot chỉ materialize khi có người đọc.
-- Bằng chứng dispatch được giữ tăng dần trong attempt. Sau text hoặc cờ dispatch đã nhận, terminal báo chưa dispatch bị coi là mâu thuẫn. Terminal sai thứ tự hoặc sai tiến trình giữ reservation ở UNCERTAIN. Chỉ terminal hợp lệ và không có bằng chứng dispatch mới được release. Terminal lặp không quyết toán lần hai.
+- Bằng chứng dispatch được giữ tăng dần trong attempt. Text, cờ dispatch, `partial=true` hoặc usage `REPORTED`/`PARTIAL` đều là bằng chứng dispatch. Nếu có một trong các dấu hiệu này mà terminal báo chưa dispatch, coordinator giữ reservation ở UNCERTAIN như với terminal sai thứ tự hoặc sai tiến trình. Chỉ terminal hợp lệ và không có bằng chứng dispatch mới được release. Terminal lặp không quyết toán lần hai.
 - Handle chuẩn bị và `FutureTask` được giữ trước khi submit. Nếu cancel thắng trước khi worker vào, worker bị chặn dispatch và ledger release. Nếu worker đã vào, cancel transport và Future độc lập. Reservation được settle từ terminal đáng tin hoặc chuyển uncertain nếu có thể đã gửi mà chưa định giá được. Terminal tới muộn của attempt đang dọn vẫn có thể dùng cho ledger. UI đã hủy chỉ giữ prefix tại thời điểm hủy. Worker ra mà thiếu terminal làm nhánh đang chạy chuyển lỗi protocol và giữ reservation uncertain.
 - Consumer cung cấp provider resolver, pricing và ledger dùng chung. Các phép tính/transaction ở ranh giới này cần hoàn thành nhanh và bảo toàn reservation khi lỗi. Test dùng ledger/giá giả. Runtime không tự retry hoặc fallback.
 
@@ -45,16 +45,19 @@ Prototype nhận hai yêu cầu text thuộc cùng phiên nhưng khác kênh. Ru
 | Hủy cả phiên đang chạy | `DualStreamHttpTest.cancelSessionStopsBothActiveHttpStreams`, `DualStreamReviewRegressionTest.cancelSessionInterruptsBothRunningFuturesAndCancelsBothTransports` | Hai HTTP stream cùng đang đọc đều thoát. Hai Future và hai handle hủy, mỗi ledger chuyển một lần |
 | Hủy trước attach | `DualStreamHttpTest.cancelAfterWorkerEntryBeforeCallAttachDoesNotSendA` | Worker đã vào, cancel trước attach, A không gửi HTTP và release một lần, B hoàn tất |
 | Ledger/protocol | `DualStreamReviewRegressionTest.invalidTerminalCannotReleaseAfterTextAndDuplicateCannotSettleAgain`, `validUndispatchedTerminalReleasesExactlyOnce`, `protocolGapWithoutDispatchEvidenceStillHoldsReservation` | Terminal mâu thuẫn/gap giữ UNCERTAIN. Chưa dispatch hợp lệ release. Terminal lặp không quyết toán lại |
+| Ledger khi chưa nhận text | `DualStreamReviewRegressionTest.terminalDispatchEvidencePreventsReleaseWithoutVisibleText` | Terminal FAILED/CANCELLED có usage hoặc `partial=true` nhưng báo chưa dispatch giữ UNCERTAIN đúng một lần |
 
 ### Kết quả local ngày 11/11/2026
 
 - Windows, OpenJDK 21.0.13, SDK 36, Gradle Wrapper 8.13. Bản ghép local dùng SP-013 tại `06a49b9f01649aeec385d78a5b4cfd4fa6a68ebd` và source SP-014 trên base `0348982c8f295d946815da91eae491bd9645ac94`. Cây test `8206fb1663dcfb4fc87cb8892ac22501d18cd181` có cùng Java source và tests với bản bàn giao. Cây test được xuất riêng, ngoài các file tracked của nhánh.
 - Tại `android`, `./gradlew.bat :app:assembleDebug :app:testDebugUnitTest :app:lintDebug` đạt. **37 unit test đạt**, gồm 11 ca SP-014 và 26 ca từ baseline/SP-013. Lint có 0 lỗi, 12 cảnh báo.
 - Trace MockWebServer dùng microsecond kể từ đầu ca, A `[6074, 8290]`, B `[5785, 8185]`. Hai request cùng đến trước khi barrier nhả response. Ca disconnect cắt body ngắn hơn Content-Length trả `PROTOCOL_ERROR` theo adapter và giữ prefix.
-- Emulator với runtime đã nối SP-017 và provider thật: `NOT_RUN`. PR SP-013 chưa có trên `main`. Khi dependency merge, đồng bộ nhánh từ `main` và chạy lại gates trước khi chuyển PR SP-014 sang Ready for review.
+- Tại thời điểm ghi nhận, SP-013 đang chờ merge vào `main`. Emulator với runtime đã nối SP-017 và provider thật: `NOT_RUN`.
 
 ### Review follow-up ngày 12/11/2026
 
 [Bằng chứng thực thi](evidence/sp-014-review-verification-20261112.txt) gắn với source `452b607892fbfd03e9e5ce0b58e09c4ddde18881`, dependency SP-013 `82bf8c6` và cây ghép `3f9a24947a908730f767ab644dbd1e414008dcf5`. Test hồi quy thất bại trên coordinator cũ. Bản sửa đạt cả ba tác vụ Android, **46 unit test**, lint 0 lỗi và 12 cảnh báo. Trong đó có 20 ca SP-014, bao gồm các ca bổ sung theo [review của Nghị](https://github.com/nigPeter2503/Social_Pilot/pull/73#pullrequestreview-5861818770).
 
-CI độc lập của PR trên `main` còn chờ SP-013 merge. Sau khi đồng bộ dependency cần chạy lại gates trên head mới. Phần emulator/Room với runtime đã nối SP-017 tiếp tục được ghi `NOT_RUN`.
+### Đồng bộ `main` ngày 15/11/2026
+
+PR #72 đã vào `main` tại `7582fb38aa1d079f669e53464f3e19d4fb7be8ea`. Nhánh SP-014 merge trực tiếp từ `main`. Xem [checks của PR #73](https://github.com/nigPeter2503/Social_Pilot/pull/73/checks) để đối chiếu CI với commit được review. Phần emulator/Room với runtime đã nối SP-017 tiếp tục được ghi `NOT_RUN`.

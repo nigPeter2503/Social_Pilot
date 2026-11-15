@@ -51,6 +51,41 @@ public final class DualStreamReviewRegressionTest {
         }
     }
 
+    @Test public void terminalDispatchEvidencePreventsReleaseWithoutVisibleText() throws Exception {
+        checkContradictoryTerminal(AiEvent.Type.FAILED, USAGE, false);
+        checkContradictoryTerminal(AiEvent.Type.CANCELLED, USAGE.asPartial(), false);
+        checkContradictoryTerminal(AiEvent.Type.FAILED, AiUsage.MISSING, true);
+    }
+
+    private void checkContradictoryTerminal(AiEvent.Type type, AiUsage usage, boolean partial)
+            throws Exception {
+        Ledger ledger = new Ledger();
+        AiProvider provider = (req, listener) -> new AiProvider.Attempt() {
+            @Override public void run() {
+                listener.onEvent(AiEvent.started(req, 1));
+                AiError error = type == AiEvent.Type.FAILED
+                        ? new AiError(AiError.Code.CONNECTION_FAILED, null) : null;
+                AiEvent terminal = AiEvent.terminal(req, 2, type, error, usage, partial, false);
+                listener.onEvent(terminal);
+                listener.onEvent(terminal);
+            }
+
+            @Override public void cancel() { }
+        };
+
+        try (DualStreamCoordinator coordinator = new DualStreamCoordinator(id -> provider, ledger, PRICING)) {
+            coordinator.start(request("A", "a", "a"), request("B", "b", "b"));
+            DualStreamCoordinator.Snapshot result = await(coordinator,
+                    s -> s.first.canRetry && s.second.canRetry);
+            assertEquals("UNCERTAIN", ledger.state("a"));
+            assertEquals("UNCERTAIN", ledger.state("b"));
+            assertEquals(1, ledger.settlements("a"));
+            assertEquals(1, ledger.settlements("b"));
+            assertEquals(BranchSnapshot.Problem.PROTOCOL, result.first.problem);
+            assertEquals(BranchSnapshot.Problem.PROTOCOL, result.second.problem);
+        }
+    }
+
     @Test public void validUndispatchedTerminalReleasesExactlyOnce() throws Exception {
         Ledger ledger = new Ledger();
         AiProvider provider = (req, listener) -> new AiProvider.Attempt() {
