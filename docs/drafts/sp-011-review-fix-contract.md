@@ -87,3 +87,15 @@ head a3858c7, #74 OPEN/CHANGES_REQUESTED. Bản mô tả PR local đã cập nh�
 thái và bảng kết quả mới. Owner đã yêu cầu push ngày 15/11. Code/tests ở commit 26b594b, hồ sơ trong
 commit đi kèm. Cập nhật nội dung PR và hai reviewer xác nhận bản sửa, cùng xử lý
 dependency, là các bước bàn giao còn theo dõi.
+
+### Bổ sung sau review head 908316f
+
+- [x] Trả State của đúng target vừa xác nhận, giữ con trỏ B khi xác nhận lại A.
+- [x] Migration v2 còn sót tôn trọng marker và gộp ghi v3/marker/xóa v2 trong một commit.
+- [x] Khôi phục snapshot trước ghi khi commit thất bại; ba regression mới RED trước sửa.
+- [x] Gate local đạt 96 JVM tests và 8 instrumentation tests, build/lint đạt với 0 errors/6 warnings.
+
+Chi tiết trong [report đợt hai](../evidence/sp-011-second-review-2026-11-15.json).
+Owner đã yêu cầu push và đồng bộ description PR. Code/tests ở commit a61c71a,
+hồ sơ trong commit đi kèm. Mục hai human approvals và tích hợp dependency tiếp tục
+được theo dõi trước merge.

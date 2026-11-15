@@ -1,9 +1,21 @@
 # SP-011 — Tổng hợp nghiệm thu và bàn giao
 
 Cập nhật: 15/11/2026, Asia/Bangkok. Owner: Ngô Gia Minh (`nigPeter2503`).
-Issue [#13](https://github.com/nigPeter2503/Social_Pilot/issues/13), Draft PR
+Issue [#13](https://github.com/nigPeter2503/Social_Pilot/issues/13), PR
 [#77](https://github.com/nigPeter2503/Social_Pilot/pull/77).
 Reviewer theo brief: Đạt (`dat532006`), Nghị (`bob35306`).
+
+## Bổ sung review head 908316f ngày 15/11
+
+Hai P2 bổ sung đã được commit ở a61c71a theo ủy quyền push ngày 15/11. State trả về sau xác nhận lấy kết quả và target của
+bài vừa xác nhận. Con trỏ bài mới nhất giữ nguyên. Migration v2 còn sót giữ mốc
+revision hiện có, tăng revision khi phục hồi và ghi đích/marker/xóa nguồn cùng một
+commit. Khi commit thất bại, khôi phục snapshot trước thao tác ghi.
+
+96 JVM tests PASS, build/lint/instrumentation APK đạt. 8 instrumentation tests PASS
+trên SM-G990E / Android 16. Lint 0 errors/6 warnings, thêm ApplySharedPref ở rollback
+đồng bộ. Ba regression mới đã thất bại trước sửa. Xem
+[report đợt hai](evidence/sp-011-second-review-2026-11-15.json). Code/tests của đợt này ở a61c71a, hồ sơ trong commit đi kèm.
 
 ## Cập nhật sửa review ngày 15/11/2026
 

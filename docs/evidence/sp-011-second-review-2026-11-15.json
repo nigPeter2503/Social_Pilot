@@ -1,0 +1,193 @@
+{
+  "task": "SP-011",
+  "baseline": "908316f",
+  "date": "2026-11-15",
+  "revisionScope": "Tested source committed as a61c71a; documentation in accompanying follow-up commit.",
+  "lint": {
+    "errors": 0,
+    "warnings": 6,
+    "newWarning": "ApplySharedPref on synchronous rollback commit; rollback persists the pre-write snapshot after a failed atomic migration."
+  },
+  "redBeforeFix": [
+    "confirmingReopenedAReturnsAStateAndKeepsBPointer",
+    "staleV2RecoveryAdvancesMarkerAndRemovesSourceAtomically",
+    "staleV2FailedCommitPreservesRevisionAndSourceOnDisk"
+  ],
+  "jvm": {
+    "totals": {
+      "tests": 96,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "reports": [
+      {
+        "path": "android/app/build/test-results/testDebugUnitTest/TEST-com.socialpilot.app.core.OAuthCallbackQueueTest.xml",
+        "sha256": "6270dfdaa5dec4b87e8ec1291dbfd30c6bdc05c504157f7145b69dae13fb83e4",
+        "timestamp": "2026-11-15T13:28:59.361Z",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "path": "android/app/build/test-results/testDebugUnitTest/TEST-com.socialpilot.app.core.OAuthCoordinatorValidationTest.xml",
+        "sha256": "3a1bf363bc8a448859bb3db576acb8bebfb669d159e9e5034adc7280ed4286a7",
+        "timestamp": "2026-11-15T13:28:59.663Z",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "path": "android/app/build/test-results/testDebugUnitTest/TEST-com.socialpilot.app.data.ai.AiProvidersTest.xml",
+        "sha256": "23a130a45fbbe11f6f3f95b595f9ee016f7548928796bff9f707fb48f903e0ab",
+        "timestamp": "2026-11-15T13:28:59.668Z",
+        "tests": 19,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "path": "android/app/build/test-results/testDebugUnitTest/TEST-com.socialpilot.app.data.repository.social.LinkedInAttemptLedgerTest.xml",
+        "sha256": "6c555f9bf47b18350053f24fc693427a82e94bd7a198f820d33151833a3162d7",
+        "timestamp": "2026-11-15T13:29:05.856Z",
+        "tests": 7,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "path": "android/app/build/test-results/testDebugUnitTest/TEST-com.socialpilot.app.data.repository.social.LinkedInPostVerificationTest.xml",
+        "sha256": "2db3a4ca0a185b83441ad3c7d6c5e6add8120f55d40d6417bc5bcde0a05d6a61",
+        "timestamp": "2026-11-15T13:29:05.914Z",
+        "tests": 7,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "path": "android/app/build/test-results/testDebugUnitTest/TEST-com.socialpilot.app.data.repository.social.LinkedInSocialConnectorTest.xml",
+        "sha256": "4e57801d2e50efec311d144e02cfe7d94542d9fe5ce225fd3d861143edcd9fec",
+        "timestamp": "2026-11-15T13:29:05.931Z",
+        "tests": 10,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "path": "android/app/build/test-results/testDebugUnitTest/TEST-com.socialpilot.app.data.repository.social.LinkedInSpikePublisherTest.xml",
+        "sha256": "b68d0f46e7f544cb45167c42b5a8a711e6542129e318996fd105212989d48a9f",
+        "timestamp": "2026-11-15T13:29:06.320Z",
+        "tests": 5,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "path": "android/app/build/test-results/testDebugUnitTest/TEST-com.socialpilot.app.data.security.EncryptedOAuthStoreTest.xml",
+        "sha256": "9d952090de053d7627c46dabb4e8648701b3ee14cb545cdbb856ff4c36c9b34a",
+        "timestamp": "2026-11-15T13:29:06.465Z",
+        "tests": 23,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "path": "android/app/build/test-results/testDebugUnitTest/TEST-com.socialpilot.app.domain.contract.ai.BudgetContractTest.xml",
+        "sha256": "fd99a55c8b30fa6f2402972a84713f7553835da975c2827b0b9140e6fb91c3ad",
+        "timestamp": "2026-11-15T13:29:06.597Z",
+        "tests": 4,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "path": "android/app/build/test-results/testDebugUnitTest/TEST-com.socialpilot.app.domain.contract.oauth.OAuthContractTest.xml",
+        "sha256": "5cb10314adc47bc65f6da3ccc8aa2987f472e952575a165ddf3380385aa5a3b6",
+        "timestamp": "2026-11-15T13:29:06.605Z",
+        "tests": 4,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "path": "android/app/build/test-results/testDebugUnitTest/TEST-com.socialpilot.app.domain.contract.social.ChannelCapabilityTest.xml",
+        "sha256": "20d9e34ff0d4f0eaf8011822be700c940545f02944df4f860261a95b0effa362",
+        "timestamp": "2026-11-15T13:29:06.620Z",
+        "tests": 3,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "path": "android/app/build/test-results/testDebugUnitTest/TEST-com.socialpilot.app.domain.contract.social.PublishContractTest.xml",
+        "sha256": "e500c27dcb5e49b62cfd22a2f33c2442fbc06063719b7e772daa2df54371039d",
+        "timestamp": "2026-11-15T13:29:06.626Z",
+        "tests": 7,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "path": "android/app/build/test-results/testDebugUnitTest/TEST-com.socialpilot.app.domain.DraftValidatorTest.xml",
+        "sha256": "ec62cbef32fa64d5c41d22eda01aca21642581e536b86d0167afe64528ec77d5",
+        "timestamp": "2026-11-15T13:29:06.593Z",
+        "tests": 3,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    ]
+  },
+  "device": {
+    "totals": {
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "reports": [
+      {
+        "path": "android/app/build/outputs/androidTest-results/connected/debug/TEST-SM-G990E - 16-_app-.xml",
+        "sha256": "b2b5265cbc6148f8c20e1545885f5247aee634b6b987b09fea5f21cf9bc74644",
+        "timestamp": "2026-11-15T13:30:59",
+        "tests": 8,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    ]
+  },
+  "commands": [
+    ".\\gradlew.bat :app:assembleDebug :app:testDebugUnitTest :app:lintDebug :app:assembleDebugAndroidTest <configured properties> --offline --console=plain",
+    ".\\gradlew.bat :app:connectedDebugAndroidTest <configured properties> --offline --console=plain"
+  ],
+  "deviceModel": "Samsung SM-G990E / Android 16",
+  "testedSourceHashes": [
+    {
+      "path": "android/app/src/androidTest/java/com/socialpilot/app/data/security/EncryptedOAuthStoreDeviceTest.java",
+      "sha256": "5b917d263f190964da31d2ec56d2471d201396fef5ab441e36a16a2fed1c05e7"
+    },
+    {
+      "path": "android/app/src/main/java/com/socialpilot/app/data/repository/social/LinkedInAttemptLedger.java",
+      "sha256": "5080e8fa948f470f4928fed9d1118721182da050c0cb1d01311ad4752ee26b77"
+    },
+    {
+      "path": "android/app/src/main/java/com/socialpilot/app/data/repository/social/LinkedInSpikePublisher.java",
+      "sha256": "784ae48ee21551f887503cedff76171c159c775c2b57518a75d1b18d5397dd2a"
+    },
+    {
+      "path": "android/app/src/main/java/com/socialpilot/app/data/security/EncryptedOAuthStore.java",
+      "sha256": "2c4787168a8e7dc6d2ed1ec0186eba0e3df24eef88f06c51893483a6b922c97a"
+    },
+    {
+      "path": "android/app/src/test/java/com/socialpilot/app/data/repository/social/LinkedInSpikePublisherTest.java",
+      "sha256": "5df9dd2b098fa9d2aca783760b4f23bd169ed7f646b81307d2d8dfb0f1417082"
+    },
+    {
+      "path": "android/app/src/test/java/com/socialpilot/app/data/security/EncryptedOAuthStoreTest.java",
+      "sha256": "50f2652c84d791b8c00b31e1a0b452e20eaf656f250b556b63e05e57e2687c4f"
+    }
+  ]
+}

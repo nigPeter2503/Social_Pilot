@@ -36,13 +36,25 @@ không triển khai mọi API LinkedIn hoặc nghiệm thu toàn bộ F1/F5.
 - Xếp hàng callback theo sessionId, kiểm tra lại pending/TTL khi exchange,
   callback lặp chỉ được tiêu thụ một lần. Đã thử qua Activity Intent trên máy thật.
 
+## Bổ sung sau review head 908316f
+
+Xác nhận bài A trả State/SUCCESS và target của A về ViewModel, giữ nguyên record
+và con trỏ của bài B. Migration nguồn v2 còn sót lấy revision marker hiện có làm
+mốc, ghi v3 + marker + xóa v2 trong cùng một commit. Commit thất bại khôi phục
+snapshot trước ghi để giữ dữ liệu nguồn và mốc revision.
+
+Ba regression mới thất bại trước sửa, sau sửa 96 JVM tests đạt. Test Keystore thật
+staleV2RecoveryPreservesRealKeystoreRevisionMarker nằm trong 8 instrumentation
+tests đạt trên SM-G990E / Android 16. Lint có 6 warnings, gồm cảnh báo ApplySharedPref
+mới tại rollback ghi đồng bộ có chủ đích.
+
 ## Kiểm chứng
 
 | Phạm vi | Kết quả |
 |---|---|
 | Backend `test bootJar` | 57 tests PASS, 0 failures/errors/skipped; theo lần chạy đã ghi nhận |
-| Android `assembleDebug testDebugUnitTest lintDebug` | Chạy lại 15/11: 93 JVM tests PASS, 0 failures/errors/skipped; lint 0 errors, 5 warnings |
-| Instrumentation trên SM-G990E / Android 16 | 7 tests PASS: callback qua Intent, recovery và Keystore, dữ liệu hỏng, cách ly provider/pending, migration v2/v3, cờ reauth; fixtures giả |
+| Android `assembleDebug testDebugUnitTest lintDebug` | Chạy lại 15/11: 96 JVM tests PASS, 0 failures/errors/skipped; lint 0 errors, 6 warnings |
+| Instrumentation trên SM-G990E / Android 16 | 8 tests PASS: callback qua Intent, recovery và Keystore, dữ liệu hỏng, cách ly provider/pending, migration v2/v3, cờ reauth; fixtures giả |
 | OAuth và đăng bài thật qua app | Ảnh connected/SUCCESS; Post ID `urn:li:share:7527386113993412608`; URL do owner mở và xác nhận |
 | Restart backend | Phiên cũ HTTP 400 INVALID_STATE; OAuth mới thành công theo owner ngày 15/11 |
 | Tài liệu | Liên kết tương đối, hash evidence và `git diff --check` đạt |
@@ -89,4 +101,7 @@ quyền để tiếp tục SP-019. Không đưa token/secret vào mô tả hoặ
 
 Kết quả của đợt sửa review nằm trong
 [report 15/11](https://github.com/nigPeter2503/Social_Pilot/blob/feat/sp-011-linkedin-oauth-spike/docs/evidence/sp-011-review-fixes-2026-11-15.json).
-Bản soạn này áp dụng sau khi push các sửa review local và cần được hai reviewer xác nhận.
+Hai P2 bổ sung được sửa trong commit a61c71a. Cần hai reviewer xác nhận trên head mới.
+
+Report đợt review thứ hai nằm trong
+[second-review 15/11](https://github.com/nigPeter2503/Social_Pilot/blob/feat/sp-011-linkedin-oauth-spike/docs/evidence/sp-011-second-review-2026-11-15.json).
