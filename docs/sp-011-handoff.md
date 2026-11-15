@@ -5,6 +5,39 @@ Issue [#13](https://github.com/nigPeter2503/Social_Pilot/issues/13), PR
 [#77](https://github.com/nigPeter2503/Social_Pilot/pull/77).
 Reviewer theo brief: Đạt (`dat532006`), Nghị (`bob35306`).
 
+## Bàn giao sau audit theo ủy quyền push
+
+Owner đã yêu cầu push bản sửa sau audit. Code/tests credential recovery được commit
+ở a69b8db, hồ sơ audit và description được gom trong commit tài liệu đi kèm.
+Các mục trạng thái local/head cũ bên dưới ghi nhận theo thời điểm kiểm tra.
+
+## Đối chiếu cuối trước push ngày 15/11
+
+Audit đã chạy lại 98 JVM tests, 8 tests thiết bị và 57 backend tests, tất cả đạt.
+Build/lint đạt, 0 errors/6 warnings. Mô phỏng merge main 7def84d cùng sửa local đạt,
+không có conflict. Source và report hash, assets và liên kết tài liệu đã đối chiếu.
+Xem [báo cáo audit](sp-011-pre-push-audit.md) làm trạng thái tổng hợp hiện tại.
+Các phần bên dưới giữ lịch sử bằng chứng theo từng đợt sửa.
+
+## Bổ sung phục hồi credential sau review head 97e9dad
+
+Đã sửa local nhánh có revision marker và nguồn v2 còn sót. Marker được giữ nguyên,
+nguồn credential v2 cũ bị loại bỏ và các API connection/accessToken/tokenFor không
+cấp credential phục hồi. Giao diện yêu cầu kết nối lại khi không còn connection.
+Sau OAuth mới, saveConnected giữ channelId và tăng revision từ marker. Đường nâng
+cấp v2 lần đầu khi chưa có marker vẫn được kiểm tra bằng các tests migration cũ.
+Nguồn v2 còn sót được dọn cùng lần ghi credential OAuth mới nếu cần.
+
+Hai regression đã thất bại trước sửa. Test cũ kỳ vọng cấp token v2 trong recovery
+đã được thay bằng assertions không cấp token, bảo toàn marker và nhận token OAuth
+mới sau reconnect. Thêm ca v3 hỏng và dọn nguồn v2 thất bại. Test Keystore thật cũng
+kiểm tra không có credential trước OAuth mới.
+
+98 JVM tests và 8 instrumentation tests PASS trên SM-G990E / Android 16.
+Build/lint đạt, 0 errors/6 warnings. Xem
+[report credential recovery](evidence/sp-011-credential-recovery-2026-11-15.json).
+Bản bổ sung đang local, chưa commit/push.
+
 ## Bổ sung review head 908316f ngày 15/11
 
 Hai P2 bổ sung đã được commit ở a61c71a theo ủy quyền push ngày 15/11. State trả về sau xác nhận lấy kết quả và target của

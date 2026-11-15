@@ -99,3 +99,18 @@ Chi tiết trong [report đợt hai](../evidence/sp-011-second-review-2026-11-15
 Owner đã yêu cầu push và đồng bộ description PR. Code/tests ở commit a61c71a,
 hồ sơ trong commit đi kèm. Mục hai human approvals và tích hợp dependency tiếp tục
 được theo dõi trước merge.
+
+### Ràng buộc credential recovery sau head 97e9dad
+
+- [x] Có marker + mất/hỏng v3 + v2 còn sót phải yêu cầu OAuth mới, giữ marker và chặn token cũ.
+- [x] OAuth mới giữ channelId, tăng revision và chỉ cung cấp credential mới.
+- [x] Nâng cấp v2 lần đầu, không có marker, vẫn giữ đường migration hợp lệ.
+- [x] Kiểm tra lỗi dọn v2, lỗi commit credential mới và reload để chặn tái kích hoạt token cũ.
+- [x] 98 JVM tests, 8 tests thiết bị, build/lint PASS theo report đợt credential recovery.
+
+Hai tests recovery của đợt trước đã kiểm tra kỳ vọng cấp lại token v2 sai nghiệp vụ.
+Các assertions hiện kiểm tra cả quyền cấp credential và tính đơn điệu của revision.
+[Report mới](../evidence/sp-011-credential-recovery-2026-11-15.json).
+
+Owner đã duyệt push sau audit. Code/tests cuối ở a69b8db, 98 JVM / 8 device /
+57 backend tests đạt. Hồ sơ audit và description PR trong commit tài liệu đi kèm.

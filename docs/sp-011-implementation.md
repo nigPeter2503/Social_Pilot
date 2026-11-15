@@ -7,22 +7,23 @@ Yêu cầu: F1.B1, F1.B3, F5.B1, F5.B5.
 
 ## Trạng thái và dependency
 
-Cập nhật 15/11/2026: OAuth LinkedIn PERSON và đăng bài qua app đã thành công trên
-thiết bị thật; owner đã xác nhận giữ kết nối/kết quả sau mở lại. Hồ sơ hiện tại ở
-[bản tổng hợp nghiệm thu và bàn giao](sp-011-handoff.md), liên kết evidence Postman,
-thiết bị và các giới hạn refresh. Đây là hoàn thiện local để review, chưa đóng ticket.
+Đối chiếu trước push ngày 15/11/2026 tại worktree
+D:/MobileProject/SocialPilot_Starter/SocialPilot/build/sp011.
+Nhánh feat/sp-011-linkedin-oauth-spike có head đã push 97e9dad, PR
+[#77](https://github.com/nigPeter2503/Social_Pilot/pull/77) Ready for review.
+Sau audit, owner đã yêu cầu push. Source credential recovery được kiểm chứng và
+commit ở a69b8db; hồ sơ audit trong commit tài liệu đi kèm. Bằng chứng hiện tại
+và kết quả audit ở [báo cáo trước push](sp-011-pre-push-audit.md).
 
-Worktree: `D:/MobileProject/SocialPilot_Starter/SocialPilot/build/sp011`.
-Nhánh `feat/sp-011-linkedin-oauth-spike`; baseline đã push `53435d8`,
-Draft PR [#77](https://github.com/nigPeter2503/Social_Pilot/pull/77).
-Bản sửa code/tests đã commit local `9df46d3`; hồ sơ được gom trong commit docs
-đi kèm theo ủy quyền ngày 15/11. Chưa push hoặc cập nhật PR.
+OAuth PERSON và bài thử qua app đã có evidence thật. Bản local đạt 98 JVM tests,
+8 tests thiết bị, 57 backend tests được chạy lại trong audit. Build/lint đạt,
+lint 0 errors/6 warnings. Các lần chạy cũ được giữ trong report theo revision.
 
-Nhánh tạo từ origin/main `7582fb3`, tích hợp SP-010 cục bộ bằng merge. SP-010 PR
-[#74](https://github.com/nigPeter2503/Social_Pilot/pull/74) được ghi nhận trước đây
-OPEN/CHANGES_REQUESTED tại `d1d55a0`; chưa truy vấn lại GitHub ngày 15/11.
-Cần đối chiếu dependency/main và diff riêng SP-011 trước merge. Hai human approvals
-chưa được xác nhận; giữ nguyên checkout SP-009/SP-010 của người khác.
+Issue #13 OPEN, owner Minh, Project In Progress. PR SP-010
+[#74](https://github.com/nigPeter2503/Social_Pilot/pull/74) vẫn OPEN/CHANGES_REQUESTED
+ở d1d55a0. Chưa có hai human approvals. Main 7def84d có thêm SP-016, mô phỏng merge
+cùng các sửa local không có conflict tại lúc kiểm tra. Cần kiểm tra lại diff và
+các gates bị ảnh hưởng sau khi SP-010 được tích hợp.
 
 ## Thay đổi
 
@@ -68,22 +69,17 @@ Vị trí chính:
 
 ## Kiểm tra và evidence hiện tại
 
-Môi trường Windows, JDK 21, hai Gradle Wrapper độc lập. Tests dùng credentials giả.
-Kết quả và hash XML được chốt trong
-[bản tổng hợp test](evidence/sp-011-validation-summary.json).
+Kết quả mới nhất ở [audit trước push](sp-011-pre-push-audit.md) và
+[report JSON](evidence/sp-011-pre-push-audit-2026-11-15.json).
+Các tests JVM, backend và instrumentation đã thực thi lại trong audit.
+Build APK, bootJar và lint đạt. API version build thiết bị là 202609, base URL
+HTTPS tunnel theo cấu hình đã dùng khi thử.
 
-- Backend: 57 tests PASS, bootJar PASS theo lần chạy đã ghi nhận trước đó.
-- Android: chạy lại assembleDebug/testDebugUnitTest/lintDebug ngày 15/11 sau bổ sung
-  test token hết hạn và siết assertions HTTP 401: **74 JVM tests PASS**,
-  assembleDebug/lintDebug PASS, lint 0 errors/5 warnings.
-- Thiết bị: 5 instrumentation tests PASS trên SM-G990E / Android 16 theo XML đã có;
-  Keystore, migration và cách ly provider dùng dữ liệu giả.
-- API thật: [Postman](evidence/sp-011-postman-verification.md) và
-  [Android/thiết bị](evidence/sp-011-device-2026-11-14.md). Hai bài có ID riêng.
-
-Không dùng hash artifact của bản build trước khi trỏ tunnel để mô tả APK đã thử.
-Build cho thiết bị dùng `socialpilotOauthApiBaseUrl` trỏ tunnel đã cung cấp và
-`socialpilotLinkedinApiVersion=202609`; URL tunnel là cấu hình thử tạm thời.
+- [Postman](evidence/sp-011-postman-verification.md) chứng minh phép gọi API riêng.
+- [Thiết bị và bài Android](evidence/sp-011-device-2026-11-14.md) giữ evidence chủ sở hữu cung cấp.
+- [Report sửa review đầu](evidence/sp-011-review-fixes-2026-11-15.json) ghi snapshot 93/7.
+- [Report review thứ hai](evidence/sp-011-second-review-2026-11-15.json) ghi snapshot 96/8.
+- [Report credential recovery](evidence/sp-011-credential-recovery-2026-11-15.json) ghi snapshot 98/8 trước audit.
 
 ## Bản sửa sau baseline và giới hạn bàn giao
 
@@ -103,4 +99,4 @@ Build cho thiết bị dùng `socialpilotOauthApiBaseUrl` trỏ tunnel đã cung
   backend một instance/session trong memory. Không đổi Room, không triển khai mọi API.
 
 Đầu mối bàn giao, bảng quyền/version và trình tự kết thúc quy trình nằm trong
-[SP-011 handoff](sp-011-handoff.md). Code/tests có commit local `9df46d3`; chưa push, cập nhật PR hoặc merge.
+[SP-011 handoff](sp-011-handoff.md). Head đã push là 97e9dad. Bản credential recovery được commit ở a69b8db theo ủy quyền push sau audit.
