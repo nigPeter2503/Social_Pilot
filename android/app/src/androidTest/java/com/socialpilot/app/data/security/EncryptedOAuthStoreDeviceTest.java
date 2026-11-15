@@ -142,7 +142,13 @@ public class EncryptedOAuthStoreDeviceTest {
         assertTrue(preferences.edit().putString("connected_v2",cipher.encrypt("connected_v2",legacy))
                 .remove("connected_v3_FACEBOOK").commit());
         EncryptedOAuthStore recovered=new EncryptedOAuthStore(context);
+        assertNull(recovered.channel("FACEBOOK"));
+        assertNull(recovered.connection("FACEBOOK"));
+        assertNull(recovered.accessToken("FACEBOOK"));
+        assertNull(recovered.tokenFor("FACEBOOK",previous.channelId,previous.connectionRevision+1));
+        recovered.saveConnected(connection("page","fake-new-oauth-token"));
         var current=recovered.channel("FACEBOOK");
+        assertEquals("fake-new-oauth-token",recovered.tokenFor("FACEBOOK",current.channelId,current.connectionRevision));
         assertEquals(previous.channelId,current.channelId);
         assertTrue(current.connectionRevision>previous.connectionRevision);
         assertNull(recovered.tokenFor("FACEBOOK",previous.channelId,previous.connectionRevision));

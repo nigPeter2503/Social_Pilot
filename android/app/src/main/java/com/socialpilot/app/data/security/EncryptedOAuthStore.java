@@ -93,7 +93,7 @@ public final class EncryptedOAuthStore {
         r.revision = marker.revision + 1;
         marker.revision = r.revision;
         r.validate(p);
-        writeConnected(p,r);
+        writeConnected(p,r,"FACEBOOK".equals(p)?new String[]{"connected_v2"}:EMPTY);
     }
     private void writeConnected(String provider,ConnectedRecord record,String... removeKeys) {
         String connectionKey=key("connected",provider);
@@ -184,15 +184,15 @@ public final class EncryptedOAuthStore {
             }else{
                 ConnectedRecord r=gson.fromJson(json,ConnectedRecord.class);
                 r.connection.validate();
-                RevisionRecord marker=read("revision_v1_"+p+":"+r.connection.externalAccountId,RevisionRecord.class,EMPTY);
-                if (marker!=null && marker.channelId!=null && marker.revision>0) {
-                    if (marker.revision==Long.MAX_VALUE) throw storageUnavailable();
-                    r.channelId=marker.channelId;
-                    r.revision=marker.revision+1;
-                } else {
-                    r.channelId=p+":"+r.connection.externalAccountId+":"+java.util.UUID.randomUUID();
-                    r.revision=1;
+                String revisionKey="revision_v1_"+p+":"+r.connection.externalAccountId;
+                if (preferences.contains(revisionKey) || unavailable.contains(revisionKey)) {
+                    // A prior v3 connection existed. Its marker cannot authenticate the v2 token.
+                    // Remove the stale source so a later marker failure cannot reactivate it.
+                    invalidate(old,EMPTY);
+                    return;
                 }
+                r.channelId=p+":"+r.connection.externalAccountId+":"+java.util.UUID.randomUUID();
+                r.revision=1;
                 r.validate(p);
                 writeConnected(p,r,old);
             }
