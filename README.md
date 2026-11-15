@@ -58,6 +58,13 @@ Phiên bản đồ án không bao gồm iOS, video/Reels, quảng cáo trả ph�
 
 Android quản lý giao diện, nghiệp vụ và dữ liệu cục bộ. API AI được gọi trực tiếp từ thiết bị đến nhà cung cấp; backend chỉ hỗ trợ OAuth cần giữ client secret phía server. Xem [tài liệu kiến trúc](docs/architecture.md).
 
+## Hồ sơ kiểm chứng LinkedIn SP-011
+
+OAuth PERSON và đăng chữ qua ứng dụng đã có bằng chứng thiết bị thật. Xem
+[tổng hợp nghiệm thu và bàn giao SP-011](docs/sp-011-handoff.md) cho quyền thực tế,
+Post ID/URL, tests, giới hạn refresh và trạng thái review. Đây là spike đã kiểm
+chứng, không khẳng định toàn bộ F1/F5 hoặc quy trình merge đã hoàn tất.
+
 ## Trạng thái hiện tại
 
 Project đang ở giai đoạn khởi tạo nền tảng:

@@ -151,3 +151,10 @@ Kiểm thử thiết bị: kết nối thiết bị/emulator rồi chạy từ a
 `.\gradlew.bat :app:connectedDebugAndroidTest`. Instrumentation dùng preferences
 riêng và credential giả; không tự đăng bài thật. Cần tự thu video/ảnh OAuth,
 Facebook vẫn kết nối sau khi thêm LinkedIn, cold start và restart backend.
+
+
+Bổ sung khi thử link chia sẻ LinkedIn: nếu Copy link cho URL `https://lnkd.in/...`,
+hãy mở trong trình duyệt và sao chép URL đích đầy đủ `https://www.linkedin.com/feed/update/...`
+hoặc `https://www.linkedin.com/posts/...` trước khi dán vào ô xác nhận. Harness không tự
+mở rộng short link. Lỗi URL hiện cạnh ô nhập; giữ Post ID đã biết khi bấm đăng lại cùng
+snapshot. Xác nhận lại cùng URL đã lưu không làm mất SUCCESS. Không cần đăng thêm bài.

@@ -7,18 +7,22 @@ Yêu cầu: F1.B1, F1.B3, F5.B1, F5.B5.
 
 ## Trạng thái và dependency
 
-Đã triển khai code và chạy gate local; **chưa nghiệm thu end-to-end hoặc hoàn tất ticket**.
-Issue #13 đã được đọc trực tiếp: OPEN, assignee Minh, Project In Progress.
-SP-010 PR [#74](https://github.com/nigPeter2503/Social_Pilot/pull/74) tại head
-`d1d55a0` vẫn OPEN/CHANGES_REQUESTED, chưa merge tại lúc đọc.
-Không có human approval mới được xác nhận trong lượt này.
+Cập nhật 15/11/2026: OAuth LinkedIn PERSON và đăng bài qua app đã thành công trên
+thiết bị thật; owner đã xác nhận giữ kết nối/kết quả sau mở lại. Hồ sơ hiện tại ở
+[bản tổng hợp nghiệm thu và bàn giao](sp-011-handoff.md), liên kết evidence Postman,
+thiết bị và các giới hạn refresh. Đây là hoàn thiện local để review, chưa đóng ticket.
 
-Worktree SP-011: `D:/MobileProject/SocialPilot_Starter/SocialPilot/build/sp011`.
-Nhánh: `feat/sp-011-linkedin-oauth-spike`, tạo từ origin/main `7582fb3`, tích hợp
-nhánh dependency SP-010 cục bộ bằng merge để giữ lịch sử. Các checkout SP-009 và
-SP-010 hiện có được giữ nguyên. PR SP-011 là draft phụ thuộc #74, chưa merge-ready;
-phải cập nhật từ main và rà diff riêng SP-011 sau khi #74 được tích hợp/squash.
-Không merge SP-011 để đưa dependency chưa được duyệt vào main.
+Worktree: `D:/MobileProject/SocialPilot_Starter/SocialPilot/build/sp011`.
+Nhánh `feat/sp-011-linkedin-oauth-spike`; baseline đã push `53435d8`,
+Draft PR [#77](https://github.com/nigPeter2503/Social_Pilot/pull/77).
+Bản sửa code/tests đã commit local `9df46d3`; hồ sơ được gom trong commit docs
+đi kèm theo ủy quyền ngày 15/11. Chưa push hoặc cập nhật PR.
+
+Nhánh tạo từ origin/main `7582fb3`, tích hợp SP-010 cục bộ bằng merge. SP-010 PR
+[#74](https://github.com/nigPeter2503/Social_Pilot/pull/74) được ghi nhận trước đây
+OPEN/CHANGES_REQUESTED tại `d1d55a0`; chưa truy vấn lại GitHub ngày 15/11.
+Cần đối chiếu dependency/main và diff riêng SP-011 trước merge. Hai human approvals
+chưa được xác nhận; giữ nguyên checkout SP-009/SP-010 của người khác.
 
 ## Thay đổi
 
@@ -62,58 +66,41 @@ Vị trí chính:
 - [Hướng dẫn chạy](development.md#linkedin-oauth-và-đăng-chữ-thử-nghiệm-sp-011)
 - [Bằng chứng Postman](evidence/sp-011-postman-verification.md)
 
-## Kiểm tra local đã chạy
+## Kiểm tra và evidence hiện tại
 
-Môi trường: Windows, Oracle JDK 21.0.7, Gradle Wrapper 8.13, SDK 36.
-Credentials trong automated tests đều là dữ liệu giả; MockRestServiceServer/MockWebServer
-không gọi provider thật. Hai wrapper chạy với `--offline --console=plain`.
+Môi trường Windows, JDK 21, hai Gradle Wrapper độc lập. Tests dùng credentials giả.
+Kết quả và hash XML được chốt trong
+[bản tổng hợp test](evidence/sp-011-validation-summary.json).
 
-| Gate | Kết quả |
-|---|---|
-| Backend `test bootJar` | PASS — 54 tests, 0 failures/errors/skipped |
-| Android `:app:assembleDebug :app:testDebugUnitTest :app:lintDebug` | PASS — 69 JVM tests, 0 failures/errors/skipped; lint 0 errors, 5 warnings |
-| Android `:app:assembleDebugAndroidTest` | PASS — build APK instrumentation, không có nghĩa đã chạy trên thiết bị |
-| Diff và liên kết | PASS — diff --check, liên kết tương đối và hash PNG trong manifest |
+- Backend: 57 tests PASS, bootJar PASS theo lần chạy đã ghi nhận trước đó.
+- Android: chạy lại assembleDebug/testDebugUnitTest/lintDebug ngày 15/11 sau bổ sung
+  test token hết hạn và siết assertions HTTP 401: **74 JVM tests PASS**,
+  assembleDebug/lintDebug PASS, lint 0 errors/5 warnings.
+- Thiết bị: 5 instrumentation tests PASS trên SM-G990E / Android 16 theo XML đã có;
+  Keystore, migration và cách ly provider dùng dữ liệu giả.
+- API thật: [Postman](evidence/sp-011-postman-verification.md) và
+  [Android/thiết bị](evidence/sp-011-device-2026-11-14.md). Hai bài có ID riêng.
 
-Test backend gồm hồi quy SP-010, chéo provider không consume phiên, LinkedIn token/
-UserInfo, scope/expiry sai, lỗi không chứa credentials, cấu hình LinkedIn không cần
-Facebook và route MockMvc. Test Android gồm kho v2/v3, failed encryption/commit/
-restart, hai provider/ciphertext swap, revision/reauth, provider URL/response binding,
-approval/revision trước POST, 201 thiếu ID, 401/403/429/5xx, timeout, duplicate/cancel,
-và không cho UNKNOWN trở thành SUCCESS chỉ bằng việc dán URL.
+Không dùng hash artifact của bản build trước khi trỏ tunnel để mô tả APK đã thử.
+Build cho thiết bị dùng `socialpilotOauthApiBaseUrl` trỏ tunnel đã cung cấp và
+`socialpilotLinkedinApiVersion=202609`; URL tunnel là cấu hình thử tạm thời.
 
-Đã sửa lỗi test kỳ vọng thay account âm thầm bằng lời gọi xác nhận phù hợp, giữ ca
-failed-commit và bảo toàn account/token cũ. Lỗi lint đường dẫn SDK local đã được
-sửa trong local.properties không theo dõi Git; không thêm baseline để bỏ qua lỗi.
-Cảnh báo hiện tại: ApplySharedPref (commit đồng bộ có chủ đích), UnusedResources,
-Autofill; Gradle deprecated features và JVM class-sharing warning không làm gate lỗi.
+## Bản sửa sau baseline và giới hạn bàn giao
 
-Artifact build local (không commit):
-- `android/app/build/outputs/apk/debug/app-debug.apk` — SHA-256 `92ba05d8e39cae4dffb996a3da4dc5c737dea16d959a97a89ab3f73169c6a0b3`
-- `backend/build/libs/socialpilot-backend-0.1.0.jar` — SHA-256 `1cd24f5f84a9ff36b4313eecbdf9cc600f60315cf2c66541a16e3e5f5b61486f`
+- Parser scope backend nhận dấu phẩy/khoảng trắng, vẫn từ chối thiếu quyền.
+- Bấm publish lặp giữ Post ID/kết quả đã biết; không tự POST lại cùng snapshot.
+- Xác nhận URL đầy đủ /posts hoặc /feed/update có feedback và tính idempotent;
+  short link cần mở để lấy URL đầy đủ. URL có provenance OWNER_CONFIRMED.
+- Test expiry quá khứ sau reload chặn token cũ, giữ Facebook, reconnect tăng revision;
+  test 401 yêu cầu RECONNECT, lưu kết quả và không gửi lại POST.
+- Không nhận refresh token trong phép thử app cơ bản này; chưa có refresh grant
+  được nghiệm thu. Reconnect không thay refresh; F1.B3 giữ giới hạn/đạt một phần.
+- Thu hồi quyền/hết hạn thật chưa thử; không yêu cầu owner thu thêm evidence thủ
+  công trong đợt bàn giao này. Tests mô phỏng không thay PASS của provider thật.
+- Cold start giữa OAuth và hai provider thật cùng kết nối chưa thử trực tiếp;
+  là phần hồi quy của contract mở rộng, không trình bày như tính năng mới của spike.
+- Snapshot harness không thay editor/queue/approval production; một account/provider,
+  backend một instance/session trong memory. Không đổi Room, không triển khai mọi API.
 
-APK được build với base URL mặc định và version trống nếu chưa cung cấp cấu hình;
-đây là artifact kiểm tra build, **không phải bản đã trỏ tunnel của nhóm**. Build lại
-với base URL/version trước cài để thử thật. Không đính token/secret trong artifact cấu hình.
-
-## Phần chưa kiểm chứng và bàn giao tiếp
-
-- ADB `devices` không có thiết bị; emulator `-list-avds` không có AVD. Chưa chạy
-  instrumentation/Keystore thật, migration thật, screenshot UI hoặc callback process-death
-  cho SP-011. Các bằng chứng SP-010 trước đó không thay lần chạy SP-011.
-- Chưa cấu hình credentials/tunnel thật trong worktree này; chưa thực hiện OAuth,
-  đăng bài hoặc xác minh URL qua app trong lượt triển khai. Bài Postman cũ được giữ
-  làm đầu vào, không đăng lại và không tính thành tích hợp app đã PASS.
-- Programmatic refresh, expiry/revocation thật chưa kiểm chứng; refreshToken có thể
-  null và reauthorize không tính là refresh. F1.B3 giữ giới hạn/đạt một phần theo evidence.
-- Snapshot text của harness không thay approval version của F4 production. Không
-  đổi Room, không quyết định retention N1, không triển khai inbox/analytics/ảnh.
-- Một account/provider trong spike, backend một instance và session trong memory.
-  Đổi domain tunnel phải cập nhật callback provider, backend config và Android base URL.
-- Đạt/Nghị cần review phần chung, hai human approvals trên bản cuối; SP-010 phải
-  được tích hợp, CI áp dụng đạt và live evidence bổ sung trước kết luận hoàn tất.
-
-Trình tự người thử: cấu hình theo development → build/install → kết nối LinkedIn
-→ kiểm tra Facebook vẫn còn → thử cold start/restart backend → duyệt một nội dung
-mới đã thống nhất → đăng đúng một lần → mở bài và xác nhận URL → thu evidence.
-Khi UNKNOWN, kiểm tra bài trước mọi quyết định gửi mới; không xóa ledger để vượt khóa.
+Đầu mối bàn giao, bảng quyền/version và trình tự kết thúc quy trình nằm trong
+[SP-011 handoff](sp-011-handoff.md). Code/tests có commit local `9df46d3`; chưa push, cập nhật PR hoặc merge.

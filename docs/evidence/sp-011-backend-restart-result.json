@@ -1,0 +1,8 @@
+﻿{
+    "test":  "SP-011 live HTTP session rejection after backend restart",
+    "timestampUtc":  "2026-11-14T15:34:07Z",
+    "expected":  "HTTP 400 INVALID_STATE",
+    "status":  400,
+    "result":  "PASS",
+    "scope":  "Disposable HTTP session; no provider login, token exchange or Android lifecycle assertion"
+}

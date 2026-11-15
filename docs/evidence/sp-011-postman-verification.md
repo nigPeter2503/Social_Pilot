@@ -2,7 +2,11 @@
 
 Ngày lập hồ sơ: 14/11/2026, Asia/Bangkok.
 Nguồn: ảnh chụp do Ngô Gia Minh cung cấp và xác nhận kết quả trong chat.
-Trạng thái: **Bằng chứng API thật qua Postman; chưa nghiệm thu tích hợp SocialPilot.**
+Trạng thái: **Bằng chứng API thật qua Postman**, giữ đúng phạm vi phép thử này.
+Cập nhật 15/11: tích hợp Android đã có bằng chứng riêng trong
+[hồ sơ thiết bị](sp-011-device-2026-11-14.md); kết luận hiện tại và bảng quyền tổng
+hợp ở [SP-011 handoff](../sp-011-handoff.md). Không cần thu thập lại bộ ảnh Postman.
+Các mục NOT TESTED trong bảng gốc dưới đây chỉ mô tả hồ sơ Postman lúc lập.
 
 ## 1. Thông tin truy vết
 
@@ -80,7 +84,10 @@ comment, analytics hay follower từ w_member_social hoặc đăng bài thành c
 - `timestamp = 1794560315058` là metadata Postman; không dùng nó làm expiry do provider cấp.
 - Theo Minh quan sát Manage Tokens: không thấy refresh_token hoặc refresh expiry.
   Bộ ảnh không phải toàn bộ raw token response; chưa xác minh entitlement refresh.
-  Programmatic refresh **NOT TESTED**, không đánh dấu PASS hoặc tự coi N/A.
+  Chốt 15/11 cho app cơ bản đang thử: **không nhận refresh token**. Programmatic
+  refresh giữ BLOCKED/đạt một phần, không đánh dấu PASS/N/A. Quyền refresh thuộc
+  chương trình API của app; không đồng nghĩa tài khoản Basic/Premium. Xem nguồn và
+  giới hạn suy luận trong [handoff](../sp-011-handoff.md#vòng-đời-token-và-xử-lý-mất-hiệu-lực).
 
 OAuth thành công trong hồ sơ này là browser ↔ LinkedIn ↔ Postman.
 Chưa phải Android ↔ backend ↔ LinkedIn; không chứng minh session store, state,
@@ -146,7 +153,7 @@ Response protocol version không thay bằng chứng request LinkedIn-Version.
 Chưa có xác nhận riêng về thời điểm duyệt nội dung trước Send; không dùng việc
 đăng thành công để kết luận F4.B1 hoặc approval production đã được nghiệm thu.
 
-## 7. Tổng hợp kết quả và phần còn thiếu
+## 7. Tổng hợp phạm vi Postman tại thời điểm lập hồ sơ
 
 | Hạng mục | Trạng thái | Căn cứ / việc tiếp theo |
 |---|---|---|
@@ -169,11 +176,16 @@ chỉ bằng hồ sơ Postman.
 
 ## 8. Bàn giao và kiểm tra tài liệu
 
+Các đề xuất bổ sung bên dưới là ghi nhận của hồ sơ Postman ban đầu. Đến 15/11,
+không yêu cầu owner chụp lại ảnh, bổ sung request headers cũ hay đăng bài mới.
+Metadata sẵn có được tổng hợp trong handoff; API version Android có nguồn cấu hình
+và test header riêng, không suy ngược thành version Postman đã quan sát.
+
 - Bàn giao Nghị accountType PERSON, author URN, share URN, activity URL, scope,
   TTL và danh sách quyền chưa kiểm chứng. Credentials bàn giao qua kênh riêng
   theo quy trình dự án, không nằm trong tài liệu/manifest.
-- Bổ sung: screenshot bài, request Headers, xác nhận duyệt nội dung thực tế,
-  kết quả verification/privacy policy, entitlement refresh nếu có.
+- Đề xuất ở thời điểm lập hồ sơ ban đầu: screenshot bài, request Headers, xác nhận
+  duyệt và trạng thái portal. Hiện giữ giới hạn đúng nguồn; không mở thêm yêu cầu evidence.
 - Phép thử tiếp theo theo [contract tích hợp SP-011](../drafts/sp-011-integration-contract.md).
   Bản này chỉ ghi nhận đầu vào, không sửa code hoặc đưa ra chính sách mới.
 - Không gọi lại API hoặc tạo bài mới trong lượt lập hồ sơ này.

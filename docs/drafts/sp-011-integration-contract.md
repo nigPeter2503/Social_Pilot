@@ -5,6 +5,18 @@ Cập nhật 14/11: code local và gate đã có; xem [hồ sơ triển khai](..
 Minh đã đồng ý hướng tái sử dụng SP-010 và yêu cầu soạn contract trước khi code.
 Điều này không thay hai human approvals hoặc xác nhận hợp đồng của bên sử dụng.
 
+## Cập nhật phạm vi bàn giao ngày 15/11/2026
+
+Bản này giữ nội dung thiết kế theo ngày soạn, không dùng mọi hàng test như checklist
+chặn nghiệm thu riêng của issue. Kết quả hiện tại: [SP-011 handoff](../sp-011-handoff.md).
+Owner chốt app cơ bản đang thử không nhận refresh token; dùng reconnect khi cần,
+refresh giữ giới hạn F1.B3. Không yêu cầu thêm thu hồi token thật để bàn giao;
+expiry/401 được test mô phỏng và không ghi thành provider thật PASS.
+Cold start giữa OAuth và hai account thật cùng kết nối thuộc hồi quy tích hợp
+mở rộng, chưa có phép thử trực tiếp SP-011; không phát sinh tính năng mới hoặc
+mở rộng spike sang toàn bộ F1/F5. Bảng test dưới đây là kế hoạch, kết quả thực tế
+phải xem evidence; chưa có hai human approvals hay thao tác Git mới được xác nhận.
+
 ## 1. Phạm vi, trách nhiệm và baseline
 
 | Mục | Nội dung |
