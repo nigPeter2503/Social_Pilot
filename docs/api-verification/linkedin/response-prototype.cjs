@@ -44,16 +44,61 @@ function readFailure(httpStatus, body) {
     return {status: 'FAILURE', reason, source: 'MO_PHONG'};
 }
 
+function commentPagination(p, request) {
+    const unknown = {hasMore: null, nextStart: null, paginationReason: 'NOT_ESTABLISHED'};
+    if (p == null) return unknown;
+    if (!object(p) || !nonnegative(p.start) || !nonnegative(p.count) || p.count === 0 ||
+        !nonnegative(p.start + p.count) || !Array.isArray(p.links) ||
+        (p.total != null && !nonnegative(p.total))) invalid();
+    for (const link of p.links) if (!object(link) || !text(link.rel)) invalid();
+    if (!request) return unknown;
+
+    const nextStart = request.start + request.count;
+    const hasMoreByTotal = p.total == null ? null : nextStart < p.total;
+    const links = p.links.filter(link => link.rel === 'next');
+    const conflict = {...unknown, paginationReason: 'PAGING_CONFLICT'};
+    if (p.start !== request.start || p.count !== request.count) return conflict;
+    for (const link of links) {
+        if (!text(link.href)) return conflict;
+        // Inspect offsets only. The caller rebuilds the request from its approved endpoint.
+        let url;
+        try { url = new URL(link.href, 'https://example.invalid'); }
+        catch { return conflict; }
+        const start = url.searchParams.getAll('start');
+        const count = url.searchParams.getAll('count');
+        if (start.length !== 1 || start[0] !== String(nextStart) ||
+            count.length !== 1 || count[0] !== String(request.count)) return conflict;
+    }
+    if (links.length && hasMoreByTotal === false) return conflict;
+    const hasMore = links.length ? true : hasMoreByTotal;
+    return hasMore == null ? unknown : {hasMore, nextStart: hasMore ? nextStart : null, paginationReason: null};
+}
+
 function commentPage(httpStatus, body, c) {
     const context = contextOf(c);
-    if (!postUrn(c.postUrn) || !(postUrn(c.targetUrn) || commentParts(c.targetUrn))) invalid();
+    const targetParent = commentParts(c.targetUrn);
+    if (!postUrn(c.postUrn) || !(c.targetUrn === c.postUrn || targetParent)) invalid();
+    const {verifiedPostThread, requestPaging} = c;
+    if (verifiedPostThread != null && (!object(verifiedPostThread) ||
+        verifiedPostThread.postUrn !== c.postUrn || !threadUrn(verifiedPostThread.threadUrn) ||
+        (targetParent && targetParent[1] !== verifiedPostThread.threadUrn))) invalid();
+    if (requestPaging != null && (!object(requestPaging) || !nonnegative(requestPaging.start) ||
+        !nonnegative(requestPaging.count) || requestPaging.count === 0 ||
+        !nonnegative(requestPaging.start + requestPaging.count))) invalid();
     const failure = readFailure(httpStatus, body);
     if (failure) return failure;
     if (!Array.isArray(body.elements)) invalid();
+    const expectedThread = targetParent?.[1] ?? verifiedPostThread?.threadUrn;
+    const verifiedPostUrn = verifiedPostThread?.postUrn ?? null;
     const items = body.elements.map(raw => {
         if (!object(raw) || !nativeId(raw.id) || !threadUrn(raw.object)) invalid();
-        if (raw.commentUrn != null && (!commentParts(raw.commentUrn) || commentParts(raw.commentUrn)[2] !== raw.id)) invalid();
-        if (raw.parentComment != null && !commentParts(raw.parentComment)) invalid();
+        const commentUrn = `urn:li:comment:(${raw.object},${raw.id})`;
+        if (raw.commentUrn != null && raw.commentUrn !== commentUrn) invalid();
+        if (expectedThread && raw.object !== expectedThread) invalid();
+        if (raw.parentComment != null) {
+            const parent = commentParts(raw.parentComment);
+            if (!parent || parent[1] !== raw.object || (targetParent && raw.parentComment !== c.targetUrn)) invalid();
+        }
         if (raw.message != null && (!object(raw.message) || (raw.message.text != null && typeof raw.message.text !== 'string'))) invalid();
         if (raw.actor != null && (typeof raw.actor !== 'string' || !/^urn:li:(person|organization|organizationBrand):[A-Za-z0-9_-]+$/.test(raw.actor))) invalid();
         for (const field of ['created', 'lastModified']) {
@@ -62,32 +107,41 @@ function commentPage(httpStatus, body, c) {
         const createdAt = epoch(raw.created?.time);
         const providerUpdatedAt = epoch(raw.lastModified?.time);
         return {
-            ...context, postUrn: c.postUrn, commentId: raw.id, objectUrn: raw.object,
+            ...context, postUrn: verifiedPostUrn, postState: verifiedPostUrn ? 'VERIFIED' : 'UNVERIFIED',
+            commentId: raw.id, objectUrn: raw.object,
             // Numeric comment ID alone and x-resourceidentity-urn are insufficient keys.
-            commentUrn: `urn:li:comment:(${raw.object},${raw.id})`,
+            commentUrn,
             parentCommentUrn: raw.parentComment ?? null, parentState: raw.parentComment ? 'KNOWN' : 'UNKNOWN',
             message: raw.message?.text ?? null, contentState: raw.message?.text == null ? 'OMITTED' : 'AVAILABLE',
             actorUrn: raw.actor ?? null, createdAt, providerUpdatedAt,
-            timeMissingReason: createdAt ? null : 'PROVIDER_OMITTED', replyCapability: 'UNVERIFIED'
+            timeMissingReason: createdAt ? null : 'PROVIDER_OMITTED', replyCapability: 'UNVERIFIED',
+            needsRefresh: false
         };
     });
-    let hasMore = null;
-    let nextStart = null;
-    if (body.paging != null) {
-        const p = body.paging;
-        if (!object(p) || !nonnegative(p.start) || !nonnegative(p.count) || p.count === 0 ||
-            !nonnegative(p.start + p.count) || !Array.isArray(p.links) ||
-            (p.total != null && !nonnegative(p.total))) invalid();
-        for (const link of p.links) if (!object(link) || !text(link.rel)) invalid();
-        const nextLink = p.links.some(link => link.rel === 'next');
-        if (p.total != null) hasMore = p.start + p.count < p.total;
-        if (nextLink && hasMore === false) invalid();
-        if (nextLink) hasMore = true;
-        if (hasMore === true) nextStart = p.start + p.count;
-    }
     return {
-        ...context, status: 'SUCCESS', postUrn: c.postUrn, targetUrn: c.targetUrn, items,
-        hasMore, nextStart, paginationReason: hasMore == null ? 'NOT_ESTABLISHED' : null
+        ...context, status: 'SUCCESS', requestedPostUrn: c.postUrn, targetUrn: c.targetUrn,
+        postUrn: verifiedPostUrn, verifiedThreadUrn: verifiedPostThread?.threadUrn ?? null, items,
+        ...commentPagination(body.paging, requestPaging)
+    };
+}
+
+function mergeComment(old, item) {
+    const bothUpdated = old.providerUpdatedAt != null && item.providerUpdatedAt != null;
+    const fields = ['message', 'parentCommentUrn', 'actorUrn', 'createdAt'];
+    const conflict = bothUpdated && item.providerUpdatedAt === old.providerUpdatedAt &&
+        fields.some(field => old[field] != null && item[field] != null && old[field] !== item[field]);
+    const newer = bothUpdated && item.providerUpdatedAt !== old.providerUpdatedAt
+        ? Date.parse(item.providerUpdatedAt) > Date.parse(old.providerUpdatedAt)
+        : Date.parse(item.collectedAt) > Date.parse(old.collectedAt);
+    const [preferred, fallback] = newer && !conflict ? [item, old] : [old, item];
+    const createdAt = preferred.createdAt ?? fallback.createdAt;
+    return {
+        ...preferred,
+        actorUrn: preferred.actorUrn ?? fallback.actorUrn,
+        createdAt,
+        timeMissingReason: createdAt == null ? preferred.timeMissingReason : null,
+        providerUpdatedAt: preferred.providerUpdatedAt ?? fallback.providerUpdatedAt,
+        needsRefresh: conflict || preferred.needsRefresh
     };
 }
 
@@ -96,15 +150,15 @@ function mergePages(pages) {
     let scope;
     for (const page of pages) {
         if (page.status !== 'SUCCESS' || page.source !== 'MO_PHONG') throw new Error('FAILED_PAGE_NOT_EMPTY');
-        const current = JSON.stringify([page.channelId, page.channelUrn, page.postUrn, page.targetUrn,
+        const current = JSON.stringify([page.channelId, page.channelUrn, page.requestedPostUrn, page.targetUrn,
+            page.postUrn, page.verifiedThreadUrn,
             page.accountType, page.connectionRevision, page.apiVersion, page.queryKey]);
         if (scope && scope !== current) throw new Error('PAGE_SCOPE_MISMATCH');
         scope = current;
         for (const item of page.items) {
             const key = JSON.stringify([item.platform, item.channelId, item.commentUrn]);
             const old = items.get(key);
-            // Observation time resolves overlap only. This is not a production race/transaction policy.
-            if (!old || Date.parse(item.collectedAt) >= Date.parse(old.collectedAt)) items.set(key, item);
+            items.set(key, old ? mergeComment(old, item) : item);
         }
     }
     return [...items.values()];
@@ -157,7 +211,7 @@ function organizationPostStatistics(httpStatus, body, c) {
 function replyOutcome(envelope) {
     if (!object(envelope) || envelope.source !== 'MO_PHONG') invalid();
     const unknown = {status: 'UNKNOWN', canRetryAutomatically: false};
-    const {httpStatus, body, headers = {}, transportUncertain = false} = envelope;
+    const {httpStatus, body, headers = {}, transportUncertain = false, verifiedRequest} = envelope;
     if (typeof transportUncertain !== 'boolean' || !object(headers)) invalid();
     if (transportUncertain || !Number.isInteger(httpStatus) || httpStatus < 100 || httpStatus > 599 || httpStatus === 408 || httpStatus >= 500) return unknown;
     if (httpStatus >= 400) return {status: 'REJECTED', reason: readFailure(httpStatus, body).reason, canRetryAutomatically: false};
@@ -166,7 +220,17 @@ function replyOutcome(envelope) {
     const ids = Object.entries(headers).filter(([key]) => key.toLowerCase() === 'x-restli-id').map(([, value]) => value);
     if (body?.id != null) ids.push(body.id);
     if (!ids.length || ids.some(value => !nativeId(value) || value !== ids[0])) return unknown;
-    if (body?.commentUrn != null && (!commentParts(body.commentUrn) || commentParts(body.commentUrn)[2] !== ids[0])) return unknown;
+    if (verifiedRequest != null && !object(verifiedRequest)) return unknown;
+    const comment = commentParts(body?.commentUrn);
+    const parent = commentParts(body?.parentComment);
+    const expectedParent = commentParts(verifiedRequest?.parentCommentUrn);
+    if (body?.commentUrn != null && (!comment || comment[2] !== ids[0])) return unknown;
+    if (body?.parentComment != null && (!parent ||
+        (expectedParent && body.parentComment !== verifiedRequest.parentCommentUrn))) return unknown;
+    if (verifiedRequest?.parentCommentUrn != null && !expectedParent) return unknown;
+    const threads = [body?.object, comment?.[1], parent?.[1], verifiedRequest?.threadUrn, expectedParent?.[1]]
+        .filter(value => value != null);
+    if (threads.some(value => !threadUrn(value) || value !== threads[0])) return unknown;
     return {status: 'ACCEPTED_NEEDS_RECONCILIATION', replyId: ids[0], canRetryAutomatically: false};
 }
 

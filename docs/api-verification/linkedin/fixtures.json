@@ -13,6 +13,7 @@
         "apiVersion": "202610",
         "postUrn": "urn:li:share:9000000000000000001",
         "targetUrn": "urn:li:share:9000000000000000001",
+        "requestPaging": {"start": 0, "count": 2},
         "queryKey": "comments:synthetic-query-v1",
         "collectedAtMs": 1794189600000
     },
@@ -55,6 +56,29 @@
             "paging": {"start": 2, "count": 2, "total": 3, "links": []}
         }
     ],
+    "wrongReadCommentUrn": "urn:li:comment:(urn:li:activity:9000000000000000099,9000000000000000101)",
+    "verifiedPostThread": {
+        "postUrn": "urn:li:share:9000000000000000001",
+        "threadUrn": "urn:li:activity:9000000000000000002"
+    },
+    "nested": {
+        "targetUrn": "urn:li:comment:(urn:li:activity:9000000000000000002,9000000000000000101)",
+        "body": {"elements": [{
+            "id": "9000000000000000103",
+            "object": "urn:li:activity:9000000000000000002",
+            "parentComment": "urn:li:comment:(urn:li:activity:9000000000000000002,9000000000000000101)"
+        }]},
+        "wrongParent": "urn:li:comment:(urn:li:activity:9000000000000000002,9000000000000000102)",
+        "wrongThreadParent": "urn:li:comment:(urn:li:activity:9000000000000000099,9000000000000000101)",
+        "wrongThread": "urn:li:activity:9000000000000000099"
+    },
+    "pagingNextOffsetConflict": {
+        "elements": [],
+        "paging": {
+            "start": 0, "count": 2, "total": 5,
+            "links": [{"rel": "next", "href": "?start=4&count=2"}]
+        }
+    },
     "empty": {"elements": [], "paging": {"start": 0, "count": 2, "total": 0, "links": []}},
     "memberFollowers": {"elements": [{"memberFollowersCount": 0}]},
     "organizationContext": {
@@ -87,6 +111,15 @@
     "replyAccepted": {
         "source": "MO_PHONG", "httpStatus": 201,
         "headers": {"X-RestLi-Id": "9000000000000000104"},
-        "body": {"id": "9000000000000000104", "commentUrn": "urn:li:comment:(urn:li:activity:9000000000000000002,9000000000000000104)"}
+        "verifiedRequest": {
+            "threadUrn": "urn:li:activity:9000000000000000002",
+            "parentCommentUrn": "urn:li:comment:(urn:li:activity:9000000000000000002,9000000000000000101)"
+        },
+        "body": {
+            "id": "9000000000000000104",
+            "commentUrn": "urn:li:comment:(urn:li:activity:9000000000000000002,9000000000000000104)",
+            "object": "urn:li:activity:9000000000000000002",
+            "parentComment": "urn:li:comment:(urn:li:activity:9000000000000000002,9000000000000000101)"
+        }
     }
 }

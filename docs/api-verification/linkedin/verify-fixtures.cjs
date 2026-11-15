@@ -17,7 +17,7 @@ function invalidPage(name, mutate) {
     });
 }
 const first = p.commentPage(200, f.pages[0], f.context);
-const laterContext = {...f.context, collectedAtMs: f.context.collectedAtMs + 60000};
+const laterContext = {...f.context, requestPaging: {start: 2, count: 2}, collectedAtMs: f.context.collectedAtMs + 60000};
 const second = p.commentPage(200, f.pages[1], laterContext);
 const memberContext = {...f.context, queryKey: 'memberFollowersCount:me'};
 const orgPostContext = {...f.organizationContext, queryKey: 'organizationalEntityShareStatistics:singlePost:noTimeIntervals'};
@@ -35,6 +35,53 @@ check('omitted content is not deletion', () => assert.equal(second.items[1].cont
 check('missing time retains reason', () => assert.equal(first.items[1].timeMissingReason, 'PROVIDER_OMITTED'));
 check('missing parent is unknown', () => assert.equal(first.items[0].parentState, 'UNKNOWN'));
 check('nested parent is composite URN', () => assert.equal(second.items[1].parentCommentUrn, first.items[0].commentUrn));
+check('share request without mapping leaves post unverified', () => {
+    assert.equal(first.postUrn, null);
+    assert.equal(first.items[0].postUrn, null);
+    assert.equal(first.items[0].postState, 'UNVERIFIED');
+});
+const nestedContext = {...f.context, targetUrn: f.nested.targetUrn};
+check('nested request verifies parent and leaves post unverified without mapping', () => {
+    const [item] = p.commentPage(200, f.nested.body, nestedContext).items;
+    assert.equal(item.parentCommentUrn, f.nested.targetUrn);
+    assert.equal(item.parentState, 'KNOWN');
+    assert.equal(item.postUrn, null);
+});
+check('nested request rejects different parent on the same thread', () => {
+    const body = copy(f.nested.body);
+    body.elements[0].parentComment = f.nested.wrongParent;
+    assert.throws(() => p.commentPage(200, body, nestedContext), /INVALID_FIXTURE_RESPONSE/);
+});
+check('nested request rejects self-consistent response on the wrong thread', () => {
+    const body = copy(f.nested.body);
+    Object.assign(body.elements[0], {object: f.nested.wrongThread, parentComment: f.nested.wrongThreadParent});
+    assert.throws(() => p.commentPage(200, body, nestedContext), /INVALID_FIXTURE_RESPONSE/);
+});
+check('nested omission leaves parent unknown', () => {
+    const body = copy(f.nested.body);
+    delete body.elements[0].parentComment;
+    const [item] = p.commentPage(200, body, nestedContext).items;
+    assert.equal(item.parentState, 'UNKNOWN');
+    assert.equal(item.parentCommentUrn, null);
+});
+for (const post of [f.context.postUrn, 'urn:li:ugcPost:9000000000000000011']) {
+    const context = {...f.context, postUrn: post, targetUrn: post,
+        verifiedPostThread: {...f.verifiedPostThread, postUrn: post}};
+    check(`verified mapping attaches ${post}`, () => {
+        const page = p.commentPage(200, f.pages[0], context);
+        assert.equal(page.postUrn, post);
+        assert.equal(page.items[0].postUrn, post);
+        assert.equal(page.items[0].postState, 'VERIFIED');
+    });
+    check(`verified mapping rejects the wrong thread for ${post}`, () => {
+        const body = {elements: [{id: '1', object: f.nested.wrongThread}]};
+        assert.throws(() => p.commentPage(200, body, context), /INVALID_FIXTURE_RESPONSE/);
+    });
+}
+check('mapping verified for another post is rejected', () => {
+    const context = {...f.context, verifiedPostThread: {...f.verifiedPostThread, postUrn: 'urn:li:share:9'}};
+    assert.throws(() => p.commentPage(200, f.pages[0], context), /INVALID_FIXTURE_RESPONSE/);
+});
 check('read does not prove reply capability', () => assert.equal(first.items[0].replyCapability, 'UNVERIFIED'));
 check('next offset is reconstructed', () => assert.equal(first.nextStart, 2));
 check('next page signalled', () => assert.equal(first.hasMore, true));
@@ -43,20 +90,63 @@ check('terminal total recognized', () => assert.equal(second.hasMore, false));
 check('terminal offset absent', () => assert.equal(second.nextStart, null));
 check('no paging does not prove completion', () => assert.equal(p.commentPage(200, {elements: []}, f.context).hasMore, null));
 check('no total and no next does not prove completion', () => assert.equal(p.commentPage(200, {elements: [], paging: {start: 0, count: 2, links: []}}, f.context).hasMore, null));
+for (const [name, body, context] of [
+    ['next skips an offset', f.pagingNextOffsetConflict, f.context],
+    ['response start differs from request', f.pages[0], laterContext],
+    ['response count differs from request', f.pages[0], {...f.context, requestPaging: {start: 0, count: 3}}],
+    ['next count differs from request', {...f.pagingNextOffsetConflict,
+        paging: {...f.pagingNextOffsetConflict.paging, links: [{rel: 'next', href: '?start=2&count=4'}]}}, f.context],
+    ['next contradicts terminal total', {...f.pages[0], paging: {...f.pages[0].paging, total: 2}}, f.context]
+]) check(`paging conflict: ${name}`, () => {
+    const {hasMore, nextStart, paginationReason} = p.commentPage(200, body, context);
+    assert.deepEqual({hasMore, nextStart, paginationReason}, {hasMore: null, nextStart: null, paginationReason: 'PAGING_CONFLICT'});
+});
+check('paging requires the request offsets for comparison', () => {
+    const {hasMore, nextStart, paginationReason} = p.commentPage(200, f.pages[0], {...f.context, requestPaging: undefined});
+    assert.deepEqual({hasMore, nextStart, paginationReason}, {hasMore: null, nextStart: null, paginationReason: 'NOT_ESTABLISHED'});
+});
 check('empty success is preserved', () => assert.deepEqual(p.commentPage(200, f.empty, f.context).items, []));
 check('overlap deduplicates', () => assert.equal(p.mergePages([first, second]).length, 3));
 check('latest observation wins', () => assert.equal(p.mergePages([first, second])[0].message, 'Nội dung cập nhật mô phỏng'));
 check('late older page cannot revert', () => assert.equal(p.mergePages([second, first])[0].message, 'Nội dung cập nhật mô phỏng'));
-check('repeated page is idempotent', () => assert.equal(p.mergePages([first, first]).length, 2));
+check('repeated page is idempotent', () => assert.deepEqual(p.mergePages([first, first]), first.items));
+check('later collection cannot revert a newer provider edit', () => {
+    const stale = copy(f.pages[1]);
+    stale.elements[0].lastModified = {time: f.pages[0].elements[0].lastModified.time - 60000};
+    stale.elements[0].message.text = 'stale edit';
+    const latePage = p.commentPage(200, stale, laterContext);
+    for (const pages of [[first, latePage], [latePage, first]]) {
+        const [merged] = p.mergePages(pages);
+        assert.equal(merged.message, first.items[0].message);
+        assert.equal(merged.providerUpdatedAt, first.items[0].providerUpdatedAt);
+    }
+});
+check('overlap omission preserves valid metadata', () => {
+    const {actorUrn, createdAt, providerUpdatedAt, timeMissingReason} = p.mergePages([first, second])[0];
+    assert.deepEqual({actorUrn, createdAt, providerUpdatedAt, timeMissingReason}, {
+        actorUrn: first.items[0].actorUrn, createdAt: first.items[0].createdAt,
+        providerUpdatedAt: first.items[0].providerUpdatedAt, timeMissingReason: null
+    });
+});
+check('conflicting payload at equal provider timestamp preserves stored item and requests refresh', () => {
+    const overlap = copy(f.pages[1]);
+    overlap.elements[0].lastModified = f.pages[0].elements[0].lastModified;
+    const [merged] = p.mergePages([first, p.commentPage(200, overlap, laterContext)]);
+    assert.equal(merged.message, first.items[0].message);
+    assert.equal(merged.needsRefresh, true);
+});
 check('equal numeric IDs on different objects stay distinct', () => {
     const body = copy(f.pages[0]);
     body.elements = [{id: first.items[0].commentId, object: 'urn:li:activity:9000000000000000099'}];
     assert.equal(p.mergePages([first, p.commentPage(200, body, f.context)]).length, 3);
 });
-for (const [field, value] of Object.entries({channelId: 'another-channel', connectionRevision: 2,
-    postUrn: 'urn:li:share:9', targetUrn: 'urn:li:ugcPost:9', apiVersion: '202609', queryKey: 'other-query'})) {
+for (const [field, overrides] of Object.entries({
+    channelId: {channelId: 'another-channel'}, connectionRevision: {connectionRevision: 2},
+    postUrn: {postUrn: 'urn:li:share:9', targetUrn: 'urn:li:share:9'}, targetUrn: {targetUrn: f.nested.targetUrn},
+    apiVersion: {apiVersion: '202609'}, queryKey: {queryKey: 'other-query'}, mapping: {verifiedPostThread: f.verifiedPostThread}
+})) {
     check(`scope mismatch rejected: ${field}`, () => assert.throws(() => p.mergePages([
-        first, p.commentPage(200, f.empty, {...f.context, [field]: value})
+        first, p.commentPage(200, f.empty, {...f.context, ...overrides})
     ]), /PAGE_SCOPE_MISMATCH/));
 }
 for (const e of f.errors) {
@@ -67,7 +157,8 @@ for (const e of f.errors) {
 check('failed page cannot merge as empty', () => assert.throws(() => p.mergePages([first, p.commentPage(403, {}, f.context)]), /FAILED_PAGE_NOT_EMPTY/));
 for (const [name, mutate] of [
     ['numeric ID precision loss rejected', b => { b.elements[0].id = 9000000000000000101; }],
-    ['wrong URN suffix rejected', b => { b.elements[0].commentUrn = 'urn:li:comment:(urn:li:activity:1,2)'; }],
+    ['wrong URN suffix rejected', b => { b.elements[0].commentUrn = `urn:li:comment:(${b.elements[0].object},2)`; }],
+    ['matching ID on a different thread is rejected', b => { b.elements[0].commentUrn = f.wrongReadCommentUrn; }],
     ['missing object cannot use naked ID', b => { delete b.elements[0].object; }],
     ['invalid parent rejected', b => { b.elements[0].parentComment = '123'; }],
     ['timestamp string not silently coerced', b => { b.elements[0].created.time = '1794186000000'; }],
@@ -77,7 +168,6 @@ for (const [name, mutate] of [
     ['page count zero rejected', b => { b.paging.count = 0; }],
     ['negative start rejected', b => { b.paging.start = -1; }],
     ['unsafe next offset rejected', b => { b.paging.start = Number.MAX_SAFE_INTEGER; }],
-    ['contradictory total/next rejected', b => { b.paging.total = 1; }],
     ['paging links wrong shape rejected', b => { b.paging.links = {}; }],
     ['error body inside 200 rejected', b => { b.status = 403; }]
 ]) invalidPage(name, mutate);
@@ -116,14 +206,20 @@ for (const [name, mutate] of [
 });
 check('201 ID accepted but needs reconciliation', () => assert.deepEqual(p.replyOutcome(f.replyAccepted),
     {status: 'ACCEPTED_NEEDS_RECONCILIATION', replyId: '9000000000000000104', canRetryAutomatically: false}));
-check('header-only 201 supported', () => assert.equal(p.replyOutcome({...f.replyAccepted, body: null}).status, 'ACCEPTED_NEEDS_RECONCILIATION'));
+check('header-only 201 needs reconciliation without retry', () => assert.deepEqual(
+    p.replyOutcome({...f.replyAccepted, body: null}), p.replyOutcome(f.replyAccepted)));
 for (const [name, overrides] of [
     ['missing ID', {headers: {}, body: {}}], ['transport uncertain', {transportUncertain: true}],
     ['missing HTTP', {httpStatus: null}], ['500', {httpStatus: 500}], ['408 timeout', {httpStatus: 408}], ['redirect', {httpStatus: 302}],
     ['200 outside conservative fixture acceptance rule', {httpStatus: 200}],
     ['header/body disagree', {body: {id: '9'}}], ['header numeric precision loss', {headers: {'x-restli-id': 9000000000000000104}}],
     ['unreliable resourceidentity header alone', {headers: {'x-resourceidentity-urn': f.replyAccepted.body.commentUrn}, body: {}}],
-    ['body comment ID disagrees', {body: {id: f.replyAccepted.body.id, commentUrn: 'urn:li:comment:(urn:li:activity:1,9)'}}]
+    ['body comment ID disagrees', {body: {id: f.replyAccepted.body.id, commentUrn: 'urn:li:comment:(urn:li:activity:1,9)'}}],
+    ['body comment thread disagrees', {verifiedRequest: undefined, body: {...f.replyAccepted.body, object: f.nested.wrongThread}}],
+    ['self-consistent body thread disagrees with request', {body: {id: f.replyAccepted.body.id, object: f.nested.wrongThread,
+        commentUrn: `urn:li:comment:(${f.nested.wrongThread},${f.replyAccepted.body.id})`, parentComment: f.nested.wrongThreadParent}}],
+    ['body object alone disagrees with verified thread', {body: {object: f.nested.wrongThread}}],
+    ['body parent differs from verified request on the same thread', {body: {...f.replyAccepted.body, parentComment: f.nested.wrongParent}}]
 ]) check(`reply ${name} remains unknown without retry`, () => assert.deepEqual(p.replyOutcome({...f.replyAccepted, ...overrides}), {status: 'UNKNOWN', canRetryAutomatically: false}));
 for (const status of [401, 403, 429]) check(`reply ${status} rejected without retry`, () => {
     const outcome = p.replyOutcome({source: 'MO_PHONG', httpStatus: status});
