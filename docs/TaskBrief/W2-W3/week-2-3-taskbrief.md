@@ -10,6 +10,15 @@ The plan preserves all **44 committed requirements** and excludes Optional F3.N2
 
 Owner abbreviations follow [Proposal §4.1](../../SocialPilot_Proposal_Java.md): **Minh = TV1 — Ngô Gia Minh; Đạt = TV2 — Nguyễn Đức Đạt; Thiện = TV3 — Đỗ Phước Thiện; Nghị = TV4 — Tô Lãng Nghị**. Post–Week 1 owners are documented proposals, not confirmed GitHub assignments. Existing implementation issues are reused; publishing this brief does not change their assignees, estimates or board status.
 
+The complete package is tracked together under **SP-062 / PR #79**. Detailed personal briefs:
+
+- [Ngô Gia Minh — @nigPeter2503](tv1-minh-taskbrief.md).
+- [Nguyễn Đức Đạt — @dat532006](tv2-dat-taskbrief.md).
+- [Đỗ Phước Thiện — @PhuocThien06](tv3-thien-taskbrief.md).
+- [Tô Lãng Nghị — @bob35306](tv4-nghi-taskbrief.md).
+
+The personal briefs apply the latest user instruction that Week 1, including SP-021, is assumed complete. Its 8 team-hours remain historical allowance in the original baseline, not reassigned work: remaining scenario allocations are **88/94/96h = 278h**, plus 8 historical hours = 286h. Week 2 partial handoffs use **Monday, November 16, 2026**; Week 3 and forward-looking Week 4 retain their stated cutoffs.
+
 ## 2. Completed / assumed done
 
 For this planning scenario, all **seven open PRs** below are completed inputs. Their existing scope is subtracted from the new workload; none is an approval blocker. This assumption does not claim that GitHub has actually merged them or that every related F requirement has passed acceptance.
@@ -36,7 +45,7 @@ Execute prerequisite handoffs before dependent integration, including within the
 
 | Task ID | Title | Description | Source file/section | Dependencies | Priority | Estimate | Owner (if known) |
 |---|---|---|---|---|---|---:|---|
-| [SP-021](https://github.com/nigPeter2503/Social_Pilot/issues/23) | Foundation handoff | Close the outstanding Week 1 handoff: record delivered revisions, evidence and remaining estimates (DOCS/INFRA). | [W1 brief, SP-021](../W1/week-1-taskbrief.md#sp-021) | Completed foundation outputs | High | 8h team | Minh; all participate |
+| [SP-021](https://github.com/nigPeter2503/Social_Pilot/issues/23) | Foundation handoff — assumed done | Historical Week 1 handoff allowance retained for baseline reconciliation; no new work assigned (DOCS/INFRA). | [W1 brief, SP-021](../W1/week-1-taskbrief.md#sp-021) | Completed foundation outputs | High | 8h historical team allowance | Minh; all participate |
 | [SP-027](https://github.com/nigPeter2503/Social_Pilot/issues/29) | Secure BYOK storage | Implement key entry, validation, masking and deletion; keep separate social-token namespaces (F8.B2). | [Proposal F8](../../SocialPilot_Proposal_Java.md); [Room contract §4](../../room-schema-contract.md) | SP-012; SP-013 | High | 10h | Đạt |
 | [SP-028](https://github.com/nigPeter2503/Social_Pilot/issues/30) | Production AI access | Wire existing adapters to BYOK, persistent model selection and usage accounting; validate both providers (F8.B1/B3/B4). | [AI contract §§1–5](../../ai-provider-contract.md) | SP-027; SP-013 | High | 6h | Đạt |
 | [SP-022](https://github.com/nigPeter2503/Social_Pilot/issues/24) | Production token lifecycle | Extend delivered OAuth with production storage integration, expiry/revocation handling and refresh where entitled (F1.B1/B3). | [Proposal F1](../../SocialPilot_Proposal_Java.md) | SP-027; completed OAuth spikes | High | 8h | Minh |
@@ -88,7 +97,7 @@ Execute prerequisite handoffs before dependent integration, including within the
 | **3** | 72h | 8h | 12h | 2h | **94h** | First production publishing path, budget protection, analytics repository and dashboard framework. |
 | **4 — planned** | 74h | 8h | 12h | 2h | **96h** | Multi-channel publishing/queue, image outputs, real dashboard, inbox and reviewed replies; checkpoint integration remains partial. |
 
-**Total: 286h against 288h nominal capacity.** SP-021 adds 2h/person in Week 2; SP-055 adds 2h/person each week. Shared schema coordination adds 2h/week to Đạt, while module owners implement/test their own migrations. The proposed review-hour distribution below is an allowance to validate when routing actual PRs, not a record of reviews performed or approvals obtained.
+**Original baseline: 286h against 288h nominal capacity.** This includes 2 historical SP-021 hours/person in Week 2; SP-021 is assumed done and is not reassigned. Remaining scenario work is 278h (88/94/96h). SP-055 adds 2h/person each week. Shared schema coordination adds 2h/week to Đạt, while module owners implement/test their own migrations. The proposed review-hour distribution below retains the original baseline for comparison; it is an allowance to validate when routing actual PRs, not a record of reviews performed or approvals obtained. Each member's remaining Week 2 allocation is 22h after excluding the historical SP-021 2h.
 
 | Week | Minh: delivery + coordination + review | Đạt: delivery + coordination + schema + review | Thiện: delivery + coordination + review | Nghị: delivery + coordination + review |
 |---|---:|---:|---:|---:|
@@ -112,7 +121,7 @@ The [Proposal §§4.2–4.3](../../SocialPilot_Proposal_Java.md) targets a one-c
 - **Dates:** repository Week 3 is November 16–22; this brief uses the requested **November 21 cutoff**. November 22 is not hidden contingency. Week 4 retains November 23–29.
 - **Elapsed time:** these are full-window planning allocations, not retrospective evidence of hours worked. Reconcile Week 2 with actual time already spent as of November 14; 96h is not capacity newly available from that date.
 - **Estimates:** confirm the reduced SP-022/SP-023/SP-028 remaining estimates with their owners. The 24h nominal baseline is used for Weeks 2–4; the historical Week 1 self-allocation/overtime arrangement is not assumed to extend to these weeks.
-- **Handoff:** SP-021 remains open without recorded completion evidence, so its documented 8 team-hours are included. Remove only effort confirmed as already performed. SP-013 has merged code but its document still records missing live-provider evidence; validate the production path under SP-028 without rebuilding its delivered adapters.
+- **Handoff:** per the latest user instruction, Week 1 and SP-021 are assumed complete. Keep the historical 8 team-hours only for baseline reconciliation; this assumption does not change the actual GitHub issue status. SP-028 still validates the new production provider wiring without rebuilding delivered Week 1 adapters.
 - **Beyond Week 4:** remaining SP-024 (10h), SP-033 (10h), SP-030 (8h), SP-034 (8h), SP-038 (10h), SP-039 (12h), SP-040 (8h), SP-044 (12h), SP-048 (8h), SP-049 (10h), SP-050 (10h) and unallocated SP-054 (4h) remain in scope: **110 owner-hours**. SP-052 and SP-056–059 retain the documented Week 6 acceptance/handover role. The partial SP-033 allocation does not complete F2.B4/B5. SP-051 supplies the settings/framework; later modules still need their own F9 implementation and final integrated acceptance. See [Proposal §§4.2 and 5.1](../../SocialPilot_Proposal_Java.md) and existing [SP-022–SP-059 issues](https://github.com/nigPeter2503/Social_Pilot/issues?q=is%3Aissue).
-- **Governance:** confirm the review roster, actual remaining hours and capacity response before treating this forecast as a committed delivery schedule. No product scope, milestone or feature assignee is changed by publishing it. Only SP-062 is newly created for this document; existing implementation issues are not duplicated.
+- **Governance:** confirm the review roster, actual remaining hours and capacity response before treating this forecast as a committed delivery schedule. No product scope, milestone or feature assignee is changed by publishing it. SP-062 is the single active documentation ticket for the common and four personal briefs; existing implementation issues are not duplicated.
 - **Exclusions:** F3.N2 image-topic input and F6.N1 comment notifications remain Optional and unscheduled. The December 6 demo does not replace acceptance of the 44 committed requirements in Week 6.
