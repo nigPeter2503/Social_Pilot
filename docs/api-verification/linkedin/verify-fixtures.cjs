@@ -122,12 +122,32 @@ check('later collection cannot revert a newer provider edit', () => {
     }
 });
 check('overlap omission preserves valid metadata', () => {
-    const {actorUrn, createdAt, providerUpdatedAt, timeMissingReason} = p.mergePages([first, second])[0];
-    assert.deepEqual({actorUrn, createdAt, providerUpdatedAt, timeMissingReason}, {
+    const {actorUrn, createdAt, timeMissingReason} = p.mergePages([first, second])[0];
+    assert.deepEqual({actorUrn, createdAt, timeMissingReason}, {
         actorUrn: first.items[0].actorUrn, createdAt: first.items[0].createdAt,
-        providerUpdatedAt: first.items[0].providerUpdatedAt, timeMissingReason: null
+        timeMissingReason: null
     });
 });
+const [pageA, pageB, pageC] = [
+    ['A', '10:00', '10:01'],
+    ['B', null, '10:05'],
+    ['C', '10:03', '10:04']
+].map(([message, updated, collected]) => {
+    const comment = {...f.pages[0].elements[0], message: {text: message},
+        lastModified: updated === null ? null : {time: Date.parse(`2026-11-09T${updated}:00.000Z`)}};
+    const context = {...f.context, collectedAtMs: Date.parse(`2026-11-09T${collected}:00.000Z`)};
+    return p.commentPage(200, {elements: [comment]}, context);
+});
+for (const [sequence, pages] of [['B, C', [pageB, pageC]], ['A, B, C', [pageA, pageB, pageC]]]) {
+    check(`selected content keeps its own provider timestamp: ${sequence}`, () => {
+        const merged = p.mergePages(pages);
+        assert.equal(merged.length, 1);
+        const {message, collectedAt, providerUpdatedAt} = merged[0];
+        assert.deepEqual({message, collectedAt, providerUpdatedAt}, {
+            message: 'B', collectedAt: '2026-11-09T10:05:00.000Z', providerUpdatedAt: null
+        });
+    });
+}
 check('conflicting payload at equal provider timestamp preserves stored item and requests refresh', () => {
     const overlap = copy(f.pages[1]);
     overlap.elements[0].lastModified = f.pages[0].elements[0].lastModified;

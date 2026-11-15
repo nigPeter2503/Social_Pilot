@@ -177,11 +177,14 @@ reconciledAt | outcome | noAutomaticRetry` trong phạm vi chia sẻ phù hợp.
 ### Merge trang theo Analytics SP-020
 
 Chỉ merge trong cùng scope/query/version và cùng mapping đã xác minh nếu có.
-Khi cả hai row có `providerUpdatedAt`, ưu tiên bản sửa mới hơn. Khi không so
-sánh được thời điểm sửa, dùng thời điểm thu. Nếu cùng thời điểm sửa mà các trường
-cùng có mặt mâu thuẫn, giữ bản đã lưu và đánh dấu `needsRefresh`. Nếu row được
-chọn bỏ sót `actorUrn`, `createdAt` hoặc `providerUpdatedAt`, giữ giá trị hợp
-lệ còn lại từ row kia. Trang lỗi không được merge như trang rỗng.
+Khi cả hai row có `providerUpdatedAt` khác nhau, ưu tiên bản sửa mới hơn. Khi
+thiếu ít nhất một `providerUpdatedAt`, dùng `collectedAt` để chọn bản thu mới hơn.
+Nếu cùng `providerUpdatedAt` mà các trường cùng có mặt mâu thuẫn, giữ bản đã lưu
+và đánh dấu `needsRefresh`. Nếu cùng `providerUpdatedAt` và dữ liệu tương thích,
+dùng `collectedAt` để chọn. `providerUpdatedAt` đi cùng phiên bản nội dung được
+chọn và giữ `null` nếu phiên bản đó thiếu timestamp. Có thể bù `actorUrn` và
+`createdAt` hợp lệ từ row kia khi row được chọn thiếu các trường này. Trang lỗi
+không được merge như trang rỗng.
 
 Org like âm giữ ở PROVIDER_LIKE_COUNT; REACTION_COUNT giữ null/DEFINITION_MISMATCH.
 Cửa sổ organic 12 tháng không trộn với lifetime member hoặc paid metrics để tính ER.
@@ -222,6 +225,9 @@ git diff --check
 - Ngày 15/11, working tree tại HEAD `63869f19d4874a6b9919b0c41255e59ef20d8e4d`
   kèm thay đổi chưa commit đạt **126/126 checks MO_PHONG**, 0 API_THAT.
   Hai lệnh `node --check` và `git diff --check` đều exit 0.
+- Ngày 15/11, sau sửa P2 về `providerUpdatedAt`, Node v24.19.0 đạt
+  **128/128 checks MO_PHONG**, 0 API_THAT. Hai lệnh `node --check` và
+  `git diff --check` đều exit 0. LI-01–09 vẫn `NOT_RUN`.
 - PR #76 chờ xem diff local, review Đạt/Thiện và bằng chứng live từng ca.
 
 ### Checkpoint

@@ -140,7 +140,6 @@ function mergeComment(old, item) {
         actorUrn: preferred.actorUrn ?? fallback.actorUrn,
         createdAt,
         timeMissingReason: createdAt == null ? preferred.timeMissingReason : null,
-        providerUpdatedAt: preferred.providerUpdatedAt ?? fallback.providerUpdatedAt,
         needsRefresh: conflict || preferred.needsRefresh
     };
 }
