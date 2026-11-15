@@ -129,6 +129,27 @@ public class EncryptedOAuthStoreDeviceTest {
         assertEquals(com.socialpilot.app.domain.contract.social.ConnectionStatus.CONNECTED,store.channel("LINKEDIN").connectionStatus);
     }
 
+    @Test public void staleV2RecoveryPreservesRealKeystoreRevisionMarker() throws Exception {
+        EncryptedOAuthStore store=new EncryptedOAuthStore(context);
+        store.saveConnected(connection("page","fake-current-token"));
+        store.saveConnected(connection("page","fake-current-token"));
+        var previous=store.channel("FACEBOOK");
+        java.lang.reflect.Field field=EncryptedOAuthStore.class.getDeclaredField("cipher");
+        field.setAccessible(true);
+        EncryptedOAuthStore.RecordCipher cipher=(EncryptedOAuthStore.RecordCipher)field.get(store);
+        String legacy="{\"version\":2,\"connection\":"
+                +new com.google.gson.Gson().toJson(connection("page","fake-legacy-token"))+"}";
+        assertTrue(preferences.edit().putString("connected_v2",cipher.encrypt("connected_v2",legacy))
+                .remove("connected_v3_FACEBOOK").commit());
+        EncryptedOAuthStore recovered=new EncryptedOAuthStore(context);
+        var current=recovered.channel("FACEBOOK");
+        assertEquals(previous.channelId,current.channelId);
+        assertTrue(current.connectionRevision>previous.connectionRevision);
+        assertNull(recovered.tokenFor("FACEBOOK",previous.channelId,previous.connectionRevision));
+        assertFalse(preferences.contains("connected_v2"));
+        assertEquals(current.connectionRevision,new EncryptedOAuthStore(context).channel("FACEBOOK").connectionRevision);
+    }
+
     private OAuthExchangeResponse linkedin(String expiry) {
         return new OAuthExchangeResponse("fake-li-session", "LINKEDIN", "fake-member", "PERSON", "Test Member",
                 "fake-li-token", null, "Bearer", expiry);

@@ -181,6 +181,37 @@ public class EncryptedOAuthStoreTest {
         assertTrue(preferences.reboot().contains("connected_v2"));
         assertEquals("fake-fb-token",new EncryptedOAuthStore(preferences.reboot(),cipher).accessToken());
     }
+    @Test public void staleV2RecoveryAdvancesMarkerAndRemovesSourceAtomically() throws Exception {
+        store.saveConnected(connection("page","fake-current-token"));
+        store.saveConnected(connection("page","fake-current-token"));
+        var previous=store.channel("FACEBOOK");
+        String old="{\"version\":2,\"connection\":"+new com.google.gson.Gson().toJson(connection("page","fake-v2-token"))+"}";
+        preferences.edit().putString("connected_v2",cipher.encrypt("connected_v2",old))
+                .remove("connected_v3_FACEBOOK").commit();
+        var recovered=new EncryptedOAuthStore(preferences.reboot(),cipher);
+        int commitsBefore=preferences.commits;
+        assertEquals("fake-v2-token",store.accessToken("FACEBOOK"));
+        assertEquals(1,preferences.commits-commitsBefore);
+        assertEquals(previous.channelId,store.channel("FACEBOOK").channelId);
+        assertTrue(store.channel("FACEBOOK").connectionRevision>previous.connectionRevision);
+        assertFalse(preferences.reboot().contains("connected_v2"));
+        assertNull(store.tokenFor("FACEBOOK",previous.channelId,previous.connectionRevision));
+        assertTrue(recovered.channel("FACEBOOK").connectionRevision>previous.connectionRevision);
+    }
+    @Test public void staleV2FailedCommitPreservesRevisionAndSourceOnDisk() throws Exception {
+        store.saveConnected(connection("page","fake-current-token"));
+        var previous=store.channel("FACEBOOK");
+        String old="{\"version\":2,\"connection\":"+new com.google.gson.Gson().toJson(connection("page","fake-v2-token"))+"}";
+        preferences.edit().putString("connected_v2",cipher.encrypt("connected_v2",old))
+                .remove("connected_v3_FACEBOOK").commit();
+        preferences.failCommits=2;
+        assertNull(store.channel("FACEBOOK"));
+        var durable=preferences.reboot();
+        assertTrue(durable.contains("connected_v2"));
+        var recovered=new EncryptedOAuthStore(durable,cipher);
+        assertEquals(previous.channelId,recovered.channel("FACEBOOK").channelId);
+        assertTrue(recovered.channel("FACEBOOK").connectionRevision>previous.connectionRevision);
+    }
     @Test public void cannotSwapProviderCiphertexts() {
         store.saveConnected(connection("page","fake-fb-token"));store.saveConnected(linkedin("member"));
         preferences.edit().putString("connected_v3_LINKEDIN",preferences.getString("connected_v3_FACEBOOK",null)).commit();

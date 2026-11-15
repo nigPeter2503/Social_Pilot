@@ -112,7 +112,7 @@ final class LinkedInAttemptLedger {
             return result == null || result.postId == null ? null : new Target(key,result);
         }
     }
-    String confirm(Target target, String url) {
+    PublishResult confirm(Target target, String url) {
         synchronized (preferences) {
             if (target == null) throw new IllegalStateException("Open the post again");
             String raw = preferences.getString(target.key, "");
@@ -126,7 +126,7 @@ final class LinkedInAttemptLedger {
                         .putString("url_verification_source", "OWNER_CONFIRMED");
             }
             requireCommit(editor);
-            return preferences.getString("last_result", null);
+            return verified;
         }
     }
     String confirmedRetry(String key) {

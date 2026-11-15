@@ -98,8 +98,8 @@ public final class LinkedInSpikePublisher {
     public State confirmOpenedPostUrl(Confirmation confirmation, String url) {
         if (confirmation==null) throw new IllegalStateException("Open the post again");
         synchronized (preferences) {
-            ledger.confirm(confirmation.target,url);
-            return state();
+            PublishResult verified=ledger.confirm(confirmation.target,url);
+            return new State(summary(verified),ledger.target(confirmation.target.key));
         }
     }
     public static String summary(PublishResult result) { return LinkedInAttemptLedger.summary(result); }

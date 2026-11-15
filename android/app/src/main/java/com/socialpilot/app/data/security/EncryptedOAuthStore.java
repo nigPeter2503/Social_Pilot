@@ -95,7 +95,7 @@ public final class EncryptedOAuthStore {
         r.validate(p);
         writeConnected(p,r);
     }
-    private void writeConnected(String provider,ConnectedRecord record) {
+    private void writeConnected(String provider,ConnectedRecord record,String... removeKeys) {
         String connectionKey=key("connected",provider);
         String revisionKey="revision_v1_"+provider+":"+record.connection.externalAccountId;
         RevisionRecord marker=new RevisionRecord();
@@ -103,9 +103,24 @@ public final class EncryptedOAuthStore {
         try {
             String encryptedMarker=cipher.encrypt(revisionKey,gson.toJson(marker));
             String encryptedConnection=cipher.encrypt(connectionKey,gson.toJson(record));
-            if (!preferences.edit().putString(revisionKey,encryptedMarker)
-                    .putString(connectionKey,encryptedConnection).commit()) {
-                invalidate(connectionKey,EMPTY);
+            java.util.Map<String,String> previousValues=new java.util.HashMap<>();
+            previousValues.put(connectionKey,preferences.getString(connectionKey,null));
+            previousValues.put(revisionKey,preferences.getString(revisionKey,null));
+            SharedPreferences.Editor editor=preferences.edit().putString(revisionKey,encryptedMarker)
+                    .putString(connectionKey,encryptedConnection);
+            for (String removeKey:removeKeys) {
+                previousValues.put(removeKey,preferences.getString(removeKey,null));
+                editor.remove(removeKey);
+            }
+            if (!editor.commit()) {
+                unavailable.add(connectionKey);
+                // A failed commit may already have changed SharedPreferences in memory.
+                SharedPreferences.Editor rollback=preferences.edit();
+                for (java.util.Map.Entry<String,String> entry:previousValues.entrySet()) {
+                    if (entry.getValue()==null) rollback.remove(entry.getKey());
+                    else rollback.putString(entry.getKey(),entry.getValue());
+                }
+                try { rollback.commit(); } catch(RuntimeException ignored) { }
                 throw storageUnavailable();
             }
             unavailable.remove(revisionKey);unavailable.remove(connectionKey);
@@ -165,13 +180,22 @@ public final class EncryptedOAuthStore {
             if("pending".equals(type)){
                 json.addProperty("provider","FACEBOOK");PendingRecord r=gson.fromJson(json,PendingRecord.class);r.validate(p);
                 write(dest,r,EMPTY);
+                preferences.edit().remove(old).commit();
             }else{
                 ConnectedRecord r=gson.fromJson(json,ConnectedRecord.class);
-                r.channelId="FACEBOOK:"+r.connection.externalAccountId;r.revision=1;r.validate(p);
-                writeConnected(p,r);
+                r.connection.validate();
+                RevisionRecord marker=read("revision_v1_"+p+":"+r.connection.externalAccountId,RevisionRecord.class,EMPTY);
+                if (marker!=null && marker.channelId!=null && marker.revision>0) {
+                    if (marker.revision==Long.MAX_VALUE) throw storageUnavailable();
+                    r.channelId=marker.channelId;
+                    r.revision=marker.revision+1;
+                } else {
+                    r.channelId=p+":"+r.connection.externalAccountId+":"+java.util.UUID.randomUUID();
+                    r.revision=1;
+                }
+                r.validate(p);
+                writeConnected(p,r,old);
             }
-            // Only remove the source after the new encrypted record was durably committed.
-            preferences.edit().remove(old).commit();
         }catch(RuntimeException e){
             // Preserve source until a successful migration. Never claim a failed save is connected.
             unavailable.add(dest);

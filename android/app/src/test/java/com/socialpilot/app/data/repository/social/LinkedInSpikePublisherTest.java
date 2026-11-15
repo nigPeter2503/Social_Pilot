@@ -66,4 +66,26 @@ public class LinkedInSpikePublisherTest {
         assertEquals(PublishResult.Outcome.PUBLISHED_URL_PENDING,send(publisher.review("text")).outcome);
         assertEquals(1,server.getRequestCount());
     }
+    @Test public void confirmingReopenedAReturnsAStateAndKeepsBPointer() throws Exception {
+        server.enqueue(new MockResponse().setResponseCode(201).addHeader("x-restli-id","urn:li:share:123"));
+        send(publisher.review("A"));
+        server.enqueue(new MockResponse().setResponseCode(201).addHeader("x-restli-id","urn:li:share:456"));
+        send(publisher.review("B"));
+        String lastKey=attempts.getString("last_key",null);
+        String lastPayload=attempts.getString("last_payload",null);
+        var reviewA=publisher.review("A");
+        var resultA=send(reviewA);
+        var displayedA=publisher.stateForResult(reviewA,resultA);
+        var confirmedA=publisher.confirmOpenedPostUrl(displayedA.confirmation,
+                "https://www.linkedin.com/feed/update/urn:li:share:123/");
+        assertTrue(confirmedA.summary.startsWith("SUCCESS"));
+        assertTrue(confirmedA.summary.contains("urn:li:share:123"));
+        assertNotNull(confirmedA.confirmation);
+        assertEquals(lastKey,attempts.getString("last_key",null));
+        assertEquals(lastPayload,attempts.getString("last_payload",null));
+        assertTrue(publisher.state().summary.contains("urn:li:share:456"));
+        assertTrue(publisher.confirmOpenedPostUrl(confirmedA.confirmation,
+                "https://www.linkedin.com/feed/update/urn:li:share:123/").summary.startsWith("SUCCESS"));
+        assertEquals(2,server.getRequestCount());
+    }
 }
