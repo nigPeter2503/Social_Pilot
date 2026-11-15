@@ -25,13 +25,24 @@ dùng duyệt. Luồng đã được thử trên Samsung SM-G990E / Android 16: 
 Đây là spike PERSON/đăng chữ, chưa thay editor, queue hoặc approval production;
 không triển khai mọi API LinkedIn hoặc nghiệm thu toàn bộ F1/F5.
 
+## Sửa nhận xét review
+
+- Chặn follow-up POST bằng request body one-shot, kiểm tra 503/Retry-After: 0.
+- Lưu mốc revision riêng và nâng v2/v3 an toàn. Phục hồi thiếu mốc dùng channelId
+  mới, dedupe tiếp tục theo tài khoản và nội dung.
+- Giữ REJECTED/error/nextAction qua reload, cho duyệt lại có kiểm tra requestId,
+  revision và Retry-After; giữ khóa các kết quả đang gửi/UNKNOWN/đã đăng.
+- Dialog URL giữ khóa attempt, requestId và Post ID đã hiển thị; chặn URN mâu thuẫn.
+- Xếp hàng callback theo sessionId, kiểm tra lại pending/TTL khi exchange,
+  callback lặp chỉ được tiêu thụ một lần. Đã thử qua Activity Intent trên máy thật.
+
 ## Kiểm chứng
 
 | Phạm vi | Kết quả |
 |---|---|
 | Backend `test bootJar` | 57 tests PASS, 0 failures/errors/skipped; theo lần chạy đã ghi nhận |
-| Android `assembleDebug testDebugUnitTest lintDebug` | Chạy lại 15/11: 74 JVM tests PASS, 0 failures/errors/skipped; lint 0 errors, 5 warnings |
-| Instrumentation trên SM-G990E / Android 16 | 5 tests PASS: Keystore, dữ liệu hỏng, cách ly provider/pending, migration v2/v3, cờ reauth; fixtures giả |
+| Android `assembleDebug testDebugUnitTest lintDebug` | Chạy lại 15/11: 93 JVM tests PASS, 0 failures/errors/skipped; lint 0 errors, 5 warnings |
+| Instrumentation trên SM-G990E / Android 16 | 7 tests PASS: callback qua Intent, recovery và Keystore, dữ liệu hỏng, cách ly provider/pending, migration v2/v3, cờ reauth; fixtures giả |
 | OAuth và đăng bài thật qua app | Ảnh connected/SUCCESS; Post ID `urn:li:share:7527386113993412608`; URL do owner mở và xác nhận |
 | Restart backend | Phiên cũ HTTP 400 INVALID_STATE; OAuth mới thành công theo owner ngày 15/11 |
 | Tài liệu | Liên kết tương đối, hash evidence và `git diff --check` đạt |
@@ -62,7 +73,7 @@ Phụ thuộc SP-010 PR #74; nhánh đã merge dependency cục bộ từ baseli
 Cần đối chiếu trạng thái #74/main, cập nhật và rà diff riêng SP-011 trước merge;
 không dùng PR này để đưa dependency chưa được duyệt vào main.
 
-Giữ Draft trong lúc chờ tích hợp dependency và review. Hai reviewer theo brief:
+PR hiện Ready for review. Cần tích hợp dependency và hai reviewer theo brief:
 Đạt (`dat532006`), Nghị (`bob35306`); chưa xác nhận đủ hai human approvals.
 Không đóng Issue #13 hoặc merge chỉ dựa trên kết quả spike này.
 
@@ -75,3 +86,7 @@ Không đóng Issue #13 hoặc merge chỉ dựa trên kết quả spike này.
 
 Đạt review engine/kho bảo mật/migration; Nghị nhận PERSON/author URN và metadata
 quyền để tiếp tục SP-019. Không đưa token/secret vào mô tả hoặc tài liệu.
+
+Kết quả của đợt sửa review nằm trong
+[report 15/11](https://github.com/nigPeter2503/Social_Pilot/blob/feat/sp-011-linkedin-oauth-spike/docs/evidence/sp-011-review-fixes-2026-11-15.json).
+Bản soạn này áp dụng sau khi push các sửa review local và cần được hai reviewer xác nhận.

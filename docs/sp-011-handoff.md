@@ -5,6 +5,30 @@ Issue [#13](https://github.com/nigPeter2503/Social_Pilot/issues/13), Draft PR
 [#77](https://github.com/nigPeter2503/Social_Pilot/pull/77).
 Reviewer theo brief: Đạt (`dat532006`), Nghị (`bob35306`).
 
+## Cập nhật sửa review ngày 15/11/2026
+
+Đã triển khai local sáu nhận xét của Đạt ở head a3858c7 theo
+[contract đã được owner duyệt](drafts/sp-011-review-fix-contract.md).
+93 JVM tests và 7 instrumentation tests đạt trên SM-G990E / Android 16.
+assembleDebug/lintDebug đạt, lint 0 errors và 5 warnings. Xem
+[kết quả, hash reports và source đã thử](evidence/sp-011-review-fixes-2026-11-15.json).
+
+Request body one-shot chặn HTTP follow-up. Ledger giữ khóa theo tài khoản/nội dung,
+đọc lại REJECTED với mã lỗi và nextAction, kiểm tra requestId cũ cùng Retry-After
+trước khi đặt chỗ lần duyệt mới. Record đã đăng/UNKNOWN giữ khóa qua phục hồi ID.
+Xác nhận URL gắn khóa attempt/requestId/Post ID tại lúc mở dialog. Callback OAuth
+xếp hàng theo sessionId, kiểm tra lại TTL trước exchange. Revision marker được mã
+hóa và ghi nhất quán với credential; v2/v3 được nâng an toàn, mất cả mốc cấp ID mới.
+Cờ reauth production kiểm tra cả channelId và revision.
+
+Thử nghiệm mới dùng fixtures. Bằng chứng bài thật đã có được giữ theo hồ sơ dưới.
+Owner đã yêu cầu push đợt sửa review ngày 15/11. Code/tests nằm trong commit
+26b594b, hồ sơ trong commit đi kèm. Title/description mới được giữ trong bản soạn PR.
+GitHub đọc lại báo #77 Ready for review, #74 OPEN/CHANGES_REQUESTED. Các phần lịch sử
+bên dưới giữ ngày/trạng thái lúc lập để đối chiếu. Trạng thái code hiện tại theo
+phần cập nhật này. Backend code/dependency giữ nguyên nên dùng kết quả 57 tests đã
+ghi nhận trước đó. Các bước review/merge và giới hạn refresh vẫn đang được theo dõi.
+
 ## Kết luận và phạm vi
 
 Phần triển khai spike OAuth LinkedIn PERSON và đăng chữ đã có bằng chứng chạy trên
