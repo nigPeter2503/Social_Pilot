@@ -1,6 +1,6 @@
 # Taskbrief cá nhân tuần 2–3 — Nguyễn Đức Đạt (TV2)
 
-**Owner:** Nguyễn Đức Đạt — GitHub **@dat532006**. Soạn ngày **15/11/2026**, Asia/Bangkok, theo [taskbrief chung đã được người dùng duyệt](week-2-3-taskbrief.md), baseline `7134bde`. Cùng gói tài liệu [SP-062 / #78](https://github.com/nigPeter2503/Social_Pilot/issues/78), [PR #79](https://github.com/nigPeter2503/Social_Pilot/pull/79). [Project #5](https://github.com/users/nigPeter2503/projects/5).
+**Owner:** Nguyễn Đức Đạt — GitHub **@dat532006**. Soạn ngày **15/11/2026**, Asia/Bangkok, theo [taskbrief chung đã được người dùng duyệt](week-2-3-taskbrief.md), baseline lịch sử `7134bde`, đã đối soát feedback ngày 15/11/2026. Cùng gói tài liệu [SP-062 / #78](https://github.com/nigPeter2503/Social_Pilot/issues/78), [PR #79](https://github.com/nigPeter2503/Social_Pilot/pull/79). [Project #5](https://github.com/users/nigPeter2503/projects/5).
 
 ## 1. Trách nhiệm và đầu vào đã có
 
@@ -12,17 +12,21 @@ Các issue triển khai có thật nhưng khi đọc tracker ngày 15/11 chưa c
 
 **Mốc:** bàn giao phần tuần 2 **thứ Hai, 16/11/2026**; cutoff tuần 3 **21/11**; tuần 4 **23–29/11**, hạn dự kiến **29/11**. Không dồn toàn bộ issue nhiều giai đoạn về 16/11; không coi giờ của cả tuần là giờ mới có sẵn từ hôm nay.
 
+**Đối soát hiện tại:** giả định W1 hoàn tất chỉ dùng tính effort. PR #69 đã merge; #70 và #73–#77 còn mở tại lần kiểm tra 15/11. Dùng [brief chung §4–5](week-2-3-taskbrief.md) làm nguồn thống nhất cho tải review đã sửa, thứ tự handoff và bằng chứng live từng operation; không lấy giả định thay nghiệm thu.
+
 ## 2. Công sức và trình tự
 
 | Tuần | Công việc owner | SP-055 | Điều phối schema | Review | Tổng còn giao | SP-021 đã xong, đối chiếu | Baseline chung |
 |---|---|---:|---:|---:|---:|---:|---:|
 | 2 | SP-027 10h + SP-028 6h = **16h** | 2h | 2h | 2h | **22h** | 2h | 24h |
-| 3 | SP-029 12h + SP-031 6h = **18h** | 2h | 2h | 2h | **24h** | 0h | 24h |
-| 4 — dự kiến | SP-032 10h + SP-031 6h + SP-033 2h = **18h** | 2h | 2h | 2h | **24h** | 0h | 24h |
+| 3 | SP-029 12h + SP-031 6h = **18h** | 2h | 2h | **4.5h** | **26.5h** | 0h | 24h |
+| 4 — dự kiến | SP-032 10h + SP-031 6h + SP-033 2h = **18h** | 2h | 2h | **3h** | **25h** | 0h | 24h |
+
+**Tải review đã sửa:** tuần 3 Đạt review SP-053/036/045/041/046/051 = 6 PR × 0.75h = 4.5h; tuần 4 SP-025/026/047/043 = 3h. Tổng vượt 24h là 2.5h và 1h; baseline cột cuối chỉ để đối chiếu. Chưa tính re-review/partial/child PR. Chốt với Minh trước 16/11 cách xử lý SP-051 và tải tuần 4, không giảm review migration.
 
 SP-028 6h là ước lượng phần còn lại, giảm từ backlog 12h do adapter đã bàn giao; xác minh trước khi chốt lịch. Không cộng giờ migration coordinator vào từng task lần nữa. Nếu review/schema vượt allowance, báo Minh điều chỉnh, không tự mở nhiều task chính hoặc bỏ migration test.
 
-1. Bàn giao kho bí mật SP-027 trước để [Minh SP-022](tv1-minh-taskbrief.md#sp-022) nối social token và để SP-028 nối model/provider.
+1. Chốt lượt schema với Minh/Thiện/Nghị trước sửa database: Channel → PublishedPost bài có sẵn → Comment/cursor và Snapshot/MetricSample, đồng thời đặt slot riêng cho Brief/Version của Thiện; không tự chọn số version khi chưa tích hợp lượt trước. Trước lần thu thật 16/11, bàn giao kho bí mật SP-027 trước để [Minh SP-022](tv1-minh-taskbrief.md#sp-022) nối social token và để SP-028 nối model/provider.
 2. SP-028 bàn giao typed call/model/usage interface cho [Thiện](tv3-thien-taskbrief.md#sp-036) và [Nghị](tv4-nghi-taskbrief.md#sp-043). Không cho UI production dispatch không kiểm soát khi ledger SP-029 chưa sẵn sàng.
 3. Tuần 3 hoàn tất ledger SP-029 trước khi mở production orchestrator SP-031. Chuẩn bị test/fixture của consumer có nhãn trong lúc chờ; không coi fake ledger là trần production.
 4. Tuần 4 ưu tiên ảnh/template SP-032 theo image contract đã thống nhất, sau đó hoàn thiện packaging SP-031. Chỉ bắt đầu phần 2h SP-033 khi pipeline bàn giao; không báo toàn bộ checkpoint/recovery đã xong.
@@ -54,6 +58,8 @@ SP-028 6h là ước lượng phần còn lại, giảm từ backlog 12h do adap
 - **Issue:** [#30](https://github.com/nigPeter2503/Social_Pilot/issues/30). **Yêu cầu:** F8.B1/B3/B4. **Ưu tiên:** High. **Công sức/mốc:** 6h tuần 2, hạn 16/11.
 - **Hai reviewer dự kiến:** Ngô Gia Minh (@nigPeter2503), Tô Lãng Nghị (@bob35306). **Nhánh đề xuất:** `feat/sp-028-ai-model-usage-integration`.
 - **Nguồn/phụ thuộc:** [AI contract §§1–5](../../ai-provider-contract.md), [Proposal F8](../../SocialPilot_Proposal_Java.md); SP-027 và adapter SP-013.
+
+**Gate live:** SP-013 trên main còn NOT_RUN riêng cho OpenAI và Gemini. Đạt chịu trách nhiệm ghi điều kiện key/model/quota/số lượt/output cap/trần chi được phép và evidence Android/usage cho từng provider. Trong lúc chờ vẫn test contract/fixture; không ghi đã đạt live do W1 được coi là xong.
 
 **Thực hiện:** đăng ký adapter hiện có vào service/repository dùng chung; lưu provider/model cho từng loại tác vụ theo capability registry đã xác nhận; nối usage/ước tính và trạng thái lỗi vào UI. Không viết lại parser SSE, đổi stack hoặc tự thêm provider thứ ba. Model/version/giá chưa chốt phải ghi thiếu và nguồn cần xác minh, không tự điền theo trí nhớ.
 
@@ -99,15 +105,17 @@ SP-028 6h là ước lượng phần còn lại, giảm từ backlog 12h do adap
 
 1. **Tuần 3:** nhận brief đã validate và selected targets; tạo scope/session và các step typed riêng từng kênh; chạy dàn ý → nháp → rà quy tắc, báo lỗi đúng step, tái sử dụng executor/coordinator tuần 1. Prompt không cho URL/comment tự cấp quyền đăng.
 2. **Tuần 4:** mô tả ảnh → nhận ảnh/template SP-032 → đóng gói text/ảnh/metadata cho editor. Chuỗi mỗi nhánh phải đủ sáu bước của proposal; phần thiếu không được đánh dấu complete.
-3. Giữ nhánh độc lập, requestId/attempt riêng; không tự retry có phí sau process death, không tự enqueue hoặc approve nội dung.
+3. **Brief một target:** SP-031 cung cấp entry point pipeline nhận danh sách 1–2 target. Với một target, chạy một nhánh qua cùng service/admission/hủy/usage của SP-028/SP-029; không gọi `DualStreamCoordinator.start(a,b)` bằng null hoặc request giả. Với hai target mới dùng coordinator hai nhánh. Đây là phần triển khai SP-031; không giao lại SP-014 hoặc giả định API hai request đã hỗ trợ một target.
+4. Giữ nhánh độc lập, requestId/attempt riêng; không tự retry có phí sau process death, không tự enqueue hoặc approve nội dung.
 
 - [ ] Target tuân contract brief đã bàn giao, tối đa một Facebook và một LinkedIn; không tự thêm kênh không được chọn.
-- [ ] Timestamp chứng minh hai nhánh chạy chồng lấp; lỗi A không làm mất kết quả B, kiểm bằng typed snapshot chứ không chỉ icon UI.
+- [ ] Brief một target chỉ tạo một nhánh, một request/attempt cho mỗi stage cần gọi, không dispatch kênh thứ hai; budget-denied/cancel/usage vẫn qua cùng gate. Hai target kiểm overlap riêng.
+- [ ] Timestamp chứng minh hai nhánh chạy chồng lấp khi chọn hai target; lỗi A không làm mất kết quả B, kiểm bằng typed snapshot chứ không chỉ icon UI.
 - [ ] Stage/output/correlation riêng từng nhánh; text và ảnh không bị lẫn kênh/revision; lỗi ghi đúng bước.
 - [ ] Tuần 3 chỉ nhận text-stage output; tuần 4 nhận đủ chain và gói kết quả bất biến cho editor. Không claim đủ F2 trước final image/package.
 - [ ] Mọi call reserve trước dispatch; output bị hủy/lỗi giữ partial và usage theo contract, không tự mở lượt mới.
 
-**Kiểm thử/handoff:** fake provider cho step/order/failure/cancel, MockWebServer integration dùng coordinator đã có; fixture brief VI/EN để kiểm các target. Dùng bộ 20 brief (10 VI/10 EN) theo [Proposal §5.1](../../SocialPilot_Proposal_Java.md) khi đánh giá nội dung; ghi sample chưa chạy thay vì chọn riêng ca đẹp. Thiện nhận package/version update contract; Nghị nhận shared service semantics, không đợi Đạt viết prompt F6/F7.
+**Kiểm thử/handoff:** fake provider cho step/order/failure/cancel, MockWebServer integration dùng coordinator đã có; fixture brief VI/EN để kiểm các target. Dùng bộ 20 brief (10 VI/10 EN) theo [Proposal §5.1](../../SocialPilot_Proposal_Java.md) khi đánh giá nội dung; ghi sample chưa chạy thay vì chọn riêng ca đẹp. Đạt bàn giao text-stage DTO/correlation cho Thiện trong tuần 3 để phát triển consumer bằng fixture; final packaging tuần 4 mới giao đầu ra text/ảnh cho wiring thật vào SP-036. Thiện sở hữu áp dụng thành version mới chưa duyệt, Minh sở hữu publish sau duyệt. Giờ nối và ca xuyên luồng chưa được xác nhận đủ trong các estimate; ghi phần còn thiếu trước khi hứa demo. Thiện nhận package/version update contract; Nghị nhận shared service semantics, không đợi Đạt viết prompt F6/F7.
 
 <a id="sp-032"></a>
 
@@ -163,7 +171,7 @@ Nguồn: [CONTRIBUTING §6](../../../CONTRIBUTING.md), [Room contract §§3–7]
 
 ## 5. Review, kiểm chứng và handoff
 
-[SP-055 / #57](https://github.com/nigPeter2503/Social_Pilot/issues/57): Đạt tham gia 2h/tuần gồm checkpoint, chuẩn bị evidence và demo; Minh tổng hợp. Bàn giao phần tuần 2 ngày 16/11, phần tuần 3 ngày 21/11, tuần 4 dự kiến 29/11. Review allowance **2/2/2h**, ưu tiên security/queue của Minh và schema consumer; reviewer pairs lấy từ issue, thay đổi roster cần ghi lại, không tự hạ hai approval. Không tự gửi Slack hoặc thông báo thành viên trong công việc soạn tài liệu.
+[SP-055 / #57](https://github.com/nigPeter2503/Social_Pilot/issues/57): Đạt tham gia 2h/tuần gồm checkpoint, chuẩn bị evidence và demo; Minh tổng hợp. Bàn giao phần tuần 2 ngày 16/11, phần tuần 3 ngày 21/11, tuần 4 dự kiến 29/11. Review provision đã sửa **2/4.5/3h**, theo roster và mức vượt giờ ở §2/brief chung; SP-045 dùng cặp Đạt–Thiện để đúng quy tắc migration, các cặp khác giữ kế hoạch hiện có. Điều phối schema 2h/tuần tách khỏi review PR, không tính trùng. Không tự hạ hai approval. Không tự gửi Slack hoặc thông báo thành viên trong công việc soạn tài liệu.
 
 Khi triển khai Android, chạy tại `android/`: `.\gradlew.bat :app:assembleDebug :app:testDebugUnitTest :app:lintDebug`; Keystore/Room/Worker/UI thêm instrumentation hoặc thiết bị/emulator API 23/36 phù hợp. Nếu đổi contract backend, tại `backend/` thêm `.\gradlew.bat test bootJar`. Chỉ docs: link/diff và `git diff --check`. Các lệnh là gate tương lai; soạn brief không tạo evidence app mới.
 

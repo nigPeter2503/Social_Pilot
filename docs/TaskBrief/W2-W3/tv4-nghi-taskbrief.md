@@ -1,6 +1,6 @@
 # Taskbrief cá nhân tuần 2–3 — Tô Lãng Nghị (TV4)
 
-**Owner:** Tô Lãng Nghị — GitHub **@bob35306**. Soạn ngày **15/11/2026**, Asia/Bangkok, theo [taskbrief chung đã được người dùng duyệt](week-2-3-taskbrief.md), baseline `7134bde`. Cùng gói tài liệu [SP-062 / #78](https://github.com/nigPeter2503/Social_Pilot/issues/78), [PR #79](https://github.com/nigPeter2503/Social_Pilot/pull/79). [Project #5](https://github.com/users/nigPeter2503/projects/5).
+**Owner:** Tô Lãng Nghị — GitHub **@bob35306**. Soạn ngày **15/11/2026**, Asia/Bangkok, theo [taskbrief chung đã được người dùng duyệt](week-2-3-taskbrief.md), baseline lịch sử `7134bde`, đã đối soát feedback ngày 15/11/2026. Cùng gói tài liệu [SP-062 / #78](https://github.com/nigPeter2503/Social_Pilot/issues/78), [PR #79](https://github.com/nigPeter2503/Social_Pilot/pull/79). [Project #5](https://github.com/users/nigPeter2503/projects/5).
 
 ## 1. Trách nhiệm và đầu vào đã hoàn tất
 
@@ -12,13 +12,15 @@ Các issue triển khai đọc ngày 15/11 còn chưa có assignee. Brief giao N
 
 **Mốc:** phần tuần 2 hạn **thứ Hai, 16/11/2026**; phần tuần 3 **21/11**; tuần 4 **23–29/11**, hạn dự kiến **29/11**. Hạn 16/11 áp dụng phần 6h/10h tuần 2, không phải đóng toàn bộ issue sync/snapshot nhiều giai đoạn. Giờ của cả tuần không phải capacity còn mới tính từ hôm nay.
 
+**Đối soát hiện tại:** giả định W1 hoàn tất chỉ dùng tính effort. PR #69 đã merge; #70 và #73–#77 còn mở tại lần kiểm tra 15/11. Dùng [brief chung §4–5](week-2-3-taskbrief.md) làm nguồn thống nhất cho tải review đã sửa, thứ tự handoff và bằng chứng live từng operation; không lấy giả định thay nghiệm thu.
+
 ## 2. Công sức và thứ tự ưu tiên
 
 | Tuần | Công việc owner | SP-055 | Review | Tổng còn giao | SP-021 đã xong, đối chiếu | Baseline chung |
 |---|---|---:|---:|---:|---:|---:|
 | 2 | SP-045 10h + SP-041 6h = **16h** | 2h | 4h | **22h** | 2h | 24h |
-| 3 | SP-045 2h + SP-041 6h + SP-046 12h = **20h** | 2h | 2h | **24h** | 0h | 24h |
-| 4 — dự kiến | SP-042 8h + SP-043 12h = **20h** | 2h | 2h | **24h** | 0h | 24h |
+| 3 | SP-045 2h + SP-041 6h + SP-046 12h = **20h** | 2h | **2.25h** | **24.25h** | 0h | 24h |
+| 4 — dự kiến | SP-042 8h + SP-043 12h = **20h** | 2h | **3.75h** | **25.75h** | 0h | 24h |
 
 Giờ owner đã gồm API/domain/UI của module, lưu offline, VI/EN, test/migration và docs. Review/phối hợp tính riêng, không cộng 8h team SP-055 vào riêng Nghị. Nếu API/quota/dữ liệu thiếu hoặc review vượt allowance, báo Minh phần còn lại và deadline bị ảnh hưởng; không dùng mock để đóng khoảng thiếu.
 
@@ -35,8 +37,10 @@ Giờ owner đã gồm API/domain/UI của module, lưu offline, VI/EN, test/mig
 
 - **Issue:** [#47](https://github.com/nigPeter2503/Social_Pilot/issues/47). **Yêu cầu:** F7.B1/B2/B3. **Ưu tiên:** High.
 - **Công sức/mốc:** 10h collection/storage và bắt đầu lịch sử hạn 16/11; 2h đối chiếu nhiều mốc/recovery hạn 21/11; tổng 12h.
-- **Hai reviewer dự kiến:** Ngô Gia Minh (@nigPeter2503), Đỗ Phước Thiện (@PhuocThien06). **Nhánh đề xuất, chưa tạo:** `feat/sp-045-real-metric-snapshots`.
+- **Hai reviewer dự kiến:** Nguyễn Đức Đạt (@dat532006), Đỗ Phước Thiện (@PhuocThien06), theo CONTRIBUTING §6 vì PR có migration và Thiện dùng dữ liệu dashboard. Cặp này thay Minh–Thiện của issue #47 trong kế hoạch routing; tracker chưa được đổi bởi brief. **Nhánh đề xuất, chưa tạo:** `feat/sp-045-real-metric-snapshots`.
 - **Nguồn/phụ thuộc:** [Proposal F7/§5.1](../../SocialPilot_Proposal_Java.md), [analytics contract §§3/5/8/9](../../analytics-data-contract.md), [Room contract §§3/5/6](../../room-schema-contract.md); SP-022, SP-018/SP-019/SP-020 đã có.
+
+**Handoff có thứ tự:** trước lần thu 16/11, Đạt/SP-027 giao secret boundary → Minh/SP-022 upsert Channel và giao lookup/revision → Nghị/SP-041 upsert PublishedPost của bài có sẵn, độc lập PublishJob/SP-025 → Nghị/SP-045 dùng chung root để lưu metric bài. Đạt cấp slot schema nối tiếp, owner từng module viết migration/test. Follower được thu sau Channel/quyền hợp lệ, không cần PublishedPost; post-level/comment phải chờ root bài. Thiếu root/quyền thì tiếp tục parser/fixture có nhãn và ghi mốc thật bị lỡ.
 
 **Đầu vào phải nhận:** channel/account type/revision và quyền từng operation; post/native IDs, provider API version, metric name/definition/unit/measurement kind, timestamp basis và lý do trường thiếu. Nhận token qua secret boundary đã bàn giao, không sao chép credential vào fixture hoặc report.
 
@@ -50,6 +54,8 @@ Giờ owner đã gồm API/domain/UI của module, lưu offline, VI/EN, test/mig
 **Đầu ra/tiêu chí đạt:**
 
 - [ ] **16/11:** collection/storage và lịch thu đầu tiên có evidence đúng thời điểm thực; metric thiếu giữ null/reason; phần chưa có quyền được ghi rõ riêng.
+- [ ] **17/11:** giao schema/query/metric-definition/DTO và fixture có nhãn cho SP-046/Thiện; không đợi nghiệm thu SP-045 mới cho repository phát triển.
+- [ ] **19/11 mục tiêu:** có mẫu thật thứ hai tương thích, đối chiếu cuối trước 21/11. Trễ mốc này báo Minh/Thiện ngay cùng forecast SP-046 và SP-047; không cam kết còn 12h sau cutoff.
 - [ ] **21/11:** có ít nhất hai thời điểm đo thật đủ điều kiện so sánh theo contract, kèm source/definition/scope; nếu chưa đủ không tự thêm mốc lịch sử.
 - [ ] 0 hợp lệ khác provider omitted/permission/unsupported/not synced; một operation có quyền không chứng minh mọi metric con có dữ liệu.
 - [ ] Không ghép reaction hôm nay với impression hôm qua chỉ vì cùng collection label; measurement window/alignment chưa chốt thì không tính ER.
@@ -70,7 +76,7 @@ Giờ owner đã gồm API/domain/UI của module, lưu offline, VI/EN, test/mig
 
 **Thực hiện theo phần:**
 
-1. Tuần 2 dựng adapter production theo endpoint/quyền đã xác minh, không làm lại spike; normalize comment/post/parent/scope/revision và lỗi. Comment key `(platform, channelId, commentId)`; cùng key khác post là conflict cần đối soát, không âm thầm chuyển thread.
+1. Trước lưu comment/snapshot cấp bài 16/11, Nghị/SP-041 upsert root PublishedPost cho bài provider có sẵn dưới Channel do Minh/SP-022 bàn giao; dùng `(channelId, externalPostId)` để không nhân bản khi SP-025 đăng/đối soát sau này. Đạt cấp slot migration nối tiếp, không chờ PublishJob. Tuần 2 dựng adapter production theo endpoint/quyền đã xác minh, không làm lại spike; normalize comment/post/parent/scope/revision và lỗi. Comment key `(platform, channelId, commentId)`; cùng key khác post là conflict cần đối soát, không âm thầm chuyển thread.
 2. Lưu upsert trang + cursor/query fingerprint/history range nguyên tử. Cursor opaque gắn scope/post/filter/revision; không lưu/log URL phân trang chứa token. Parent chưa sync khác comment root; message omitted/deleted khác chuỗi rỗng.
 3. Tuần 3 nối kéo refresh và Worker hữu hạn, backoff/rate limit, lastAttempt/lastCompleteSync và hủy theo kết nối. Chỉ kết thúc chuỗi trang được xác nhận mới cập nhật lastCompleteSync.
 
@@ -88,9 +94,11 @@ Giờ owner đã gồm API/domain/UI của module, lưu offline, VI/EN, test/mig
 
 ### SP-046 — Công thức và repository analytics
 
-- **Issue:** [#48](https://github.com/nigPeter2503/Social_Pilot/issues/48). **Yêu cầu:** F7.B1/B2/B3/N1. **Ưu tiên:** High. **Công sức/mốc:** 12h tuần 3, hạn 21/11, sau đầu vào SP-045 đủ điều kiện.
+- **Issue:** [#48](https://github.com/nigPeter2503/Social_Pilot/issues/48). **Yêu cầu:** F7.B1/B2/B3/N1. **Ưu tiên:** High. **Công sức/mốc:** 12h tuần 3, hạn mục tiêu 21/11; phát triển từ schema/DTO/fixture sớm 17/11, đối chiếu cuối dùng mẫu thật SP-045, không chờ SP-045 hoàn tất mới bắt đầu.
 - **Hai reviewer dự kiến:** Nguyễn Đức Đạt (@dat532006), Đỗ Phước Thiện (@PhuocThien06). **Nhánh đề xuất:** `feat/sp-046-analytics-repository`.
 - **Nguồn/phụ thuộc:** [analytics contract §§5–8](../../analytics-data-contract.md), [Proposal F7](../../SocialPilot_Proposal_Java.md); SP-045/SP-020. [Fixture](../../contracts/analytics-examples.json) là MO_PHONG, không phải lịch sử production.
+
+**Nếu mẫu thật trễ:** không hạ tiêu chí hai mốc thật. Tiếp tục unit/query/DTO bằng fixture có nhãn; ghi phần reconciliation chưa đạt ở 21/11 và tác động final binding SP-047 tuần 4. Giờ phát triển và đối chiếu phải nằm trong 12h hoặc báo phần vượt, không ép lịch bằng cách gọi fixture là live.
 
 **Phạm vi/thực hiện:** triển khai công thức ngoài main thread và typed repository output cho post metrics, follower points, weekly engagement, top posts, grouped queries theo chủ đề/định dạng/giờ đăng và truy vấn bài hiệu quả cho F3.N4 về sau. Chốt DTO/query/cancel/error/freshness với Thiện; Java signature cụ thể là handoff phải xác nhận, không khẳng định schema tài liệu đã là API code.
 
@@ -155,16 +163,16 @@ Giờ owner đã gồm API/domain/UI của module, lưu offline, VI/EN, test/mig
 
 | Bên nhận/cung cấp | Input/output Nghị phải chốt | Mốc và điều kiện |
 |---|---|---|
-| [Minh](tv1-minh-taskbrief.md#sp-022) → Nghị | Connection identity/revision, token-reference access, từng capability và lỗi chuẩn hóa | Trước thu/sync thật; không đưa secret vào issue |
+| [Minh](tv1-minh-taskbrief.md#sp-022) → Nghị | Connection identity/revision, token-reference access, từng capability và lỗi chuẩn hóa | SP-027 → SP-022 trước lần thu/sync 16/11; Nghị/SP-041 cấp root bài có sẵn; không đưa secret vào issue |
 | [Đạt](tv2-dat-taskbrief.md#sp-029) → Nghị | AiRequest/event/model/usage/cancel, budget admission/settle và schema slot | Schema trước sửa database; budget trước production classification/reply |
-| Nghị → [Thiện](tv3-thien-taskbrief.md#sp-047) | DTO/query/error/freshness, fixture rỗng/null/partial có nhãn và source IDs thật | Gửi contract sớm cho khung tuần 3; SP-046 hoàn tất trước final UI tuần 4 |
+| Nghị → [Thiện](tv3-thien-taskbrief.md#sp-047) | DTO/query/error/freshness, fixture rỗng/null/partial có nhãn và source IDs thật | Schema/DTO/fixture 17/11; mục tiêu mẫu thật thứ hai 19/11, đối chiếu 21/11; SP-046 live gate trước final UI tuần 4 |
 | Nghị → Minh/Đạt | Disconnect hooks cho comment/cursor/snapshot/goal theo scope, late-write guard | Theo [SP-024](tv1-minh-taskbrief.md#sp-024); chốt policy trước persistence giữ dữ liệu sau ngắt |
 
 Nghị tự thiết kế entity/DAO/index/migration/test module, Đạt cấp version/thứ tự tích hợp; một thời điểm chỉ một task sửa AppDatabase/version/chuỗi chung. Theo [Room contract](../../room-schema-contract.md), giữ ID/URN opaque, FK/scope, sample null/reason, nguồn thật/mô phỏng và UTC epoch ms; không destructive fallback hoặc ép thiếu số thành 0. Tên Java signature mới phải được consumer xác nhận, không tự sửa SocialConnector khác contract của Minh.
 
 ## 5. Review, bằng chứng và giới hạn
 
-[SP-055 / #57](https://github.com/nigPeter2503/Social_Pilot/issues/57): 2h/tuần cho checkpoint, evidence và demo; Minh tổng hợp. Review allowance **4/2/2h**, ưu tiên capability của Minh, AI usage/budget của Đạt và UI/data của Thiện theo roster issue. Nếu số PR/re-review vượt giờ, ghi gap để điều phối; AI review không thay hai human approvals. Không tự gửi Slack/nhắn người khác trong lượt soạn tài liệu.
+[SP-055 / #57](https://github.com/nigPeter2503/Social_Pilot/issues/57): 2h/tuần cho checkpoint, evidence và demo; Minh tổng hợp. Review provision đã sửa **4/2.25/3.75h**, theo roster ở brief chung: tuần 3 SP-023/029/051 = 2.25h; tuần 4 SP-032/031/026/047/037 = 3.75h. Tổng tải mới 24.25h và 25.75h, vượt 24h lần lượt 0.25h và 1.75h; SP-037/SP-047 có nguy cơ trễ review cuối, cần Minh chốt năng lực/routing trước 16/11. Không lấy phần thiếu từ giờ module hoặc giảm hai approval. Nếu số PR/re-review vượt giờ, ghi gap để điều phối; AI review không thay hai human approvals. Không tự gửi Slack/nhắn người khác trong lượt soạn tài liệu.
 
 Khi triển khai Android, tại `android/` chạy `.\gradlew.bat :app:assembleDebug :app:testDebugUnitTest :app:lintDebug`; UI/Room/Worker thêm emulator/thiết bị phù hợp API 23/36, test migration từ các version hỗ trợ, fresh install và transaction/FK/unique. Nếu đổi backend contract/cấu hình thì tại `backend/` thêm `.\gradlew.bat test bootJar`. Chỉ docs: link/nội dung và `git diff --check`. Đây là gate tương lai, không phải test mới đã chạy khi viết brief.
 

@@ -1,6 +1,6 @@
 # Taskbrief cá nhân tuần 2–3 — Đỗ Phước Thiện (TV3)
 
-**Owner:** Đỗ Phước Thiện — GitHub **@PhuocThien06**. Soạn ngày **15/11/2026**, Asia/Bangkok, theo [taskbrief chung đã được người dùng duyệt](week-2-3-taskbrief.md), baseline `7134bde`. Cùng gói tài liệu [SP-062 / #78](https://github.com/nigPeter2503/Social_Pilot/issues/78), [PR #79](https://github.com/nigPeter2503/Social_Pilot/pull/79). [Project #5](https://github.com/users/nigPeter2503/projects/5).
+**Owner:** Đỗ Phước Thiện — GitHub **@PhuocThien06**. Soạn ngày **15/11/2026**, Asia/Bangkok, theo [taskbrief chung đã được người dùng duyệt](week-2-3-taskbrief.md), baseline lịch sử `7134bde`, đã đối soát feedback ngày 15/11/2026. Cùng gói tài liệu [SP-062 / #78](https://github.com/nigPeter2503/Social_Pilot/issues/78), [PR #79](https://github.com/nigPeter2503/Social_Pilot/pull/79). [Project #5](https://github.com/users/nigPeter2503/projects/5).
 
 ## 1. Trách nhiệm và quy tắc đầu vào
 
@@ -9,6 +9,8 @@ Thiện sở hữu F3/F4, điều phối F9 và UI/ViewModel F7.B1/B2/B3/N1/N3; 
 Tuần 1 và bảy PR #69/#70/#73/#74/#75/#76/#77 được coi là hoàn tất. Tái sử dụng contract brief/version/approval SP-016 và prototype UI/Room/Worker SP-017; không triển khai lại chúng. **SP-021 đã xong**, 2h tham chiếu trong baseline chung không phải việc mới. Bản report In Progress là kịch bản; các issue triển khai được đọc ngày 15/11 chưa có assignee, tài liệu không tự assign/cập nhật Project. Phê duyệt brief trong chat không phải GitHub human approval hay evidence đã nghiệm thu app.
 
 **Mốc:** phần tuần 2 bàn giao **thứ Hai, 16/11/2026**; phần tuần 3 **21/11**; tuần 4 **23–29/11**, hạn dự kiến **29/11**. Task nhiều giai đoạn chỉ giao phần giờ đã phân bổ ở từng mốc. Không biến mốc 16/11 thành hạn hoàn tất mọi chức năng của tuần 3–4 hoặc coi thời gian từ đầu tuần đã qua là capacity còn mới.
+
+**Đối soát hiện tại:** giả định W1 hoàn tất chỉ dùng tính effort. PR #69 đã merge; #70 và #73–#77 còn mở tại lần kiểm tra 15/11. Dùng [brief chung §4–5](week-2-3-taskbrief.md) làm nguồn thống nhất cho tải review đã sửa, thứ tự handoff và bằng chứng live từng operation; không lấy giả định thay nghiệm thu.
 
 ## 2. Phân bổ công sức và ưu tiên
 
@@ -59,9 +61,10 @@ Giờ owner đã có design/code/test/integration/docs/VI-EN và cache của mod
 
 1. Tuần 2 tạo preview Facebook/LinkedIn, sửa text và hiển thị giới hạn từ capability/quy tắc đã xác minh; lưu version/current/approval vào repository production, tái sử dụng rule domain SP-016.
 2. Duyệt gắn đúng version bất biến của một brief-channel link; sửa text/ảnh tạo version mới chưa duyệt. Không approve toàn brief rồi cho cả hai kênh dùng tùy ý.
-3. Tuần 3 hoàn thiện transaction/expected-current guard, boundary và restart; bàn giao resolver approved payload cho Minh. AI callback cũ chỉ được áp dụng nếu `expectedCurrentVersionId` còn khớp; stale callback không ghi đè current/approval mới.
+3. Thiện sở hữu consumer text-output SP-031 → SP-036: nhận DTO/correlation sớm tuần 3 bằng fixture, áp dụng output thành version mới chưa duyệt qua expected-current guard; tích hợp thật khi Đạt giao packaging tuần 4, không tự lấy text từ View hoặc gọi provider. Giờ wiring/test phải đối soát cùng Minh/Đạt, chưa hứa đủ luồng AI ở 21/11.
+4. Tuần 3 hoàn thiện transaction/expected-current guard, boundary và restart; bàn giao resolver approved payload cho Minh. AI callback cũ chỉ được áp dụng nếu `expectedCurrentVersionId` còn khớp; stale callback không ghi đè current/approval mới.
 
-- [ ] Bài chưa duyệt hoặc approval cũ bị vô hiệu không enqueue được cả online/offline; backend/provider input không tự vượt gate duyệt.
+- [ ] Tuần 3 kiểm resolver từ chối bài chưa duyệt/approval cũ bằng unit/fixture; ca admission online/offline thật tích hợp cùng SP-026 tuần 4. Bài chưa duyệt hoặc approval cũ bị vô hiệu không enqueue được cả online/offline; backend/provider input không tự vượt gate duyệt.
 - [ ] Preview tách kênh; test dưới/đúng/vượt giới hạn thực, vượt giới hạn chặn gửi. Quy tắc chưa xác minh ghi thiếu đầu vào, không tự bịa số ký tự.
 - [ ] Current/approved/parent cùng link; version kênh A không dùng làm approval kênh B. Lưu version mới + mất hiệu lực approval nguyên tử.
 - [ ] Sau restart/offline, trạng thái text/ảnh/version/approval đúng; restore là tạo bản mới chưa duyệt theo contract, nhưng lịch sử/restore UI đầy đủ vẫn thuộc SP-040 về sau.
@@ -81,6 +84,8 @@ Giờ owner đã có design/code/test/integration/docs/VI-EN và cache của mod
 - **Nguồn/phụ thuộc:** [Proposal §4.1/§5.1/F7](../../SocialPilot_Proposal_Java.md), [analytics contract §§3/5–7](../../analytics-data-contract.md). SP-020 đủ dựng khung bằng fixture; [Nghị SP-045/SP-046](tv4-nghi-taskbrief.md#sp-046) bắt buộc cho final binding/acceptance.
 
 **Tuần 3 — đầu ra khung:** XML/ViewModel hiển thị card kênh, số liệu từng bài, follower timeline, tương tác tuần, top bài và so sánh kênh theo DTO. Fixture rỗng/thiếu quyền/stale/error/partial có nhãn trên màn hình và test; không ghi fixture vào production history. Giữ query/filter trong state, không gọi sync lại chỉ vì reattach observer.
+
+**Gate dữ liệu:** Nghị bàn giao schema/DTO/fixture sớm 17/11, mục tiêu mẫu thật thứ hai 19/11 và đối chiếu cuối 21/11. SP-046 được phát triển song song trước khi SP-045 đóng. Mẫu thật trễ/không tương thích thì giữ UI fixture có nhãn, ghi SP-047 real-data acceptance bị đe dọa ở 29/11; không tự đổi nguồn hoặc vẽ thêm lịch sử.
 
 **Tuần 4 — đầu ra tích hợp:** bind repository của Nghị, dùng định nghĩa/kỳ/timezone/coverage do repository trả. UI chỉ format số và thời gian, không tính lại ER/delta/tổng tuần hoặc tự ghép metric hai nền tảng. Khả năng N1/N3 có hợp đồng để tiếp tục nhưng UI phân nhóm/mục tiêu đầy đủ thuộc SP-049 về sau.
 
@@ -106,7 +111,8 @@ Giờ owner đã có design/code/test/integration/docs/VI-EN và cache của mod
 
 - [ ] Người dùng đổi VI/EN trong app, restart vẫn giữ; không chỉ đổi theo locale thiết bị và không đổi nhầm ngôn ngữ nội dung của brief.
 - [ ] Đổi ngôn ngữ/khởi tạo View không làm mất draft/filter hoặc tạo yêu cầu AI/publish mới.
-- [ ] Offline đọc/sửa/lưu draft và đọc cache đã sync; thao tác cần mạng được báo rõ, queue được phép nhận bài đã duyệt theo hợp đồng Minh.
+- [ ] **21/11:** offline đọc/sửa/lưu draft và đọc cache đã sync; thao tác cần mạng được báo rõ. Queue state dùng fixture có nhãn nếu SP-026 chưa có, không báo đã thử enqueue thật.
+- [ ] **Tuần 4 qua SP-026:** tích hợp queue nhận bài đã duyệt khi offline và khôi phục sau restart; Minh cung cấp admission/job outcome, Thiện nối UI. Giữ ca này trong nghiệm thu liên thông SP-052; SP-051 framework xong không đóng thay ca queue.
 - [ ] Không coi toàn bộ offline là cấm mọi thao tác; không tự gửi lại AI/reply/publish khi vừa có mạng mà chưa qua policy tương ứng.
 - [ ] Main screens và lỗi của phần đã tích hợp có strings VI/EN; layout/placeholder không vỡ; module owner nhận checklist thiếu chuỗi/cache phần mình.
 - [ ] Framework xong không tự chứng minh toàn F9 đã nghiệm thu: các module tuần 4–5 tự nối cache/strings, SP-052 nghiệm thu xuyên luồng về sau.

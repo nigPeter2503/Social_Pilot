@@ -1,6 +1,6 @@
 # Taskbrief cá nhân tuần 2–3 — Ngô Gia Minh (TV1)
 
-**Owner:** Ngô Gia Minh — GitHub **@nigPeter2503**. Soạn ngày **15/11/2026**, Asia/Bangkok, theo [taskbrief chung đã được người dùng duyệt](week-2-3-taskbrief.md), baseline `7134bde`. Cùng gói tài liệu [SP-062 / #78](https://github.com/nigPeter2503/Social_Pilot/issues/78), [PR #79](https://github.com/nigPeter2503/Social_Pilot/pull/79). [Project #5](https://github.com/users/nigPeter2503/projects/5).
+**Owner:** Ngô Gia Minh — GitHub **@nigPeter2503**. Soạn ngày **15/11/2026**, Asia/Bangkok, theo [taskbrief chung đã được người dùng duyệt](week-2-3-taskbrief.md), baseline lịch sử `7134bde`, đã đối soát feedback ngày 15/11/2026. Cùng gói tài liệu [SP-062 / #78](https://github.com/nigPeter2503/Social_Pilot/issues/78), [PR #79](https://github.com/nigPeter2503/Social_Pilot/pull/79). [Project #5](https://github.com/users/nigPeter2503/projects/5).
 
 ## 1. Phạm vi và cách sử dụng
 
@@ -11,6 +11,8 @@ Tuần 1 và bảy PR #69/#70/#73/#74/#75/#76/#77 được coi là đã xong the
 Các issue bên dưới có thật; người chịu trách nhiệm theo brief đã duyệt là Minh. Khi đọc tracker ngày 15/11, các issue triển khai này chưa có assignee; tài liệu không tự cập nhật assignment/status. Nhãn In Progress trong bản report là kịch bản báo cáo, không thay việc nhận task trên Project trước khi sửa code.
 
 **Mốc:** phần bàn giao tuần 2 hạn **thứ Hai, 16/11/2026**; phần tuần 3 hạn **21/11/2026**; tuần 4 **23–29/11** là kế hoạch phía trước, hạn dự kiến **29/11**. Mốc 16/11 chỉ áp dụng phần việc tuần 2 đã phân bổ, không kéo toàn bộ task nhiều giai đoạn về ngày này. Giờ là công sức cho cả khoảng tuần, không phải giờ mới còn trống từ hôm nay.
+
+**Đối soát hiện tại:** giả định W1 hoàn tất chỉ dùng tính effort. PR #69 đã merge; #70 và #73–#77 còn mở tại lần kiểm tra 15/11. Dùng [brief chung §4–5](week-2-3-taskbrief.md) làm nguồn thống nhất cho tải review đã sửa, thứ tự handoff và bằng chứng live từng operation; không lấy giả định thay nghiệm thu.
 
 ## 2. Phân bổ công sức
 
@@ -25,7 +27,7 @@ Các issue bên dưới có thật; người chịu trách nhiệm theo brief đ
 ## 3. Thứ tự thực hiện và bàn giao
 
 1. Nhận contract kho bí mật từ [Đạt — SP-027](tv2-dat-taskbrief.md#sp-027); kiểm tra đầu ra OAuth tuần 1, sau đó hoàn thiện SP-022. Dùng adapter đã có, không viết lại state/handoff engine.
-2. Sau kết nối production dùng được, bàn giao scope/revision/capability cho [Nghị — SP-041/SP-045](tv4-nghi-taskbrief.md#sp-041). Thiếu quyền của endpoint nào được ghi riêng; không chặn phần độc lập bằng một trạng thái chung.
+2. Trước lần thu thật 16/11: Minh/SP-022 tạo/upsert Channel và bàn giao identity/revision lookup; Nghị/SP-041 tạo/upsert PublishedPost của bài có sẵn theo cùng khóa `(channelId, externalPostId)`. Đạt cấp lượt schema theo thứ tự trong brief chung. Không bắt Nghị chờ SP-025 tuần 3 mới có root bài. Sau kết nối production dùng được, bàn giao scope/revision/capability cho [Nghị — SP-041/SP-045](tv4-nghi-taskbrief.md#sp-041). Thiếu quyền của endpoint nào được ghi riêng; không chặn phần độc lập bằng một trạng thái chung.
 3. Trong tuần 2, chốt policy SP-024 với Đạt/Nghị, triển khai phần thiết lập HTTPS SP-053. Không giữ tombstone theo giả định chưa được duyệt.
 4. Tuần 3 hoàn thiện SP-053/SP-023; nhận đầu ra approval từ [Thiện — SP-036](tv3-thien-taskbrief.md#sp-036), rồi nối kênh production đầu tiên ở SP-025.
 5. Tuần 4 nhận ảnh/metadata của [Đạt — SP-032](tv2-dat-taskbrief.md#sp-032), hoàn thiện SP-025 trước SP-026. Nếu handoff trễ, báo ảnh hưởng cửa sổ 16h queue, không đưa task phụ thuộc lên trước.
@@ -56,6 +58,8 @@ Các issue bên dưới có thật; người chịu trách nhiệm theo brief đ
 - [ ] Sai state/phiên/redirect, handoff hết hạn/dùng lại không tạo kết nối; regression không làm mất các kiểm tra bảo mật tuần 1.
 - [ ] Token/key/client secret không xuất hiện trong URL điều hướng, log, Room thường hoặc backup; lỗi không lộ response thô.
 - [ ] Consumer nhận ví dụ connected/reauth/permission denied và cách kiểm revision tại điểm ghi dữ liệu.
+
+**Handoff bắt buộc 16/11:** SP-027 bàn giao trước wiring SP-022; sau đó Minh giao Channel upsert/lookup, account/grant/revision và capability đúng operation cho Nghị. Đạt chốt slot trước sửa schema. Nếu trễ ghi ngay ảnh hưởng lần thu SP-045/SP-041; Nghị vẫn làm parser/fixture, follower chỉ chạy sau Channel và quyền hợp lệ.
 
 **Kiểm thử/bằng chứng:** unit/MockMvc cho wiring và state transitions; thiết bị cho Keystore, cold-start callback và reload. Thử provider thật đúng tài khoản với quyền đã xác nhận; tách fixture khỏi API thật. Handoff cho Nghị trước lần thu snapshot/comment đầu, cho Thiện trước SP-023/SP-025.
 
@@ -121,6 +125,8 @@ Các issue bên dưới có thật; người chịu trách nhiệm theo brief đ
 - **Hai reviewer dự kiến:** Nguyễn Đức Đạt (@dat532006), Đỗ Phước Thiện (@PhuocThien06). **Nhánh đề xuất:** `feat/sp-025-approved-publishing`.
 - **Nguồn:** [Proposal F5/§5.1](../../SocialPilot_Proposal_Java.md), [social contract §§4–5](../../social-contract.md). **Phụ thuộc:** SP-022; [Thiện SP-036](tv3-thien-taskbrief.md#sp-036); [Đạt SP-032](tv2-dat-taskbrief.md#sp-032) cho ảnh.
 
+**Kịch bản mốc:** tuần 3 dùng version **sửa tay đã duyệt**, không báo đã nối đủ brief → AI → editor → duyệt → đăng. Đạt/SP-031 cung cấp text-output contract, Thiện/SP-036 sở hữu wiring text thành version mới chưa duyệt; packaging text/ảnh ở tuần 4 mới là đầu vào kiểm thử xuyên luồng với Minh. Ca đó ghi brief/channel/connection revision/currentVersion/approvedVersion và kết quả đăng trên cùng chuỗi tương quan; giờ tích hợp/test còn cần xác minh trong ước lượng, không coi 2h SP-033 là đủ.
+
 **Thực hiện:** lấy payload từ đúng version bất biến với approval còn hiệu lực, không lấy bản mới nhất theo thời điểm gửi; giữ requestId/channelId/revision/approvedVersionId xuyên suốt; ánh xạ kết quả và lưu ID/URL/thời điểm. Bảo toàn kết quả kênh thành công khi kênh kia lỗi.
 
 - [ ] Version chưa duyệt, đã bị sửa hoặc khác scope không được gửi; kiểm tra trước admission và ngay trước dispatch.
@@ -152,6 +158,8 @@ Các issue bên dưới có thật; người chịu trách nhiệm theo brief đ
 **Kiểm thử/handoff:** Room transaction/concurrency/migration; WorkManager test helpers; MockWebServer timeout sau gửi, 429, disconnect và cancellation; emulator/thiết bị cho offline/restart. Giao bảng job/outcome, video ca mất mạng, bằng chứng đối soát và giới hạn chưa chạy cho cả nhóm. Nếu >16h hoặc >2 ngày tập trung, báo phần còn lại và đề nghị child ticket trước khi mở rộng phạm vi.
 
 ## 5. Điều phối SP-055 và review
+
+Theo bảng review đã sửa ở brief chung, Minh phải ghi quyết định năng lực trước checkpoint 16/11: Đạt vượt 2.5h tuần 3 và 1h tuần 4; Nghị vượt 0.25h tuần 3 và 1.75h tuần 4. SP-051 (21/11), SP-037/SP-047 (29/11) có nguy cơ trễ review cuối. Chỉ đổi reviewer sau kiểm điều kiện schema/consumer và giờ người thay; nếu không có người hợp lệ thì ghi forecast trễ, không báo lịch đã khả thi.
 
 [SP-055 / #57](https://github.com/nigPeter2503/Social_Pilot/issues/57): Minh chịu trách nhiệm tổng hợp, mỗi người tự cung cấp kết quả module. Mỗi tuần chỉ tính **2h/người**: hai checkpoint ngắn, chuẩn bị và demo/quyết định; không cộng 8h team vào riêng tải Minh. Nguồn: [CONTRIBUTING §§8–9](../../../CONTRIBUTING.md), [brief chung §4](week-2-3-taskbrief.md).
 
