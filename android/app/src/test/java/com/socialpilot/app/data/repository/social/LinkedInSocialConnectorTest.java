@@ -20,6 +20,7 @@ public class LinkedInSocialConnectorTest {
             public ChannelInfo current(){return current.get();}public String accessToken(){return "fake-token";}public void requireReauth(long r){reauth.incrementAndGet();}
         },r->new LinkedInSocialConnector.Snapshot("version","Approved test text",approved.get()),new LinkedInSocialConnector.Attempts(){
             public boolean begin(PublishRequest r){return reserved.compareAndSet(false,true);}
+            public PublishResult existing(PublishRequest r){return persisted.get()==null?null:LinkedInPostVerification.previousResult(r,new com.google.gson.Gson().toJson(persisted.get()));}
             public void record(PublishResult r){persisted.set(r);recorded.countDown();}
         },new OkHttpClient.Builder().readTimeout(300,TimeUnit.MILLISECONDS).build(),server.url("/rest/posts"),"202609",io);
     }
@@ -39,12 +40,27 @@ public class LinkedInSocialConnectorTest {
         assertEquals(CapabilityAvailability.AVAILABLE,connector.capability(SocialOperation.PUBLISH_TEXT).availability);
         assertEquals(CapabilityAvailability.UNVERIFIED,connector.capability(SocialOperation.READ_COMMENTS).availability);
     }
+    @Test public void secondTapAfterCreatedDoesNotEraseIdOrPostAgain() throws Exception {
+        server.enqueue(new MockResponse().setResponseCode(201).addHeader("x-restli-id","urn:li:share:123"));
+        assertEquals(PublishResult.Outcome.PUBLISHED_URL_PENDING,send(request()).outcome);
+        var repeated=send(new PublishRequest("second","li-channel",1,"version"));
+        assertEquals(PublishResult.Outcome.PUBLISHED_URL_PENDING,repeated.outcome);assertEquals("urn:li:share:123",repeated.postId);assertEquals(1,server.getRequestCount());
+    }
     @Test public void approvalAndRevisionAreCheckedBeforeAnyHttp() throws Exception {
         approved.set(false);assertEquals(SocialError.Code.APPROVAL_REQUIRED,send(request()).error.code);assertEquals(0,server.getRequestCount());
         approved.set(true);assertEquals(SocialError.Code.CHANNEL_DISCONNECTED,send(new PublishRequest("r","li-channel",2,"version")).error.code);assertEquals(0,server.getRequestCount());
     }
     @Test public void authenticationFailureRequiresReconnect() throws Exception {
-        server.enqueue(new MockResponse().setResponseCode(401));assertEquals(SocialError.Code.AUTH_REQUIRED,send(request()).error.code);assertEquals(1,reauth.get());
+        server.enqueue(new MockResponse().setResponseCode(401));
+        var result=send(request());
+        assertEquals(SocialError.Code.AUTH_REQUIRED,result.error.code);
+        assertEquals(SocialError.NextAction.RECONNECT,result.error.nextAction);
+        assertEquals(1,reauth.get());
+        assertEquals(SocialError.Code.AUTH_REQUIRED,persisted.get().error.code);
+        // This fixture only counts reauth calls; production credentials also change channel status.
+        // A duplicate with unchanged fixture credentials still must not send another request.
+        assertEquals(PublishResult.Outcome.UNKNOWN,send(request()).outcome);
+        assertEquals(1,server.getRequestCount());
     }
     @Test public void forbiddenAndRateLimitHaveDistinctActions() throws Exception {
         server.enqueue(new MockResponse().setResponseCode(403));assertEquals(SocialError.Code.PERMISSION_REQUIRED,send(request()).error.code);

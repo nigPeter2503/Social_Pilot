@@ -133,6 +133,22 @@ public class EncryptedOAuthStoreTest {
     private OAuthExchangeResponse linkedin(String id) {
         return new OAuthExchangeResponse("li-session","LINKEDIN",id,"PERSON","Member","fake-li-token",null,"Bearer","2099-01-01T00:00:00Z");
     }
+    @Test public void expiredLinkedinRequiresReconnectAfterReloadWithoutAffectingFacebook() {
+        store.saveConnected(connection("page","fake-fb-token"));
+        store.saveConnected(new OAuthExchangeResponse("li-session","LINKEDIN","member","PERSON",
+                "Member","fake-expired-token",null,"Bearer","2000-01-01T00:00:00Z"));
+        var reload=new EncryptedOAuthStore(preferences.reboot(),cipher);
+        var linkedin=reload.channel("LINKEDIN");
+        assertEquals(com.socialpilot.app.domain.contract.social.ConnectionStatus.REAUTH_REQUIRED,linkedin.connectionStatus);
+        assertNull(reload.tokenFor("LINKEDIN",linkedin.channelId,linkedin.connectionRevision));
+        var facebook=reload.channel("FACEBOOK");
+        assertEquals(com.socialpilot.app.domain.contract.social.ConnectionStatus.CONNECTED,facebook.connectionStatus);
+        assertEquals("fake-fb-token",reload.tokenFor("FACEBOOK",facebook.channelId,facebook.connectionRevision));
+        reload.saveConnected(linkedin("member"));
+        assertEquals(com.socialpilot.app.domain.contract.social.ConnectionStatus.CONNECTED,reload.channel("LINKEDIN").connectionStatus);
+        assertNull(reload.tokenFor("LINKEDIN",linkedin.channelId,linkedin.connectionRevision));
+        assertEquals("fake-li-token",reload.tokenFor("LINKEDIN",linkedin.channelId,linkedin.connectionRevision+1));
+    }
     @Test public void twoProvidersSurviveReloadAndPendingClearIsIsolated() {
         store.saveConnected(connection("page","fake-fb-token"));store.saveConnected(linkedin("member"));
         store.savePending("FACEBOOK","fb-session","a".repeat(43),null);

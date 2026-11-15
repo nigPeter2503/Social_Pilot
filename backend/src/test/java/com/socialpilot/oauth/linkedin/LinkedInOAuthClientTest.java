@@ -26,6 +26,20 @@ class LinkedInOAuthClientTest {
         var r=client.exchangeCode("fake-code");assertEquals("PERSON",r.accountType);assertEquals("member-id",r.id);assertNull(r.refreshToken);
         assertTrue(Instant.parse(r.expiresAt).isAfter(Instant.now()));assertFalse(r.toString().contains("fake-access"));server.verify();
     }
+    @Test void acceptsCommaDelimitedGrantedScopes(){
+        token("{\"access_token\":\"fake-access\",\"scope\":\"openid,profile,w_member_social\"}");
+        identity("{\"sub\":\"member-id\",\"name\":\"Test Member\"}");
+        assertEquals("member-id",client.exchangeCode("fake-code").id);server.verify();
+    }
+    @Test void acceptsMixedDelimitersAndSurroundingWhitespace(){
+        token("{\"access_token\":\"fake-access\",\"scope\":\" openid, profile w_member_social \"}");
+        identity("{\"sub\":\"member-id\",\"name\":\"Test Member\"}");
+        assertEquals("member-id",client.exchangeCode("fake-code").id);server.verify();
+    }
+    @Test void commaDelimitedMissingPermissionIsStillDenied(){
+        token("{\"access_token\":\"fake-access\",\"scope\":\"openid,profile\"}");
+        assertEquals("ACCESS_DENIED",assertThrows(OAuthFlowException.class,()->client.exchangeCode("fake-code")).getCode());server.verify();
+    }
     @Test void usesOptionalRefreshAndUnknownExpiryHonestly(){
         token("{\"access_token\":\"fake-access\",\"refresh_token\":\"fake-refresh\"}");identity("{\"sub\":\"id\",\"name\":\"Member\"}");
         var r=client.exchangeCode("fake-code");assertEquals("fake-refresh",r.refreshToken);assertNull(r.expiresAt);server.verify();

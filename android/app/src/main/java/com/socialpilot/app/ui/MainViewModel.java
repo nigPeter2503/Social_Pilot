@@ -47,6 +47,7 @@ public final class MainViewModel extends AndroidViewModel {
         if(Boolean.TRUE.equals(publishing.getValue()))return;
         ((SocialPilotApplication)getApplication()).container().io.execute(()->{
             try{publisher.confirmOpenedPostUrl(url);publishState.postValue(publisher.lastResult());}
+            catch(IllegalArgumentException e){publishState.postValue("URL_FORMAT_REQUIRED");}
             catch(RuntimeException e){publishState.postValue("URL_NOT_VERIFIED");}
         });
     }

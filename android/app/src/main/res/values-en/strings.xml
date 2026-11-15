@@ -33,4 +33,7 @@
   <string name="linkedin_verify_message">I opened this link on LinkedIn and confirmed the account and content match the post just published.</string>
   <string name="linkedin_verify_confirm">Confirmed matching post</string>
   <string name="linkedin_publish_success">Published; link verified by the user.\n%1$s</string>
+  <string name="linkedin_url_format_required">Open the lnkd.in link in a browser, then paste the full post URL: https://www.linkedin.com/feed/update/… or https://www.linkedin.com/posts/…</string>
+  <string name="linkedin_url_not_verified">The link could not be verified. Check that the app has the post ID and that the link matches that post. Do not publish again.</string>
+  <string name="linkedin_url_verified">Post link confirmation saved.</string>
 </resources>

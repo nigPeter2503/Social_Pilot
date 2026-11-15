@@ -26,6 +26,7 @@ public final class LinkedInSocialConnector implements SocialConnector {
     public interface Attempts {
         boolean begin(PublishRequest request);
         void record(PublishResult result);
+        default PublishResult existing(PublishRequest request){return null;}
     }
     private final ChannelInfo channel;
     private final Credentials credentials;
@@ -67,7 +68,10 @@ public final class LinkedInSocialConnector implements SocialConnector {
                 String token=credentials.accessToken();if(token==null||token.trim().isEmpty()){
                     deliver(callback,cancelled,reject(request,SocialError.Code.AUTH_REQUIRED,SocialError.NextAction.RECONNECT));return;}
                 if(cancelled.get())return;
-                if(!attempts.begin(request)){deliver(callback,cancelled,PublishResult.unknown(request));return;}
+                if(!attempts.begin(request)){
+                    PublishResult existing=attempts.existing(request);
+                    deliver(callback,cancelled,existing==null?PublishResult.unknown(request):existing);return;
+                }
                 reserved=true;
                 JsonObject json=new JsonObject();json.addProperty("author","urn:li:person:"+channel.externalAccountId);
                 json.addProperty("commentary",snapshot.text);json.addProperty("visibility","PUBLIC");json.addProperty("lifecycleState","PUBLISHED");json.addProperty("isReshareDisabledByAuthor",false);

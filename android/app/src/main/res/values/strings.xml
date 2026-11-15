@@ -33,4 +33,7 @@
   <string name="linkedin_verify_message">Tôi đã mở link này trên LinkedIn và xác nhận đúng tài khoản, đúng nội dung bài vừa đăng.</string>
   <string name="linkedin_verify_confirm">Đã kiểm tra đúng bài</string>
   <string name="linkedin_publish_success">Đã đăng; link được người dùng kiểm chứng.\n%1$s</string>
+  <string name="linkedin_url_format_required">Hãy mở link lnkd.in trong trình duyệt rồi dán URL bài đầy đủ dạng https://www.linkedin.com/feed/update/… hoặc https://www.linkedin.com/posts/…</string>
+  <string name="linkedin_url_not_verified">Chưa xác nhận được link. Hãy kiểm tra app đang giữ ID bài vừa đăng và link đúng bài đó. Không cần đăng lại.</string>
+  <string name="linkedin_url_verified">Đã lưu xác nhận link bài.</string>
 </resources>

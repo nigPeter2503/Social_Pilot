@@ -33,7 +33,7 @@ public class EncryptedOAuthStoreDeviceTest {
     @Test public void keystoreRoundTripKeepsReconnectAndPendingRecordsWhole() {
         EncryptedOAuthStore store = new EncryptedOAuthStore(context);
         store.saveConnected(connection("old-page", "fake-old-token"));
-        store.saveConnected(connection("new-page", "fake-new-token"));
+        store.saveConnected(connection("new-page", "fake-new-token"), true);
         String verifier = new String(new char[43]).replace('\0', 'a');
         store.savePending("pending-session", verifier);
         EncryptedOAuthStore reloaded = new EncryptedOAuthStore(context);
@@ -53,6 +53,63 @@ public class EncryptedOAuthStoreDeviceTest {
         assertNull(reloaded.pageSummary());
         assertNull(reloaded.accessToken());
         assertFalse(preferences.contains("connected_v3_FACEBOOK"));
+    }
+
+    @Test public void bothProvidersAndPendingSessionsSurviveKeystoreReload() {
+        EncryptedOAuthStore store = new EncryptedOAuthStore(context);
+        store.saveConnected(connection("test-page", "fake-fb-token"));
+        store.saveConnected(linkedin("2099-01-01T00:00:00Z"));
+        String verifier = new String(new char[43]).replace('\0', 'a');
+        store.savePending("FACEBOOK", "fb-session", verifier, null);
+        store.savePending("LINKEDIN", "li-session", verifier, "2099-01-01T00:00:00Z");
+        EncryptedOAuthStore reloaded = new EncryptedOAuthStore(context);
+        assertEquals("fake-fb-token", reloaded.accessToken("FACEBOOK"));
+        assertEquals("fake-li-token", reloaded.accessToken("LINKEDIN"));
+        assertEquals("LINKEDIN", reloaded.findPending("li-session").provider);
+        reloaded.clearPending("FACEBOOK", "wrong-session");
+        assertNotNull(reloaded.getPending("FACEBOOK"));
+        reloaded.clearPending("FACEBOOK", "fb-session");
+        assertNull(reloaded.getPending("FACEBOOK"));
+        assertNotNull(new EncryptedOAuthStore(context).getPending("LINKEDIN"));
+    }
+
+    @Test public void realKeystoreMigratesV2FacebookWithoutReplacingLinkedin() throws Exception {
+        EncryptedOAuthStore store = new EncryptedOAuthStore(context);
+        // Build the historical v2 envelope with the real cipher, using only fake credentials.
+        java.lang.reflect.Field field = EncryptedOAuthStore.class.getDeclaredField("cipher");
+        field.setAccessible(true);
+        EncryptedOAuthStore.RecordCipher realCipher = (EncryptedOAuthStore.RecordCipher) field.get(store);
+        String json = "{\"version\":2,\"connection\":"
+                + new com.google.gson.Gson().toJson(connection("old-page", "fake-v2-token")) + "}";
+        String encrypted = realCipher.encrypt("connected_v2", json);
+        assertTrue(preferences.edit().putString("connected_v2", encrypted).commit());
+        store.saveConnected(linkedin("2099-01-01T00:00:00Z"));
+        assertEquals("fake-v2-token", store.accessToken("FACEBOOK"));
+        assertFalse(preferences.contains("connected_v2"));
+        assertTrue(preferences.contains("connected_v3_FACEBOOK"));
+        EncryptedOAuthStore reloaded = new EncryptedOAuthStore(context);
+        assertEquals("fake-v2-token", reloaded.accessToken("FACEBOOK"));
+        assertEquals("fake-li-token", reloaded.accessToken("LINKEDIN"));
+        assertEquals(1, reloaded.channel("FACEBOOK").connectionRevision);
+        assertFalse(preferences.getString("connected_v3_FACEBOOK", "").contains("fake-v2-token"));
+    }
+
+    @Test public void reauthFlagSurvivesReloadWithoutAffectingFacebook() {
+        EncryptedOAuthStore store = new EncryptedOAuthStore(context);
+        store.saveConnected(connection("page", "fake-fb-token"));
+        store.saveConnected(linkedin("2099-01-01T00:00:00Z"));
+        long revision = store.channel("LINKEDIN").connectionRevision;
+        store.requireReauth("LINKEDIN", revision);
+        EncryptedOAuthStore reloaded = new EncryptedOAuthStore(context);
+        assertEquals(com.socialpilot.app.domain.contract.social.ConnectionStatus.REAUTH_REQUIRED,
+                reloaded.channel("LINKEDIN").connectionStatus);
+        assertNull(reloaded.tokenFor("LINKEDIN", reloaded.channel("LINKEDIN").channelId, revision));
+        assertEquals("fake-fb-token", reloaded.accessToken("FACEBOOK"));
+    }
+
+    private OAuthExchangeResponse linkedin(String expiry) {
+        return new OAuthExchangeResponse("fake-li-session", "LINKEDIN", "fake-member", "PERSON", "Test Member",
+                "fake-li-token", null, "Bearer", expiry);
     }
 
     private OAuthExchangeResponse connection(String page, String token) {

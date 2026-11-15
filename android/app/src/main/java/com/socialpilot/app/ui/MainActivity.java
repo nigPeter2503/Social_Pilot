@@ -71,8 +71,17 @@ public final class MainActivity extends AppCompatActivity {
             if(result==null)return;
             int label=result.startsWith("PUBLISHED_URL_PENDING")?R.string.linkedin_publish_pending:
                 result.startsWith("UNKNOWN")?R.string.linkedin_publish_unknown:
-                result.startsWith("SUCCESS")?R.string.linkedin_publish_success:R.string.linkedin_publish_other;
+                result.startsWith("SUCCESS")?R.string.linkedin_publish_success:
+                result.startsWith("URL_FORMAT_REQUIRED")?R.string.linkedin_url_format_required:
+                result.startsWith("URL_NOT_VERIFIED")?R.string.linkedin_url_not_verified:R.string.linkedin_publish_other;
             binding.linkedinPublishStatus.setText(getString(label,result));
+            if(result.startsWith("URL_")){
+                binding.linkedinPostUrl.setError(getString(label,result));
+                Toast.makeText(this,getString(label,result),Toast.LENGTH_LONG).show();
+            }else if(result.startsWith("SUCCESS")){
+                binding.linkedinPostUrl.setError(null);
+                Toast.makeText(this,R.string.linkedin_url_verified,Toast.LENGTH_LONG).show();
+            }
             refreshConnectionSummaries();
         });
         model.drafts().observe(this, drafts -> {

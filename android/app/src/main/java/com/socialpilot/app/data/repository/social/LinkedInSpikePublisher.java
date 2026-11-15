@@ -36,6 +36,12 @@ public final class LinkedInSpikePublisher {
             public void requireReauth(long rev){store.requireReauth("LINKEDIN",rev);}
         };
         LinkedInSocialConnector.Attempts ledger=new LinkedInSocialConnector.Attempts(){
+            public PublishResult existing(PublishRequest r){
+                synchronized(attempts){
+                    String key="attempt_"+hash(r.channelId+":"+r.approvedVersionId);
+                    return LinkedInPostVerification.previousResult(r,attempts.getString(key,""));
+                }
+            }
             public boolean begin(PublishRequest r){
                 synchronized(attempts){
                     String key="attempt_"+hash(r.channelId+":"+r.approvedVersionId);
