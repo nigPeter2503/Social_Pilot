@@ -13,6 +13,7 @@ public final class SampleResultEntity {
     @NonNull public String checkpoint;
     @NonNull public String runId;
     public String workRequestId;
+    public boolean workEnqueueFailed;
     public long updatedAt;
 
     public SampleResultEntity(@NonNull String channelId, @NonNull String text,

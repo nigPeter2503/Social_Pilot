@@ -18,6 +18,9 @@ public interface SampleResultDao {
     @Query("SELECT * FROM sample_results WHERE channelId = :channelId LIMIT 1")
     SampleResultEntity get(String channelId);
 
+    @Query("SELECT * FROM sample_results WHERE workRequestId IS NOT NULL")
+    List<SampleResultEntity> withAssignedWork();
+
     @Query("UPDATE sample_results SET state = 'INTERRUPTED', updatedAt = :now "
             + "WHERE state = 'RUNNING'")
     int markInterrupted(long now);
@@ -26,14 +29,20 @@ public interface SampleResultDao {
             + "WHERE channelId = :channelId AND runId = :runId")
     int updateRun(String channelId, String runId, String text, String state, long now);
 
-    @Query("UPDATE sample_results SET workRequestId = :workRequestId, checkpoint = 'NOT_STARTED', "
+    @Query("UPDATE sample_results SET workRequestId = :workRequestId, workEnqueueFailed = 0, "
             + "updatedAt = :now WHERE channelId = :channelId AND runId = :runId "
             + "AND state = 'COMPLETE'")
     int assignWork(String channelId, String runId, String workRequestId, long now);
 
-    @Query("UPDATE sample_results SET workRequestId = NULL, updatedAt = :now "
-            + "WHERE channelId = :channelId AND runId = :runId")
-    int invalidateWork(String channelId, String runId, long now);
+    @Query("UPDATE sample_results SET workRequestId = NULL, workEnqueueFailed = 0, updatedAt = :now "
+            + "WHERE channelId = :channelId AND runId = :runId "
+            + "AND workRequestId = :workRequestId")
+    int invalidateWork(String channelId, String runId, String workRequestId, long now);
+
+    @Query("UPDATE sample_results SET workRequestId = NULL, workEnqueueFailed = 1, "
+            + "updatedAt = :now WHERE channelId = :channelId AND runId = :runId "
+            + "AND workRequestId = :workRequestId")
+    int markWorkEnqueueFailed(String channelId, String runId, String workRequestId, long now);
 
     @Query("UPDATE sample_results SET checkpoint = :checkpoint, updatedAt = :now "
             + "WHERE channelId = :channelId AND runId = :runId "

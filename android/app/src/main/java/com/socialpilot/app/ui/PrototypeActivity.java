@@ -140,13 +140,17 @@ public final class PrototypeActivity extends AppCompatActivity {
     }
 
     private String workText(List<WorkInfo> work, SampleResultEntity result) {
+        if (result != null && result.workEnqueueFailed) {
+            return getString(R.string.prototype_work_enqueue_failed);
+        }
         if (result != null && result.workRequestId == null
                 && !"NOT_STARTED".equals(result.checkpoint)) {
             return getString(R.string.prototype_work_done);
         }
-        if (work == null || result == null || result.workRequestId == null) {
+        if (result == null || result.workRequestId == null) {
             return getString(R.string.prototype_work_idle);
         }
+        if (work == null) return getString(R.string.prototype_work_waiting);
         WorkInfo.State state = null;
         for (WorkInfo item : work) {
             if (result.workRequestId.equals(item.getId().toString())) {
@@ -154,8 +158,9 @@ public final class PrototypeActivity extends AppCompatActivity {
                 break;
             }
         }
-        if (state == null || (state == WorkInfo.State.SUCCEEDED
-                && "NOT_STARTED".equals(result.checkpoint))) {
+        if (state == null) return getString(R.string.prototype_work_waiting);
+        if (state == WorkInfo.State.SUCCEEDED
+                && "NOT_STARTED".equals(result.checkpoint)) {
             return getString(R.string.prototype_work_idle);
         }
         if (state == WorkInfo.State.ENQUEUED || state == WorkInfo.State.BLOCKED) {

@@ -1,8 +1,6 @@
 package com.socialpilot.app.ui;
 
 import android.app.Application;
-import android.os.Handler;
-import android.os.Looper;
 import androidx.annotation.NonNull;
 import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
@@ -15,8 +13,6 @@ import com.socialpilot.app.data.prototype.SampleResultEntity;
 import com.socialpilot.app.prototype.DemoStreamCoordinator;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
-import java.util.HashMap;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -25,13 +21,11 @@ public final class PrototypeViewModel extends AndroidViewModel {
     private final SampleRepository repository;
     private final DemoStreamCoordinator streams;
     private final WorkManager workManager;
-    private final Map<String, String> activeRunIds = new HashMap<>();
 
     public PrototypeViewModel(@NonNull Application application) {
         super(application);
         repository = ((SocialPilotApplication) application).container().sampleResults;
-        Handler main = new Handler(Looper.getMainLooper());
-        streams = new DemoStreamCoordinator((action, delay) -> main.postDelayed(action, delay));
+        streams = ((SocialPilotApplication) application).container().sampleStreams;
         workManager = WorkManager.getInstance(application);
     }
 
@@ -53,22 +47,19 @@ public final class PrototypeViewModel extends AndroidViewModel {
         Application app = getApplication();
         String runId = UUID.randomUUID().toString();
         AtomicBoolean firstUpdate = new AtomicBoolean();
-        if (streams.start(channel, Arrays.asList(app.getString(firstChunk), app.getString(secondChunk)),
+        streams.start(channel, Arrays.asList(app.getString(firstChunk), app.getString(secondChunk)),
                 (id, phase, text) -> {
                     if (firstUpdate.compareAndSet(false, true)) {
                         repository.startRun(id, runId, workManager);
                     } else {
                         repository.updateRun(id, runId, text, phase.name());
                     }
-                })) {
-            activeRunIds.put(channel, runId);
-        }
+                });
     }
 
     private void cancel(String channel) {
         streams.cancel(channel);
-        String runId = activeRunIds.get(channel);
-        if (runId != null) repository.cancelWork(channel, runId, workManager);
+        repository.cancelCurrentWork(channel, workManager);
     }
 
     public void enqueueSample(String channel) {
@@ -78,8 +69,4 @@ public final class PrototypeViewModel extends AndroidViewModel {
 
     public static String workName(String channel) { return "sample-checkpoint-" + channel; }
 
-    @Override protected void onCleared() {
-        streams.interruptAll();
-        super.onCleared();
-    }
 }

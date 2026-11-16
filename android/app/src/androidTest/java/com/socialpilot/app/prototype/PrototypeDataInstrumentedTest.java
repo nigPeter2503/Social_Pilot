@@ -106,11 +106,21 @@ public final class PrototypeDataInstrumentedTest {
                 .getResult().get(10, TimeUnit.SECONDS);
         assertEquals(WorkInfo.State.ENQUEUED,
                 manager.getWorkInfoById(pending.getId()).get(10, TimeUnit.SECONDS).getState());
-        manager.cancelUniqueWork("sp017-test-cancel").getResult().get(10, TimeUnit.SECONDS);
-        dao.invalidateWork("B", "run-b", System.currentTimeMillis());
+        // A newly opened screen has no in-memory run ownership, but can cancel the saved job.
+        new PrototypeViewModel((SocialPilotApplication) context.getApplicationContext()).cancelB();
+        waitUntil(() -> dao.get("B").workRequestId == null);
+        waitUntil(() -> {
+            try {
+                return manager.getWorkInfoById(pending.getId()).get(1, TimeUnit.SECONDS)
+                        .getState() == WorkInfo.State.CANCELLED;
+            } catch (Exception error) {
+                return false;
+            }
+        });
         assertEquals(WorkInfo.State.CANCELLED,
                 manager.getWorkInfoById(pending.getId()).get(10, TimeUnit.SECONDS).getState());
         assertEquals("NOT_STARTED", dao.get("B").checkpoint);
+        assertTrue(dao.get("A").checkpoint.startsWith("SHA256:"));
     }
 
     @Test
@@ -122,7 +132,8 @@ public final class PrototypeDataInstrumentedTest {
                 "NOT_STARTED", "old-run", "old-job", System.currentTimeMillis()));
         SampleResultEntity workerSnapshot = dao.get("A");
 
-        assertEquals(1, dao.invalidateWork("A", "old-run", System.currentTimeMillis()));
+        assertEquals(1, dao.invalidateWork("A", "old-run", "old-job",
+                System.currentTimeMillis()));
         assertEquals(0, dao.completeCheckpoint("A", workerSnapshot.runId,
                 workerSnapshot.workRequestId, "SHA256:old", System.currentTimeMillis()));
 
@@ -157,11 +168,13 @@ public final class PrototypeDataInstrumentedTest {
         }
         assertNotNull(runId);
 
-        new PrototypeViewModel(app);
+        PrototypeViewModel second = new PrototypeViewModel(app);
         Thread.sleep(300);
         assertEquals(runId, dao.get("A").runId);
         assertEquals("RUNNING", dao.get("A").state);
-        first.cancelA();
+        second.cancelA();
+        waitUntil(() -> "CANCELLED".equals(dao.get("A").state));
+        assertEquals(runId, dao.get("A").runId);
     }
 
     @Test
@@ -182,14 +195,54 @@ public final class PrototypeDataInstrumentedTest {
         old.close();
 
         PrototypeDatabase migrated = Room.databaseBuilder(context, PrototypeDatabase.class, name)
-                .addMigrations(PrototypeDatabase.MIGRATION_1_2).build();
+                .addMigrations(PrototypeDatabase.MIGRATION_1_2,
+                        PrototypeDatabase.MIGRATION_2_3).build();
         SampleResultEntity result = migrated.results().get("A");
         assertEquals("kept text", result.text);
         assertEquals("COMPLETE", result.state);
         assertEquals("NOT_STARTED", result.checkpoint);
         assertTrue(result.runId.length() > 0);
         assertEquals(null, result.workRequestId);
+        assertEquals(false, result.workEnqueueFailed);
         migrated.close();
         context.deleteDatabase(name);
+    }
+
+    @Test
+    public void versionTwoPrototypeDatabaseKeepsCheckpointAndJobIdentity() {
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        String name = "sp017-migration-v2-test.db";
+        context.deleteDatabase(name);
+        SQLiteDatabase old = context.openOrCreateDatabase(name, Context.MODE_PRIVATE, null);
+        old.execSQL("CREATE TABLE sample_results (channelId TEXT NOT NULL PRIMARY KEY, "
+                + "text TEXT NOT NULL, state TEXT NOT NULL, checkpoint TEXT NOT NULL, "
+                + "runId TEXT NOT NULL, workRequestId TEXT, updatedAt INTEGER NOT NULL)");
+        old.execSQL("INSERT INTO sample_results VALUES ('A', 'kept text', 'COMPLETE', "
+                + "'SHA256:previous', 'old-run', 'e785b741-5c99-42fa-b727-5ae00db2803c', 100)");
+        old.execSQL("CREATE TABLE room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)");
+        old.execSQL("INSERT INTO room_master_table VALUES (42, "
+                + "'464778083676d5dfded45ac453b623f3')");
+        old.setVersion(2);
+        old.close();
+
+        PrototypeDatabase migrated = Room.databaseBuilder(context, PrototypeDatabase.class, name)
+                .addMigrations(PrototypeDatabase.MIGRATION_2_3).build();
+        SampleResultEntity result = migrated.results().get("A");
+        assertEquals("SHA256:previous", result.checkpoint);
+        assertEquals("old-run", result.runId);
+        assertEquals("e785b741-5c99-42fa-b727-5ae00db2803c", result.workRequestId);
+        assertEquals(false, result.workEnqueueFailed);
+        migrated.close();
+        context.deleteDatabase(name);
+    }
+
+    private interface Condition { boolean ready(); }
+
+    private static void waitUntil(Condition condition) throws InterruptedException {
+        for (int attempt = 0; attempt < 100; attempt++) {
+            if (condition.ready()) return;
+            Thread.sleep(20);
+        }
+        assertTrue("Timed out waiting for repository or WorkManager", condition.ready());
     }
 }

@@ -4,13 +4,13 @@
 
 Màn hình “Bản mẫu hai luồng” mở từ màn hình topic. A và B là hai luồng **dữ liệu giả** cho Facebook và LinkedIn; không gọi AI, OAuth, API mạng xã hội hoặc queue đăng bài. Mỗi luồng có bắt đầu, hủy, tiến độ và kết quả riêng. Nút “Gây lỗi” trên A cho phép xem trạng thái lỗi và thử lại.
 
-`DemoStreamCoordinator` dùng generation ID để bỏ callback đến sau khi hủy, lỗi hoặc khởi chạy lại. Bắt đầu lượt mới hoặc bấm Hủy sẽ hủy unique WorkManager job mẫu đang chờ của cùng kênh; nếu job đã hoàn tất, checkpoint đã ghi không được rollback. `PrototypeViewModel` sống qua xoay màn hình nên không khởi tạo lại luồng. Nếu process chết, hàng `RUNNING` trong Room được đổi thành `INTERRUPTED` khi mở lại; chỉ thao tác Bắt đầu của người dùng mới tạo luồng mẫu mới.
+`DemoStreamCoordinator` dùng generation ID để bỏ callback đến sau khi hủy, lỗi hoặc khởi chạy lại. Coordinator thuộc `AppContainer` trong một process: ViewModel mới sau Back hoặc xoay tiếp tục điều khiển đúng luồng đang hiển thị. Bắt đầu lượt mới hoặc bấm Hủy sẽ hủy WorkManager job mẫu đang chờ của cùng kênh; nếu job đã hoàn tất, checkpoint đã ghi không được rollback. Nếu process chết, hàng `RUNNING` trong Room được đổi thành `INTERRUPTED` khi mở lại; chỉ thao tác Bắt đầu của người dùng mới tạo luồng mẫu mới.
 
 Sau review, mỗi kết quả có `runId` bền vững và `workRequestId` của job checkpoint hiện hành. Worker chỉ ghi digest bằng `UPDATE` có điều kiện trên kênh, run, job và trạng thái `COMPLETE`; hủy job xóa ID trước khi yêu cầu WorkManager hủy. Kết quả/job cũ không thể ghi lên lượt mới. UI lọc `WorkInfo` theo ID job của row đang hiển thị. Recovery `RUNNING → INTERRUPTED` được xếp đúng một lần khi `AppContainer` khởi tạo trong process mới, trước các thao tác stream mới; việc tạo ViewModel thứ hai trong cùng process không chạy recovery lại. Database mẫu nâng từ v1 lên v2 bằng migration giữ nguyên text, state và checkpoint của hàng cũ.
 
 Kết quả mẫu nằm trong Room database `socialpilot-prototype.db`, tách khỏi `socialpilot.db` của topic v1. Không sửa schema topic và không dùng migration phá hủy. `SampleCheckpointWorker` chỉ tính SHA-256 cho kết quả mẫu đã hoàn tất và lưu checkpoint vào Room. WorkRequest có ràng buộc `NetworkType.CONNECTED`; đây là công việc mẫu hữu hạn, **không phải job AI nền hay queue đăng thật**. Worker trả thành công sau khi checkpoint được ghi. Sau force-stop, thời điểm hệ điều hành cho Worker chạy lại không được bảo đảm.
 
-SP-012 vẫn cần chốt schema chung; SP-014 cần bàn giao runtime hai luồng trước khi thay luồng giả bằng adapter thật. Payload mẫu lấy ý tưởng từ SP-016 nhưng không import contract chưa merge. Những điểm này là phụ thuộc tích hợp, không được báo là API thật đã đạt.
+SP-012 và SP-016 đã merge. Runtime SP-014 ở PR #73 vẫn cần hoàn tất review trước khi thay luồng giả bằng adapter thật. Những điểm này là phụ thuộc tích hợp, không được báo là API thật đã đạt.
 
 ## Kịch bản demo cho Minh
 
@@ -39,3 +39,10 @@ Chưa thử trên điện thoại thật trong SP-017. Chưa tích hợp runtime
 ## Kiểm chứng bản sửa review — 12/11/2026
 
 Trên Windows, JDK 21.0.13 và Android SDK 36, `assembleDebug`, `testDebugUnitTest`, `lintDebug` và `assembleDebugAndroidTest` đều đạt: 5 unit test, lint 0 lỗi/13 cảnh báo. Trên AVD API 36, `connectedDebugAndroidTest` đạt 5/5 ca, gồm kiểm tra migration v1→v2, worker cũ không ghi sau hủy/thay run và tạo ViewModel thứ hai khi stream đầu còn chạy. Thử thủ công force-stop app trong lúc A đang chạy rồi mở lại: A hiển thị `INTERRUPTED` và không tự chạy lại. Bắt đầu A mới sau một job cũ: UI hiển thị chưa có job cho lượt mới, không lấy trạng thái job cũ. Xem [hồ sơ kiểm tra](evidence/sp-017-review-verification-2026-11-12.md).
+
+## Sửa tiếp theo review vòng hai — 16/11/2026
+
+- Nút Hủy đọc `runId` và `workRequestId` hiện hành từ Room, xóa ID bằng câu `UPDATE` có điều kiện rồi hủy đúng WorkRequest UUID. ViewModel mới sau Back vẫn hủy được job đang chờ; job mới thay thế không bị lệnh hủy cũ tác động.
+- Room mẫu nâng v2→v3 thêm cờ lỗi enqueue, giữ checkpoint trước đó khi xếp lại. Repository theo dõi kết quả `Operation` của WorkManager; enqueue lỗi xóa đúng ID và báo có thể xếp lại. Khi process mở lại, ID trong Room không tìm thấy WorkSpec được đánh dấu cần xếp lại. WorkSpec đã chạy nhưng thất bại tiếp tục dùng trạng thái lỗi của WorkManager. Cả đường lỗi và đối soát đều kiểm run/job hiện hành trước khi sửa row.
+- V1→v3 và v2→v3 giữ dữ liệu cũ. WorkSpec v1 đang chờ nhưng không có `runId` sẽ thất bại sau nâng cấp; checkpoint cũ vẫn được giữ, người dùng cần xếp lại job từ màn hình prototype. Đây là chính sách cho APK demo, không phải migration queue production.
+- Test và phạm vi kiểm chứng trên bản sửa: [hồ sơ 16/11](evidence/sp-017-review-verification-2026-11-16.md). Runtime thật SP-014, provider AI và queue publish vẫn chưa được nối vào prototype.

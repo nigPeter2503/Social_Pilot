@@ -6,10 +6,15 @@ import androidx.work.Data;
 import androidx.work.ExistingWorkPolicy;
 import androidx.work.NetworkType;
 import androidx.work.OneTimeWorkRequest;
+import androidx.work.Operation;
+import androidx.work.WorkInfo;
 import androidx.work.WorkManager;
 import com.socialpilot.app.prototype.SampleCheckpointWorker;
+import com.google.common.util.concurrent.ListenableFuture;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ExecutionException;
 
 /** Serializes demo writes so a late UI event cannot reorder saved stream states. */
 public final class SampleRepository {
@@ -36,15 +41,32 @@ public final class SampleRepository {
                 System.currentTimeMillis()));
     }
 
-    public void cancelWork(String channelId, String runId, WorkManager workManager) {
+    public void cancelCurrentWork(String channelId, WorkManager workManager) {
         io.execute(() -> {
-            if (dao.invalidateWork(channelId, runId, System.currentTimeMillis()) == 1) {
-                workManager.cancelUniqueWork(workName(channelId));
+            SampleResultEntity current = dao.get(channelId);
+            if (current != null && current.workRequestId != null
+                    && dao.invalidateWork(channelId, current.runId, current.workRequestId,
+                    System.currentTimeMillis()) == 1) {
+                try {
+                    workManager.cancelWorkById(UUID.fromString(current.workRequestId));
+                } catch (IllegalArgumentException error) {
+                    // The conditional Room update still prevents a malformed saved ID from writing.
+                }
             }
         });
     }
 
     public void enqueueCheckpoint(String channelId, WorkManager workManager) {
+        enqueueCheckpoint(channelId, workManager, (name, request) ->
+                workManager.enqueueUniqueWork(name, ExistingWorkPolicy.REPLACE, request)
+                        .getResult());
+    }
+
+    interface WorkEnqueuer {
+        ListenableFuture<Operation.State.SUCCESS> enqueue(String name, OneTimeWorkRequest request);
+    }
+
+    void enqueueCheckpoint(String channelId, WorkManager workManager, WorkEnqueuer enqueuer) {
         io.execute(() -> {
             SampleResultEntity result = dao.get(channelId);
             if (result == null || !"COMPLETE".equals(result.state)) return;
@@ -58,8 +80,58 @@ public final class SampleRepository {
             String workRequestId = request.getId().toString();
             if (dao.assignWork(channelId, result.runId, workRequestId,
                     System.currentTimeMillis()) == 1) {
-                workManager.enqueueUniqueWork(workName(channelId),
-                        ExistingWorkPolicy.REPLACE, request);
+                try {
+                    ListenableFuture<Operation.State.SUCCESS> operation =
+                            enqueuer.enqueue(workName(channelId), request);
+                    operation.addListener(() -> {
+                        try {
+                            operation.get();
+                        } catch (InterruptedException error) {
+                            Thread.currentThread().interrupt();
+                            failEnqueue(channelId, result.runId, workRequestId,
+                                    request.getId(), workManager);
+                        } catch (ExecutionException | RuntimeException error) {
+                            failEnqueue(channelId, result.runId, workRequestId,
+                                    request.getId(), workManager);
+                        }
+                    }, io);
+                } catch (RuntimeException error) {
+                    failEnqueue(channelId, result.runId, workRequestId,
+                            request.getId(), workManager);
+                }
+            }
+        });
+    }
+
+    private void failEnqueue(String channelId, String runId, String workRequestId,
+                             UUID requestId, WorkManager workManager) {
+        if (dao.markWorkEnqueueFailed(channelId, runId, workRequestId,
+                System.currentTimeMillis()) == 1) {
+            workManager.cancelWorkById(requestId);
+        }
+    }
+
+    /** Repairs a Room assignment if the process stopped before WorkManager stored its job. */
+    public void reconcileWorkOnOpen(WorkManager workManager) {
+        io.execute(() -> {
+            for (SampleResultEntity result : dao.withAssignedWork()) {
+                try {
+                    WorkInfo info = workManager.getWorkInfoById(
+                            UUID.fromString(result.workRequestId)).get();
+                    if (info == null || (info.getState() == WorkInfo.State.SUCCEEDED
+                            && "NOT_STARTED".equals(result.checkpoint))) {
+                        dao.markWorkEnqueueFailed(result.channelId, result.runId,
+                                result.workRequestId, System.currentTimeMillis());
+                    }
+                } catch (InterruptedException error) {
+                    Thread.currentThread().interrupt();
+                    return;
+                } catch (IllegalArgumentException error) {
+                    dao.markWorkEnqueueFailed(result.channelId, result.runId,
+                            result.workRequestId, System.currentTimeMillis());
+                } catch (ExecutionException error) {
+                    // A transient WorkManager read error is not evidence that the job is absent.
+                }
             }
         });
     }

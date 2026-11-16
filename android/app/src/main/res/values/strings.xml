@@ -34,6 +34,7 @@
   <string name="prototype_work_running">Job mẫu đang xử lý.</string>
   <string name="prototype_work_done">Job mẫu đã hoàn tất.</string>
   <string name="prototype_work_failed">Job mẫu lỗi hoặc bị hủy.</string>
+  <string name="prototype_work_enqueue_failed">Không tìm thấy job đã lưu hoặc xếp job thất bại. Có thể xếp lại.</string>
   <string name="prototype_checkpoint_empty">Checkpoint: chưa ghi</string>
   <string name="prototype_checkpoint_done">Checkpoint: đã lưu trong Room</string>
   <string name="prototype_worker_note">Worker chỉ tính dấu kiểm tra cho bản mẫu đã lưu. Kết quả và job còn sau khi mở lại; luồng mẫu không tự chạy lại sau khi process dừng.</string>

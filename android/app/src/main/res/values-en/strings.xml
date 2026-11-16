@@ -34,6 +34,7 @@
   <string name="prototype_work_running">Sample job is processing.</string>
   <string name="prototype_work_done">Sample job completed.</string>
   <string name="prototype_work_failed">Sample job failed or was cancelled.</string>
+  <string name="prototype_work_enqueue_failed">The saved job is missing or could not be queued. You can queue it again.</string>
   <string name="prototype_checkpoint_empty">Checkpoint: not written</string>
   <string name="prototype_checkpoint_done">Checkpoint: saved in Room</string>
   <string name="prototype_worker_note">The Worker only checks a saved sample. Results and jobs survive reopening; sample streams do not restart automatically after process death.</string>
