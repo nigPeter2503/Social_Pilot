@@ -1,15 +1,17 @@
 package com.socialpilot.oauth.api;
+
+import com.socialpilot.oauth.facebook.FacebookOAuthProperties;
 import java.util.Map;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-@RestController public class StatusController {
-    @GetMapping("/api/health") public Map<String, String> health() {
-        return Map.of("status", "UP", "service", "socialpilot-oauth", "oauth", "NOT_CONFIGURED");
-    }
-    @GetMapping("/api/oauth/{provider}/start")
-    public ResponseEntity<Map<String, String>> start(@PathVariable String provider) {
-        return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).body(Map.of(
-            "code", "OAUTH_NOT_CONFIGURED", "message", "OAuth adapters are not implemented yet"));
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+public final class StatusController {
+    private final FacebookOAuthProperties facebook;
+    public StatusController(FacebookOAuthProperties facebook) { this.facebook = facebook; }
+    @GetMapping("/api/health")
+    public Map<String, String> health() {
+        return Map.of("status", "UP", "service", "socialpilot-oauth",
+                "oauth", facebook.isConfigured() ? "CONFIGURED" : "NOT_CONFIGURED");
     }
 }

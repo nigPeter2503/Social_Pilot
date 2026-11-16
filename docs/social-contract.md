@@ -23,7 +23,7 @@ DTO không tự gọi Facebook, kiểm tra quyền, lưu token hoặc chống đ
 
 SP-009 có DTO, interface, validation cấu trúc và ca kiểm thử hợp đồng.
 OAuth endpoints, adapter thật, kho token, transaction Room, Worker và UI thuộc task tiếp theo.
-Endpoint OAuth hiện tại tiếp tục trả 501 OAUTH_NOT_CONFIGURED.
+Tại baseline SP-009 endpoint OAuth trả 501 OAUTH_NOT_CONFIGURED. Nhánh SP-010 hiện triển khai adapter Facebook và callback/handoff trên contract này; trạng thái kiểm chứng nằm trong [bản ghi SP-010](drafts/sp-010-implementation-status.md).
 
 ## 2. Vị trí và quy ước
 
