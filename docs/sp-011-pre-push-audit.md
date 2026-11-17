@@ -1,3 +1,5 @@
+> Cập nhật 17/11/2026: bản sửa provenance và tích hợp main nằm trong [báo cáo hiện hành](sp-011-final-integration.md). Các head, kết quả test và trạng thái dependency dưới đây là lịch sử ngày 15/11.
+
 # SP-011 — Audit trước push ngày 15/11/2026
 
 Owner Minh, yêu cầu F1.B1/F1.B3/F5.B1/F5.B5. Reviewers Đạt và Nghị.

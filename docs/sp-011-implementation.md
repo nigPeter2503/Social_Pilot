@@ -1,3 +1,5 @@
+> Cập nhật 17/11/2026: bản sửa provenance và tích hợp main nằm trong [báo cáo hiện hành](sp-011-final-integration.md). Các head, kết quả test và trạng thái dependency dưới đây là lịch sử ngày 15/11.
+
 # SP-011 — Triển khai OAuth LinkedIn và đăng chữ thử nghiệm
 
 Ngày lập: 14/11/2026, Asia/Bangkok. Owner: Minh (`nigPeter2503`).
