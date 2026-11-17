@@ -81,6 +81,15 @@ public class LinkedInSpikePublisherTest {
         assertTrue(confirmedA.summary.startsWith("SUCCESS"));
         assertTrue(confirmedA.summary.contains("urn:li:share:123"));
         assertNotNull(confirmedA.confirmation);
+        var reloaded=new LinkedInAttemptLedger(attempts.reboot(),System::currentTimeMillis);
+        int verifiedCount=0;
+        for (String key:attempts.getAll().keySet()) {
+            if (key.startsWith("account_attempt_") && attempts.getString(key,"").contains("SUCCESS")) {
+                assertEquals("OWNER_CONFIRMED",reloaded.verificationSource(reloaded.target(key)));
+                verifiedCount++;
+            }
+        }
+        assertEquals(1,verifiedCount);
         assertEquals(lastKey,attempts.getString("last_key",null));
         assertEquals(lastPayload,attempts.getString("last_payload",null));
         assertTrue(publisher.state().summary.contains("urn:li:share:456"));

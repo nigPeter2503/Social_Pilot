@@ -51,6 +51,9 @@ final class LinkedInAttemptLedger {
             }
             if (source != null && !source.equals(key)) {
                 SharedPreferences.Editor editor = preferences.edit().putString(key, preferences.getString(source, "UNKNOWN"));
+                Verification verification = verification(source);
+                if (verification != null) editor.putString(verificationKey(key), gson.toJson(verification));
+                else editor.remove(verificationKey(key));
                 if (source.equals(preferences.getString("last_key", null))) editor.putString("last_key", key);
                 requireCommit(editor);
             }
@@ -82,7 +85,8 @@ final class LinkedInAttemptLedger {
             PublishResult pending = PublishResult.unknown(request);
             requireCommit(preferences.edit().putString(key, gson.toJson(pending))
                     .putString("last_key", key).putString("last_payload", gson.toJson(pending))
-                    .putString("last_result", summary(pending)).remove("retry_after_" + key));
+                    .putString("last_result", summary(pending)).remove("retry_after_" + key)
+                    .remove(verificationKey(key)));
             return true;
         }
     }
@@ -120,13 +124,50 @@ final class LinkedInAttemptLedger {
             if (current == null || !current.requestId.equals(target.requestId)
                     || !target.postId.equals(current.postId)) throw new IllegalStateException("Attempt replaced");
             PublishResult verified = LinkedInPostVerification.ownerConfirmed(raw, url);
-            SharedPreferences.Editor editor = preferences.edit().putString(target.key, gson.toJson(verified));
+            String[] touched = {target.key, verificationKey(target.key), "last_payload", "last_result", "url_verification_source"};
+            Map<String, String> before = new java.util.HashMap<>();
+            for (String key : touched) before.put(key, preferences.getString(key, null));
+            SharedPreferences.Editor editor = preferences.edit().putString(target.key, gson.toJson(verified))
+                    .putString(verificationKey(target.key), gson.toJson(new Verification(verified)))
+                    .remove("url_verification_source");
             if (target.key.equals(preferences.getString("last_key", null))) {
-                editor.putString("last_payload", gson.toJson(verified)).putString("last_result", summary(verified))
-                        .putString("url_verification_source", "OWNER_CONFIRMED");
+                editor.putString("last_payload", gson.toJson(verified)).putString("last_result", summary(verified));
             }
-            requireCommit(editor);
+            if (!editor.commit()) {
+                // SharedPreferences may change memory before reporting a disk failure.
+                SharedPreferences.Editor rollback = preferences.edit();
+                for (Map.Entry<String, String> entry : before.entrySet()) {
+                    if (entry.getValue() == null) rollback.remove(entry.getKey());
+                    else rollback.putString(entry.getKey(), entry.getValue());
+                }
+                rollback.commit();
+                throw new IllegalStateException("Cannot save URL verification");
+            }
             return verified;
+        }
+    }
+    private static String verificationKey(String key) { return "url_verification_" + key; }
+    private static final class Verification {
+        String requestId, postId, postUrl, source;
+        Verification(PublishResult result) {
+            requestId=result.requestId; postId=result.postId; postUrl=result.postUrl; source="OWNER_CONFIRMED";
+        }
+    }
+    private Verification verification(String key) {
+        try {
+            PublishResult result = parse(preferences.getString(key, ""));
+            Verification value = gson.fromJson(preferences.getString(verificationKey(key), ""), Verification.class);
+            return result != null && result.outcome == PublishResult.Outcome.SUCCESS && value != null
+                    && result.requestId.equals(value.requestId) && result.postId.equals(value.postId)
+                    && result.postUrl.equals(value.postUrl) && "OWNER_CONFIRMED".equals(value.source) ? value : null;
+        } catch (RuntimeException e) { return null; }
+    }
+    String verificationSource(Target target) {
+        synchronized (preferences) {
+            if (target == null) return null;
+            Verification value = verification(target.key);
+            return value != null && target.requestId.equals(value.requestId) && target.postId.equals(value.postId)
+                    ? value.source : null;
         }
     }
     String confirmedRetry(String key) {

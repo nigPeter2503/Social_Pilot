@@ -66,10 +66,57 @@ public class LinkedInAttemptLedgerTest {
         assertEquals(before,preferences.getString("last_payload",null));
         assertEquals(PublishResult.Outcome.PUBLISHED_URL_PENDING,ledger.existing(keyB,b).outcome);
         ledger=new LinkedInAttemptLedger(preferences.reboot(),()->now);
+        var saved = com.google.gson.JsonParser.parseString(preferences.reboot().getString("url_verification_"+keyA,"{}")).getAsJsonObject();
+        assertTrue("A must retain its own URL verification source",saved.has("source"));
+        assertEquals("OWNER_CONFIRMED",saved.get("source").getAsString());
+        assertEquals("A",saved.get("requestId").getAsString());
+        assertEquals("urn:li:share:123",saved.get("postId").getAsString());
         ledger.confirm(target,"https://www.linkedin.com/feed/update/urn:li:share:123/");
         assertEquals(PublishResult.Outcome.SUCCESS,ledger.existing(keyA,a).outcome);
         preferences.edit().putString(keyA,new Gson().toJson(PublishResult.publishedUrlPending(b,"urn:li:share:456"))).commit();
         assertThrows(IllegalStateException.class,()->ledger.confirm(target,"https://www.linkedin.com/posts/A"));
+    }
+    @Test public void provenanceIsValidatedAndLegacySuccessKeepsDedupe() {
+        var a=request("A","c",1); String key=ledger.key(channel("c",1),"A");
+        ledger.begin(key,a,null); ledger.record(key,PublishResult.publishedUrlPending(a,"urn:li:share:123"),0);
+        var target=ledger.target();
+        ledger.confirm(target,"https://www.linkedin.com/posts/A");
+        assertEquals("OWNER_CONFIRMED",ledger.verificationSource(target));
+        String metadata=preferences.getString("url_verification_"+key,"");
+        for (String bad:new String[]{"broken",metadata.replace("OWNER_CONFIRMED","API_READBACK"),metadata.replace("123","456"),metadata.replace("posts/A","posts/B")}) {
+            preferences.edit().putString("url_verification_"+key,bad).commit();
+            assertNull(ledger.verificationSource(target));
+            assertFalse(ledger.begin(key,a,null));
+        }
+        preferences.edit().remove("url_verification_"+key).putString("url_verification_source","OWNER_CONFIRMED").commit();
+        assertNull(ledger.verificationSource(target));
+        assertEquals(PublishResult.Outcome.SUCCESS,ledger.existing(key,a).outcome);
+        ledger.confirm(target,"https://www.linkedin.com/posts/A");
+        assertEquals("OWNER_CONFIRMED",ledger.verificationSource(target));
+        assertFalse(preferences.contains("url_verification_source"));
+        preferences.edit().putString(key,new Gson().toJson(PublishResult.publishedUrlPending(request("replacement","c",1),"urn:li:share:123"))).commit();
+        assertNull(ledger.verificationSource(target));
+        assertThrows(IllegalStateException.class,()->ledger.confirm(target,"https://www.linkedin.com/posts/A"));
+    }
+    @Test public void failedConfirmationRestoresMemoryAndDisk() throws Exception {
+        var a=request("A","c",1);String key=ledger.key(channel("c",1),"A");
+        ledger.begin(key,a,null);ledger.record(key,PublishResult.publishedUrlPending(a,"urn:li:share:123"),0);
+        var before=preferences.getAll();var target=ledger.target();
+        var failures=MemoryPreferences.class.getDeclaredField("failCommits");failures.setAccessible(true);failures.setInt(preferences,2);
+        assertThrows(IllegalStateException.class,()->ledger.confirm(target,"https://www.linkedin.com/posts/A"));
+        assertEquals(before,preferences.getAll());
+        assertEquals(before,preferences.reboot().getAll());
+        assertNull(ledger.verificationSource(target));
+    }
+    @Test public void migrationCarriesMatchingProvenance() {
+        var a=request("A","LINKEDIN:member",1);String key=ledger.key(channel(a.channelId,1),"A");
+        ledger.begin(key,a,null);ledger.record(key,PublishResult.publishedUrlPending(a,"urn:li:share:123"),0);
+        ledger.confirm(ledger.target(),"https://www.linkedin.com/posts/A");
+        String old="attempt_"+LinkedInAttemptLedger.hash(a.channelId+":A");
+        preferences.edit().putString(old,preferences.getString(key,"")).putString("url_verification_"+old,preferences.getString("url_verification_"+key,""))
+            .remove(key).remove("url_verification_"+key).putString("last_key",old).commit();
+        assertEquals(key,ledger.key(channel(a.channelId,1),"A"));
+        assertEquals("OWNER_CONFIRMED",ledger.verificationSource(ledger.target(key)));
     }
     @Test public void legacyAndMalformedRecordsRemainReserved() {
         var first=request("first","LINKEDIN:member",1);
