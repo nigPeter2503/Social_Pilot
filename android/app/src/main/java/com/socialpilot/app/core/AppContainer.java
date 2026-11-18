@@ -24,7 +24,8 @@ public final class AppContainer {
         prototypeDatabase = Room.databaseBuilder(context.getApplicationContext(),
                 PrototypeDatabase.class, "socialpilot-prototype.db")
                 .addMigrations(PrototypeDatabase.MIGRATION_1_2,
-                        PrototypeDatabase.MIGRATION_2_3).build();
+                        PrototypeDatabase.MIGRATION_2_3,
+                        PrototypeDatabase.MIGRATION_3_4).build();
         sampleResults = new SampleRepository(prototypeDatabase.results(), Executors.newSingleThreadExecutor());
         Handler main = new Handler(Looper.getMainLooper());
         sampleStreams = new DemoStreamCoordinator((action, delay) ->

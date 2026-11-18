@@ -46,3 +46,9 @@ Trên Windows, JDK 21.0.13 và Android SDK 36, `assembleDebug`, `testDebugUnitTe
 - Room mẫu nâng v2→v3 thêm cờ lỗi enqueue, giữ checkpoint trước đó khi xếp lại. Repository theo dõi kết quả `Operation` của WorkManager; enqueue lỗi xóa đúng ID và báo có thể xếp lại. Khi process mở lại, ID trong Room không tìm thấy WorkSpec được đánh dấu cần xếp lại. WorkSpec đã chạy nhưng thất bại tiếp tục dùng trạng thái lỗi của WorkManager. Cả đường lỗi và đối soát đều kiểm run/job hiện hành trước khi sửa row.
 - V1→v3 và v2→v3 giữ dữ liệu cũ. WorkSpec v1 đang chờ nhưng không có `runId` sẽ thất bại sau nâng cấp; checkpoint cũ vẫn được giữ, người dùng cần xếp lại job từ màn hình prototype. Đây là chính sách cho APK demo, không phải migration queue production.
 - Test và phạm vi kiểm chứng trên bản sửa: [hồ sơ 16/11](evidence/sp-017-review-verification-2026-11-16.md). Runtime thật SP-014, provider AI và queue publish vẫn chưa được nối vào prototype.
+
+## Sửa đối soát job hoàn tất — 19/11/2026
+
+- Room mẫu nâng v3→v4 để lưu `completedWorkRequestId` cùng lần ghi checkpoint. Khi đối soát thấy WorkSpec đã bị dọn hoặc có trạng thái `SUCCEEDED`, câu `UPDATE` báo lỗi enqueue kiểm tra UUID hoàn tất ngay lúc ghi. Vì vậy ảnh chụp Room cũ không thể ghi đè kết quả vừa hoàn tất; checkpoint của job trước cũng không che một UUID mới bị mất WorkSpec.
+- Migration v1/v2/v3 lên v4 giữ dữ liệu và cờ lỗi cũ. Hàng v3 đã hoàn tất trước nâng cấp không có UUID hoàn tất để khôi phục chính xác sau khi WorkManager dọn WorkSpec; nếu gặp trường hợp này, UI yêu cầu xếp lại job mẫu, giữ checkpoint cũ. Các job hoàn tất từ v4 được nhận diện theo UUID.
+- Kiểm thử và bằng chứng bản sửa: [hồ sơ 19/11](evidence/sp-017-review-verification-2026-11-19.md).

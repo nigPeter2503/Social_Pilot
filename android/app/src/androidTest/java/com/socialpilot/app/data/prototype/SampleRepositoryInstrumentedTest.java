@@ -17,6 +17,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.UUID;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -50,6 +51,65 @@ public final class SampleRepositoryInstrumentedTest {
             waitUntil(() -> dao.get("A").workEnqueueFailed);
             assertNull(dao.get("A").workRequestId);
             assertEquals("SHA256:previous", dao.get("A").checkpoint);
+        } finally {
+            io.shutdownNow();
+            database.close();
+        }
+    }
+
+    @Test
+    public void completedJobSurvivesStaleReconciliationAndPrunedWorkSpec() throws Exception {
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        PrototypeDatabase database = Room.inMemoryDatabaseBuilder(context, PrototypeDatabase.class).build();
+        ExecutorService io = Executors.newSingleThreadExecutor();
+        try {
+            SampleResultDao dao = database.results();
+            String job = UUID.randomUUID().toString();
+            dao.save(new SampleResultEntity("A", "sample", "COMPLETE", "NOT_STARTED",
+                    "run-a", job, 100));
+            SampleResultEntity stale = dao.get("A");
+            assertEquals(1, dao.completeCheckpoint("A", "run-a", job, "SHA256:done", 101));
+            // Reconciliation read the row before the worker finished. Its conditional write
+            // must observe the worker's durable completion, even if WorkManager says SUCCEEDED.
+            assertEquals(0, dao.markWorkEnqueueFailed(stale.channelId, stale.runId,
+                    stale.workRequestId, 102));
+
+            // This UUID has no WorkSpec, as after WorkManager pruning. Completion still wins.
+            new SampleRepository(dao, io).reconcileWorkOnOpen(WorkManager.getInstance(context));
+            io.submit(() -> {}).get(10, TimeUnit.SECONDS);
+            SampleResultEntity result = dao.get("A");
+            assertEquals(job, result.workRequestId);
+            assertEquals(job, result.completedWorkRequestId);
+            assertEquals("SHA256:done", result.checkpoint);
+            assertFalse(result.workEnqueueFailed);
+        } finally {
+            io.shutdownNow();
+            database.close();
+        }
+    }
+
+    @Test
+    public void oldCheckpointCannotHideNewOrphanedJob() throws Exception {
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        PrototypeDatabase database = Room.inMemoryDatabaseBuilder(context, PrototypeDatabase.class).build();
+        ExecutorService io = Executors.newSingleThreadExecutor();
+        try {
+            SampleResultDao dao = database.results();
+            String oldJob = UUID.randomUUID().toString();
+            String newJob = UUID.randomUUID().toString();
+            dao.save(new SampleResultEntity("A", "sample", "COMPLETE", "NOT_STARTED",
+                    "run-a", oldJob, 100));
+            assertEquals(1, dao.completeCheckpoint("A", "run-a", oldJob,
+                    "SHA256:previous", 101));
+            assertEquals(1, dao.assignWork("A", "run-a", newJob, 102));
+
+            new SampleRepository(dao, io).reconcileWorkOnOpen(WorkManager.getInstance(context));
+            io.submit(() -> {}).get(10, TimeUnit.SECONDS);
+            SampleResultEntity result = dao.get("A");
+            assertNull(result.workRequestId);
+            assertEquals(oldJob, result.completedWorkRequestId);
+            assertEquals("SHA256:previous", result.checkpoint);
+            assertTrue(result.workEnqueueFailed);
         } finally {
             io.shutdownNow();
             database.close();

@@ -13,6 +13,7 @@ public final class SampleResultEntity {
     @NonNull public String checkpoint;
     @NonNull public String runId;
     public String workRequestId;
+    public String completedWorkRequestId;
     public boolean workEnqueueFailed;
     public long updatedAt;
 

@@ -41,10 +41,12 @@ public interface SampleResultDao {
 
     @Query("UPDATE sample_results SET workRequestId = NULL, workEnqueueFailed = 1, "
             + "updatedAt = :now WHERE channelId = :channelId AND runId = :runId "
-            + "AND workRequestId = :workRequestId")
+            + "AND workRequestId = :workRequestId AND state = 'COMPLETE' "
+            + "AND (completedWorkRequestId IS NULL OR completedWorkRequestId != :workRequestId)")
     int markWorkEnqueueFailed(String channelId, String runId, String workRequestId, long now);
 
-    @Query("UPDATE sample_results SET checkpoint = :checkpoint, updatedAt = :now "
+    @Query("UPDATE sample_results SET checkpoint = :checkpoint, "
+            + "completedWorkRequestId = :workRequestId, workEnqueueFailed = 0, updatedAt = :now "
             + "WHERE channelId = :channelId AND runId = :runId "
             + "AND workRequestId = :workRequestId AND state = 'COMPLETE'")
     int completeCheckpoint(String channelId, String runId, String workRequestId,

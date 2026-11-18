@@ -91,6 +91,7 @@ public final class PrototypeDataInstrumentedTest {
         assertEquals(WorkInfo.State.SUCCEEDED,
                 manager.getWorkInfoById(request.getId()).get(10, TimeUnit.SECONDS).getState());
         assertTrue(dao.get("A").checkpoint.startsWith("SHA256:"));
+        assertEquals(request.getId().toString(), dao.get("A").completedWorkRequestId);
 
         dao.save(new SampleResultEntity("B", "Cancellation test", "COMPLETE",
                 "NOT_STARTED", "run-b", null, System.currentTimeMillis()));
@@ -196,7 +197,8 @@ public final class PrototypeDataInstrumentedTest {
 
         PrototypeDatabase migrated = Room.databaseBuilder(context, PrototypeDatabase.class, name)
                 .addMigrations(PrototypeDatabase.MIGRATION_1_2,
-                        PrototypeDatabase.MIGRATION_2_3).build();
+                        PrototypeDatabase.MIGRATION_2_3,
+                        PrototypeDatabase.MIGRATION_3_4).build();
         SampleResultEntity result = migrated.results().get("A");
         assertEquals("kept text", result.text);
         assertEquals("COMPLETE", result.state);
@@ -204,6 +206,7 @@ public final class PrototypeDataInstrumentedTest {
         assertTrue(result.runId.length() > 0);
         assertEquals(null, result.workRequestId);
         assertEquals(false, result.workEnqueueFailed);
+        assertEquals(null, result.completedWorkRequestId);
         migrated.close();
         context.deleteDatabase(name);
     }
@@ -226,12 +229,44 @@ public final class PrototypeDataInstrumentedTest {
         old.close();
 
         PrototypeDatabase migrated = Room.databaseBuilder(context, PrototypeDatabase.class, name)
-                .addMigrations(PrototypeDatabase.MIGRATION_2_3).build();
+                .addMigrations(PrototypeDatabase.MIGRATION_2_3,
+                        PrototypeDatabase.MIGRATION_3_4).build();
         SampleResultEntity result = migrated.results().get("A");
         assertEquals("SHA256:previous", result.checkpoint);
         assertEquals("old-run", result.runId);
         assertEquals("e785b741-5c99-42fa-b727-5ae00db2803c", result.workRequestId);
         assertEquals(false, result.workEnqueueFailed);
+        assertEquals(null, result.completedWorkRequestId);
+        migrated.close();
+        context.deleteDatabase(name);
+    }
+
+    @Test
+    public void versionThreePrototypeDatabaseKeepsResultAndEnqueueState() {
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        String name = "sp017-migration-v3-test.db";
+        context.deleteDatabase(name);
+        SQLiteDatabase old = context.openOrCreateDatabase(name, Context.MODE_PRIVATE, null);
+        old.execSQL("CREATE TABLE sample_results (channelId TEXT NOT NULL PRIMARY KEY, "
+                + "text TEXT NOT NULL, state TEXT NOT NULL, checkpoint TEXT NOT NULL, "
+                + "runId TEXT NOT NULL, workRequestId TEXT, workEnqueueFailed INTEGER NOT NULL, "
+                + "updatedAt INTEGER NOT NULL)");
+        old.execSQL("INSERT INTO sample_results VALUES ('A', 'kept text', 'COMPLETE', "
+                + "'SHA256:previous', 'old-run', NULL, 1, 100)");
+        old.execSQL("CREATE TABLE room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)");
+        old.execSQL("INSERT INTO room_master_table VALUES (42, "
+                + "'72323c39e105c655a5898345913d884c')");
+        old.setVersion(3);
+        old.close();
+
+        PrototypeDatabase migrated = Room.databaseBuilder(context, PrototypeDatabase.class, name)
+                .addMigrations(PrototypeDatabase.MIGRATION_3_4).build();
+        SampleResultEntity result = migrated.results().get("A");
+        assertEquals("SHA256:previous", result.checkpoint);
+        assertEquals("old-run", result.runId);
+        assertEquals(null, result.workRequestId);
+        assertEquals(true, result.workEnqueueFailed);
+        assertEquals(null, result.completedWorkRequestId);
         migrated.close();
         context.deleteDatabase(name);
     }

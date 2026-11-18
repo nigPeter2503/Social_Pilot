@@ -7,7 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase;
 import androidx.annotation.NonNull;
 
 /** Separate demo database: the baseline socialpilot.db schema and topics stay untouched. */
-@Database(entities = {SampleResultEntity.class}, version = 3, exportSchema = true)
+@Database(entities = {SampleResultEntity.class}, version = 4, exportSchema = true)
 public abstract class PrototypeDatabase extends RoomDatabase {
     public static final Migration MIGRATION_1_2 = new Migration(1, 2) {
         @Override public void migrate(@NonNull SupportSQLiteDatabase database) {
@@ -21,6 +21,12 @@ public abstract class PrototypeDatabase extends RoomDatabase {
         @Override public void migrate(@NonNull SupportSQLiteDatabase database) {
             database.execSQL("ALTER TABLE sample_results ADD COLUMN workEnqueueFailed "
                     + "INTEGER NOT NULL DEFAULT 0");
+        }
+    };
+
+    public static final Migration MIGRATION_3_4 = new Migration(3, 4) {
+        @Override public void migrate(@NonNull SupportSQLiteDatabase database) {
+            database.execSQL("ALTER TABLE sample_results ADD COLUMN completedWorkRequestId TEXT");
         }
     };
 

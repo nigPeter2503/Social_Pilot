@@ -119,7 +119,7 @@ public final class SampleRepository {
                     WorkInfo info = workManager.getWorkInfoById(
                             UUID.fromString(result.workRequestId)).get();
                     if (info == null || (info.getState() == WorkInfo.State.SUCCEEDED
-                            && "NOT_STARTED".equals(result.checkpoint))) {
+                            && !result.workRequestId.equals(result.completedWorkRequestId))) {
                         dao.markWorkEnqueueFailed(result.channelId, result.runId,
                                 result.workRequestId, System.currentTimeMillis());
                     }
