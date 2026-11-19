@@ -147,6 +147,11 @@ public final class MainActivity extends AppCompatActivity {
                 binding.sourceImportStatus.setText(R.string.source_manual);
                 return;
             }
+            if (!isOnline()) {
+                binding.sourceImportStatus.setText(getString(R.string.source_unavailable,
+                        getString(R.string.source_reason_network)));
+                return;
+            }
             model.inspectSource(url);
         });
         binding.saveButton.setOnClickListener(view -> saveBrief());
@@ -226,14 +231,17 @@ public final class MainActivity extends AppCompatActivity {
 
     @Override protected void onResume() {
         super.onResume();
+        binding.networkStatus.setText(isOnline() ? R.string.online_draft_ready
+                : R.string.offline_draft_ready);
+    }
+
+    private boolean isOnline() {
         ConnectivityManager manager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
         NetworkCapabilities capabilities = manager == null ? null
                 : manager.getNetworkCapabilities(manager.getActiveNetwork());
-        boolean online = capabilities != null
+        return capabilities != null
                 && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
                 && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
-        binding.networkStatus.setText(online ? R.string.online_draft_ready
-                : R.string.offline_draft_ready);
     }
 
     private void saveBrief() {
