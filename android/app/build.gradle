@@ -18,6 +18,7 @@ android {
         } }
     }
     buildFeatures { viewBinding true; buildConfig true }
+    sourceSets { androidTest.assets.srcDirs += files("$projectDir/schemas") }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
@@ -40,5 +41,6 @@ dependencies {
     androidTestImplementation 'androidx.test.ext:junit:1.2.1'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.6.1'
     androidTestImplementation 'androidx.room:room-testing:2.8.5'
+    debugImplementation platform('org.jetbrains.kotlinx:kotlinx-serialization-bom:1.8.1')
     androidTestImplementation 'androidx.work:work-testing:2.10.1'
 }

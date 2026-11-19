@@ -5,6 +5,7 @@ import androidx.room.Room;
 import com.socialpilot.app.BuildConfig;
 import com.socialpilot.app.data.local.AppDatabase;
 import com.socialpilot.app.data.repository.DraftRepository;
+import com.socialpilot.app.data.repository.BriefRepository;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -12,10 +13,13 @@ public final class AppContainer {
     public final ExecutorService io = Executors.newFixedThreadPool(4);
     public final AppDatabase database;
     public final DraftRepository drafts;
+    public final BriefRepository briefs;
     public final FacebookOAuthCoordinator facebookOAuth;
     public AppContainer(Context context) {
-        database = Room.databaseBuilder(context.getApplicationContext(), AppDatabase.class, "socialpilot.db").build();
+        database = Room.databaseBuilder(context.getApplicationContext(), AppDatabase.class, "socialpilot.db")
+                .addMigrations(AppDatabase.MIGRATION_1_2).build();
         drafts = new DraftRepository(database.drafts(), io);
+        briefs = new BriefRepository(database.briefs(), io);
         facebookOAuth = new FacebookOAuthCoordinator(context, io, BuildConfig.OAUTH_API_BASE_URL);
     }
 }

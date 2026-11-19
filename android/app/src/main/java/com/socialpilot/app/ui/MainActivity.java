@@ -2,6 +2,8 @@ package com.socialpilot.app.ui;
 
 import android.content.Intent;
 import android.net.Uri;
+import android.net.ConnectivityManager;
+import android.net.NetworkCapabilities;
 import android.os.Bundle;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
@@ -10,7 +12,14 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.lifecycle.ViewModelProvider;
 import com.socialpilot.app.R;
 import com.socialpilot.app.databinding.ActivityMainBinding;
-import com.socialpilot.app.domain.DraftValidator;
+import com.socialpilot.app.domain.editor.Brief;
+import com.socialpilot.app.domain.editor.BriefForm;
+import com.socialpilot.app.domain.editor.BriefFormValidator;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.net.URI;
+import java.net.URISyntaxException;
 
 public final class MainActivity extends AppCompatActivity {
     private ActivityMainBinding binding;
@@ -47,21 +56,55 @@ public final class MainActivity extends AppCompatActivity {
         });
         model.drafts().observe(this, drafts -> {
             StringBuilder text = new StringBuilder();
-            for (com.socialpilot.app.data.local.DraftEntity draft : drafts) text.append("• ").append(draft.topic).append("\n\n");
+            for (com.socialpilot.app.data.local.DraftEntity draft : drafts) {
+                text.append("• ").append(draft.topic == null
+                        ? getString(R.string.legacy_empty_topic) : draft.topic).append("\n\n");
+            }
+            binding.legacyDraftList.setText(text.length() == 0 ? getString(R.string.empty) : text.toString());
+        });
+        model.briefs().observe(this, briefs -> {
+            StringBuilder text = new StringBuilder();
+            for (com.socialpilot.app.data.local.BriefDao.BriefListItem item : briefs) {
+                com.socialpilot.app.data.local.BriefEntity brief = item.brief;
+                text.append("• ").append(brief.topic).append(" · ")
+                        .append(brief.contentLanguage).append("\n")
+                        .append(getString(R.string.goal_hint)).append(": ").append(brief.goal)
+                        .append("\n").append(getString(R.string.audience_hint)).append(": ")
+                        .append(brief.audience).append("\n")
+                        .append(getString(R.string.tone_hint)).append(": ").append(brief.tone);
+                List<com.socialpilot.app.data.local.BriefSourceEntity> orderedSources =
+                        new ArrayList<>(item.sources);
+                Collections.sort(orderedSources,
+                        (a, b) -> Integer.compare(a.position, b.position));
+                for (com.socialpilot.app.data.local.BriefSourceEntity source : orderedSources) {
+                    text.append("\n").append(getString(R.string.sources_title)).append(": ")
+                            .append(source.value);
+                }
+                if (!item.targets.isEmpty()) {
+                    text.append("\n").append(getString(R.string.targets_title)).append(": ");
+                    for (int index = 0; index < item.targets.size(); index++) {
+                        if (index > 0) text.append(", ");
+                        text.append(item.targets.get(index).platform);
+                    }
+                }
+                text.append("\n\n");
+            }
             binding.draftList.setText(text.length() == 0 ? getString(R.string.empty) : text.toString());
         });
         model.saveState().observe(this, state -> {
             binding.saveButton.setEnabled(state != MainViewModel.SaveState.SAVING);
             if (state == MainViewModel.SaveState.SAVED) {
-                binding.topicInput.setText(""); Toast.makeText(this, R.string.saved, Toast.LENGTH_SHORT).show(); model.acknowledge();
+                binding.topicInput.setText("");
+                binding.goalInput.setText("");
+                binding.audienceInput.setText("");
+                binding.toneInput.setText("");
+                binding.sourceInput.setText("");
+                Toast.makeText(this, R.string.saved, Toast.LENGTH_SHORT).show(); model.acknowledge();
             } else if (state == MainViewModel.SaveState.FAILED) {
                 Toast.makeText(this, R.string.save_error, Toast.LENGTH_SHORT).show(); model.acknowledge();
             }
         });
-        binding.saveButton.setOnClickListener(view -> {
-            try { model.save(DraftValidator.normalize(String.valueOf(binding.topicInput.getText()))); }
-            catch (IllegalArgumentException error) { binding.topicInput.setError(getString(R.string.required)); }
-        });
+        binding.saveButton.setOnClickListener(view -> saveBrief());
         handleOAuthIntent(getIntent());
     }
 
@@ -79,5 +122,62 @@ public final class MainActivity extends AppCompatActivity {
 
     private void showOAuthError(String code) {
         Toast.makeText(this, getString(R.string.oauth_error, code), Toast.LENGTH_LONG).show();
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        ConnectivityManager manager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+        NetworkCapabilities capabilities = manager == null ? null
+                : manager.getNetworkCapabilities(manager.getActiveNetwork());
+        boolean online = capabilities != null
+                && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
+        binding.networkStatus.setText(online ? R.string.online_draft_ready
+                : R.string.offline_draft_ready);
+    }
+
+    private void saveBrief() {
+        String sourceValue = String.valueOf(binding.sourceInput.getText()).trim();
+        binding.sourceLayout.setError(null);
+        List<Brief.Source> sources = new ArrayList<>();
+        if (!sourceValue.isEmpty()) {
+            if (binding.sourceUrlSwitch.isChecked()) {
+                for (String line : sourceValue.split("\\R")) {
+                    String url = line.trim();
+                    if (url.isEmpty()) continue;
+                    if (!validHttpUrl(url)) {
+                        binding.sourceLayout.setError(getString(R.string.source_url_invalid));
+                        return;
+                    }
+                    sources.add(new Brief.Source("URL", url));
+                }
+            } else {
+                sources.add(new Brief.Source("TEXT", sourceValue));
+            }
+        }
+        BriefForm form = new BriefForm(String.valueOf(binding.topicInput.getText()),
+                String.valueOf(binding.goalInput.getText()),
+                String.valueOf(binding.audienceInput.getText()),
+                String.valueOf(binding.toneInput.getText()),
+                binding.contentLanguageGroup.getCheckedRadioButtonId()
+                        == R.id.contentLanguageEn ? "en" : "vi",
+                Collections.emptyList(), sources);
+        BriefFormValidator.Errors errors = model.validateDraft(form);
+        binding.topicLayout.setError(errors.topic ? getString(R.string.field_required) : null);
+        binding.goalLayout.setError(errors.goal ? getString(R.string.field_required) : null);
+        binding.audienceLayout.setError(errors.audience ? getString(R.string.field_required) : null);
+        binding.toneLayout.setError(errors.tone ? getString(R.string.field_required) : null);
+        if (!errors.hasErrors()) model.saveBriefDraft(form);
+    }
+
+    private static boolean validHttpUrl(String value) {
+        try {
+            URI uri = new URI(value);
+            return ("http".equalsIgnoreCase(uri.getScheme())
+                    || "https".equalsIgnoreCase(uri.getScheme()))
+                    && uri.getHost() != null && uri.getUserInfo() == null;
+        } catch (URISyntaxException error) {
+            return false;
+        }
     }
 }
