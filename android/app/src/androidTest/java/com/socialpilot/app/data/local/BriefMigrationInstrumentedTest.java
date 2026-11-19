@@ -60,7 +60,8 @@ public final class BriefMigrationInstrumentedTest {
         migrated.close();
 
         AppDatabase reopened = Room.databaseBuilder(context, AppDatabase.class, name)
-                .addMigrations(AppDatabase.MIGRATION_1_2).build();
+                .addMigrations(AppDatabase.MIGRATION_1_2,
+                        AppDatabase.MIGRATION_2_3).build();
         try {
             assertTrue(reopened.drafts().insert(new DraftEntity("new", 400)) > 50);
             assertNull(reopened.briefs().get("missing"));

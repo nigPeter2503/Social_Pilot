@@ -6,7 +6,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase;
 import androidx.annotation.NonNull;
 
 @Database(entities = {DraftEntity.class, BriefEntity.class, BriefSourceEntity.class,
-        BriefTargetEntity.class}, version = 2, exportSchema = true)
+        BriefTargetEntity.class, ContentVersionEntity.class,
+        VersionApprovalEntity.class}, version = 3, exportSchema = true)
 public abstract class AppDatabase extends RoomDatabase {
     public static final Migration MIGRATION_1_2 = new Migration(1, 2) {
         @Override public void migrate(@NonNull SupportSQLiteDatabase database) {
@@ -33,6 +34,29 @@ public abstract class AppDatabase extends RoomDatabase {
         }
     };
 
+    public static final Migration MIGRATION_2_3 = new Migration(2, 3) {
+        @Override public void migrate(@NonNull SupportSQLiteDatabase database) {
+            database.execSQL("ALTER TABLE brief_targets ADD COLUMN currentVersionId TEXT");
+            database.execSQL("ALTER TABLE brief_targets ADD COLUMN approvedVersionId TEXT");
+            database.execSQL("CREATE TABLE IF NOT EXISTS content_versions ("
+                    + "versionId TEXT NOT NULL PRIMARY KEY, briefId TEXT NOT NULL, "
+                    + "channelId TEXT NOT NULL, parentVersionId TEXT, text TEXT NOT NULL, "
+                    + "imageReference TEXT, briefUpdatedAt INTEGER NOT NULL, "
+                    + "createdAt INTEGER NOT NULL, FOREIGN KEY(briefId, channelId) "
+                    + "REFERENCES brief_targets(briefId, channelId) "
+                    + "ON UPDATE NO ACTION ON DELETE CASCADE)");
+            database.execSQL("CREATE INDEX IF NOT EXISTS index_content_versions_briefId_channelId "
+                    + "ON content_versions (briefId, channelId)");
+            database.execSQL("CREATE INDEX IF NOT EXISTS index_content_versions_briefId_channelId_createdAt "
+                    + "ON content_versions (briefId, channelId, createdAt)");
+            database.execSQL("CREATE TABLE IF NOT EXISTS version_approvals ("
+                    + "versionId TEXT NOT NULL PRIMARY KEY, approvedAt INTEGER NOT NULL, "
+                    + "FOREIGN KEY(versionId) REFERENCES content_versions(versionId) "
+                    + "ON UPDATE NO ACTION ON DELETE CASCADE)");
+        }
+    };
+
     public abstract DraftDao drafts();
     public abstract BriefDao briefs();
+    public abstract EditorDao editor();
 }
