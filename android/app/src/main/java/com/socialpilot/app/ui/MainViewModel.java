@@ -14,13 +14,26 @@ import com.socialpilot.app.data.local.DraftEntity;
 import com.socialpilot.app.data.local.BriefDao.BriefListItem;
 import com.socialpilot.app.data.repository.DraftRepository;
 import com.socialpilot.app.data.repository.BriefRepository;
+import com.socialpilot.app.data.repository.PublicArticleRepository;
 import com.socialpilot.app.domain.editor.BriefForm;
 import com.socialpilot.app.domain.editor.BriefFormValidator;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public final class MainViewModel extends AndroidViewModel {
     public enum SaveState { IDLE, SAVING, SAVED, FAILED }
     public enum OAuthStatus { IDLE, STARTING, AUTHORIZATION_READY, EXCHANGING, CONNECTED, FAILED }
+    public enum ImportStatus { IDLE, LOADING, DONE }
+    public static final class ImportUiState {
+        public final ImportStatus status;
+        public final PublicArticleRepository.Result result;
+        private ImportUiState(ImportStatus status, PublicArticleRepository.Result result) {
+            this.status = status;
+            this.result = result;
+        }
+    }
     public static final class OAuthUiState {
         public final OAuthStatus status;
         public final String value;
@@ -32,6 +45,11 @@ public final class MainViewModel extends AndroidViewModel {
     private final FacebookOAuthCoordinator facebookOAuth;
     private final MutableLiveData<SaveState> saveState = new MutableLiveData<>(SaveState.IDLE);
     private final MutableLiveData<OAuthUiState> oauthState = new MutableLiveData<>(new OAuthUiState(OAuthStatus.IDLE, null));
+    private final PublicArticleRepository articleRepository = new PublicArticleRepository();
+    private final ExecutorService importExecutor = Executors.newSingleThreadExecutor();
+    private final AtomicInteger importGeneration = new AtomicInteger();
+    private final MutableLiveData<ImportUiState> importState =
+            new MutableLiveData<>(new ImportUiState(ImportStatus.IDLE, null));
 
     public MainViewModel(@NonNull Application application) {
         super(application);
@@ -48,6 +66,31 @@ public final class MainViewModel extends AndroidViewModel {
     }
     public LiveData<SaveState> saveState() { return saveState; }
     public LiveData<OAuthUiState> oauthState() { return oauthState; }
+    public LiveData<ImportUiState> importState() { return importState; }
+
+    public void clearImportState() {
+        importGeneration.incrementAndGet();
+        importState.setValue(new ImportUiState(ImportStatus.IDLE, null));
+    }
+
+    public void inspectSource(String url) {
+        int generation = importGeneration.incrementAndGet();
+        importState.setValue(new ImportUiState(ImportStatus.LOADING, null));
+        importExecutor.execute(() -> {
+            PublicArticleRepository.Result result = articleRepository.inspect(url);
+            new Handler(Looper.getMainLooper()).post(() -> {
+                if (importGeneration.get() == generation) {
+                    importState.setValue(new ImportUiState(ImportStatus.DONE, result));
+                }
+            });
+        });
+    }
+
+    @Override protected void onCleared() {
+        importGeneration.incrementAndGet();
+        importExecutor.shutdownNow();
+        super.onCleared();
+    }
     public String connectedPageSummary() { return facebookOAuth.connectedPageSummary(); }
     public void acknowledge() { saveState.setValue(SaveState.IDLE); }
 
