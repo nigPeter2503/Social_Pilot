@@ -7,6 +7,7 @@
   <string name="audience_hint">Đối tượng đọc</string>
   <string name="tone_hint">Giọng văn</string>
   <string name="content_language">Ngôn ngữ nội dung</string>
+  <string name="app_language">Ngôn ngữ ứng dụng</string>
   <string name="language_vi">Tiếng Việt</string>
   <string name="language_en">Tiếng Anh</string>
   <string name="source_hint">Nguồn (không bắt buộc)</string>
