@@ -1,0 +1,35 @@
+// DRAFT / NOT COMPILED. Resolve Channel placeholders ONLY after HO-CHANNEL and HO-SCHEMA.
+package com.socialpilot.app.data.local;
+
+import androidx.annotation.NonNull;
+import androidx.room.ColumnInfo;
+import androidx.room.Entity;
+import androidx.room.ForeignKey;
+import androidx.room.Index;
+import androidx.room.PrimaryKey;
+
+@Entity(tableName = "published_posts", foreignKeys = @ForeignKey(
+        entity = {{CHANNEL_ENTITY}}.class, parentColumns = "{{CHANNEL_PK}}",
+        childColumns = "channelId", onDelete = ForeignKey.CASCADE), indices = {
+        @Index(value = {"channelId", "externalPostId"}, unique = true),
+        @Index(value = {"channelId", "publishedAt", "id"})})
+public class PublishedPostEntity {
+    @PrimaryKey @NonNull public String id;
+    @NonNull public String channelId;
+    @NonNull @ColumnInfo(collate = ColumnInfo.BINARY) public String externalPostId;
+    @NonNull public String platform;
+    @NonNull public String accountType;
+    public long connectionRevision;
+    @NonNull public String externalAccountId;
+    public String content;
+    public String permalink;
+    public Long publishedAt;
+    public Long providerUpdatedAt;
+    public long receivedAt;
+    @NonNull public String source;
+    @NonNull public String sourceRef;
+    @NonNull public String ownershipEvidenceRef;
+    public String contentSourceRef;
+    public String permalinkSourceRef;
+    public String publishedAtSourceRef;
+}

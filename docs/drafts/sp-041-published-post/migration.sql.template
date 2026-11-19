@@ -1,0 +1,27 @@
+-- DRAFT ONLY. No source/target version allocated. Never execute with unresolved placeholders.
+-- Add this table only AFTER the confirmed Channel migration. Do not touch drafts or sqlite_sequence.
+CREATE TABLE IF NOT EXISTS published_posts (
+    id TEXT NOT NULL PRIMARY KEY,
+    channelId TEXT NOT NULL,
+    externalPostId TEXT COLLATE BINARY NOT NULL,
+    platform TEXT NOT NULL,
+    accountType TEXT NOT NULL,
+    connectionRevision INTEGER NOT NULL,
+    externalAccountId TEXT NOT NULL,
+    content TEXT,
+    permalink TEXT,
+    publishedAt INTEGER,
+    providerUpdatedAt INTEGER,
+    receivedAt INTEGER NOT NULL,
+    source TEXT NOT NULL,
+    sourceRef TEXT NOT NULL,
+    ownershipEvidenceRef TEXT NOT NULL,
+    contentSourceRef TEXT,
+    permalinkSourceRef TEXT,
+    publishedAtSourceRef TEXT,
+    FOREIGN KEY(channelId) REFERENCES {{CHANNEL_TABLE}}({{CHANNEL_PK}}) ON DELETE CASCADE
+);
+CREATE UNIQUE INDEX IF NOT EXISTS index_published_posts_channelId_externalPostId
+    ON published_posts(channelId, externalPostId);
+CREATE INDEX IF NOT EXISTS index_published_posts_channelId_publishedAt_id
+    ON published_posts(channelId, publishedAt, id);
