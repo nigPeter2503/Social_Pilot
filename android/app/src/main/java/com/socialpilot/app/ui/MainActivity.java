@@ -4,9 +4,14 @@ import android.content.Intent;
 import android.net.Uri;
 import android.net.ConnectivityManager;
 import android.net.NetworkCapabilities;
+import android.net.NetworkRequest;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.app.AppCompatDelegate;
+import androidx.core.os.LocaleListCompat;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.lifecycle.ViewModelProvider;
@@ -24,6 +29,20 @@ import java.net.URISyntaxException;
 public final class MainActivity extends AppCompatActivity {
     private ActivityMainBinding binding;
     private MainViewModel model;
+    private boolean observingNetwork;
+    private final ConnectivityManager.NetworkCallback networkCallback =
+            new ConnectivityManager.NetworkCallback() {
+                @Override public void onAvailable(android.net.Network network) {
+                    postNetworkRefresh();
+                }
+                @Override public void onLost(android.net.Network network) {
+                    postNetworkRefresh();
+                }
+                @Override public void onCapabilitiesChanged(android.net.Network network,
+                        NetworkCapabilities capabilities) {
+                    postNetworkRefresh();
+                }
+            };
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -34,6 +53,18 @@ public final class MainActivity extends AppCompatActivity {
             view.setPadding(bars.left, bars.top, bars.right, bars.bottom); return insets;
         });
         model = new ViewModelProvider(this).get(MainViewModel.class);
+        LocaleListCompat appLocales = AppCompatDelegate.getApplicationLocales();
+        String uiLanguage = appLocales.isEmpty()
+                ? getResources().getConfiguration().locale.getLanguage()
+                : appLocales.get(0).getLanguage();
+        binding.appLanguageGroup.check("en".equals(uiLanguage)
+                ? R.id.appLanguageEn : R.id.appLanguageVi);
+        binding.appLanguageGroup.setOnCheckedChangeListener((group, checkedId) -> {
+            String tag = checkedId == R.id.appLanguageEn ? "en" : "vi";
+            if (!tag.equals(AppCompatDelegate.getApplicationLocales().toLanguageTags())) {
+                AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(tag));
+            }
+        });
         String page = model.connectedPageSummary();
         if (page != null) binding.facebookPageStatus.setText(getString(R.string.facebook_connected, page));
         binding.connectFacebookButton.setOnClickListener(view -> model.connectFacebook());
@@ -124,8 +155,36 @@ public final class MainActivity extends AppCompatActivity {
         Toast.makeText(this, getString(R.string.oauth_error, code), Toast.LENGTH_LONG).show();
     }
 
-    @Override protected void onResume() {
-        super.onResume();
+    @Override protected void onStart() {
+        super.onStart();
+        ConnectivityManager manager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+        if (manager != null) {
+            try {
+                manager.registerNetworkCallback(new NetworkRequest.Builder()
+                        .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET).build(),
+                        networkCallback);
+                observingNetwork = true;
+            } catch (RuntimeException ignored) {
+                observingNetwork = false;
+            }
+        }
+        refreshNetworkStatus();
+    }
+
+    @Override protected void onStop() {
+        if (observingNetwork) {
+            ConnectivityManager manager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+            if (manager != null) manager.unregisterNetworkCallback(networkCallback);
+            observingNetwork = false;
+        }
+        super.onStop();
+    }
+
+    private void postNetworkRefresh() {
+        new Handler(Looper.getMainLooper()).post(this::refreshNetworkStatus);
+    }
+
+    private void refreshNetworkStatus() {
         ConnectivityManager manager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
         NetworkCapabilities capabilities = manager == null ? null
                 : manager.getNetworkCapabilities(manager.getActiveNetwork());
