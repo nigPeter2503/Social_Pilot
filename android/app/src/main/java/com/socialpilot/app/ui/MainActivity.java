@@ -136,6 +136,8 @@ public final class MainActivity extends AppCompatActivity {
             }
         });
         binding.saveButton.setOnClickListener(view -> saveBrief());
+        binding.openDashboardButton.setOnClickListener(view ->
+                startActivity(new Intent(this, DashboardActivity.class)));
         handleOAuthIntent(getIntent());
     }
 
