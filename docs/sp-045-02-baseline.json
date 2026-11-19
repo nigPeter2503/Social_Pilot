@@ -1,0 +1,37 @@
+[
+  {
+    "path": "android/app/src/main/java/com/socialpilot/app/data/remote/social/FollowerMetricAdapter.java",
+    "sha256": "2af0411254ee6cecaba37d3bd4c12fbd37a05dcb53f41daa6cf32b741f669509",
+    "blob": "26bb12cc826057d2e87c5a891fb911498c075396"
+  },
+  {
+    "path": "android/app/src/main/java/com/socialpilot/app/data/remote/social/FollowerRequest.java",
+    "sha256": "f35db0666044e58576f98bd493adac071fc568953af0dd2ecf0c78c5e97aa9e8",
+    "blob": "99c428bc7476088fa0db44e6de946a035db95e46"
+  },
+  {
+    "path": "android/app/src/main/java/com/socialpilot/app/data/remote/social/FollowerResult.java",
+    "sha256": "d8fde7e1c0a4966ceb489052fb41bc8a5376cdae5fcd21365a9f65e2ab23b117",
+    "blob": "30983f46b678f1f49384ff284ec313fbe4980b61"
+  },
+  {
+    "path": "android/app/src/test/java/com/socialpilot/app/data/remote/social/FollowerMetricAdapterTest.java",
+    "sha256": "0cb17f458a4fe1b5e4c8cb6a83c60d1635690ef0e08ee1777488505b7aa608dd",
+    "blob": "f28c3ac7c82ad23891ff6ccd851102c327c24621"
+  },
+  {
+    "path": "android/app/src/test/resources/followers/facebook-sp018.json",
+    "sha256": "b3afbff8021371692cfab378721b95ef1952c89b540f55825dafce1f35cabee5",
+    "blob": "3cf24f0530000fdd3bf2b0b289de02aff72256d2"
+  },
+  {
+    "path": "android/app/src/test/resources/followers/linkedin-sp019.json",
+    "sha256": "09089d464b0944e48b470cfdeb1a3052319714a32c98df44a3e1cb18a349c670",
+    "blob": "2ba97703ee9f0abf600d26f8d3a34effab505c37"
+  },
+  {
+    "path": "docs/sp-045-follower-adapter-verification.md",
+    "sha256": "8755510a58bd24bd912638a329ec4ddd033438563ad5555b14e8ad2841a0c539",
+    "blob": "05022c7cc530d1c44cabb3783e5e7dbb32828184"
+  }
+]

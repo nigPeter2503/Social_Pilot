@@ -1,0 +1,8 @@
+{
+  "base": "230c2a6ebcd8785288e57764c4ebb5fb6bbd4afa",
+  "branch": "feat/sp-045-follower-adapter",
+  "remoteMainVerified": "230c2a6ebcd8785288e57764c4ebb5fb6bbd4afa",
+  "masterPlanSha256": "9660ec8ac8405a2d67afc848bcbf3ed02d76afa3a1e766495d9ddd90da1080e8",
+  "followerPlanRow": "| SP-045.01 | Triển khai | #47 | Adapter follower | Nghị | — | 1,5h / — | W2 16/11 | Chờ review | Worktree `Social_Pilot-SP045`, nhánh `feat/sp-045-follower-adapter`; HEAD/base main đã fetch `230c2a6ebcd8785288e57764c4ebb5fb6bbd4afa`, chưa có task commit. [File/blob/evidence](Social_Pilot-SP045/docs/sp-045-follower-adapter-verification.md): 3 Java data/remote/social, 29 test adapter, 2 fixture; FIX analytics 75/75, FB 55/55, LI 128/128 MO_PHONG; Android assembleDebug + UNIT 89/89 + lintDebug 0 lỗi/6 cảnh báo; DIFF PASS. Lần đầu Gradle bị sandbox chặn khóa cache, chạy lại đã đạt. Bảo toàn untracked SP-045.05/SP-046.01 ở worktree gốc | Nghị review local, chốt nối Channel/credential/capability với Minh rồi dùng cho SP-045.04/.06; live cả 3 account NOT_RUN, còn grant/revision và xác minh mapping/version LI; chưa làm Room/Worker/UI/metric bài, chưa commit/push/PR/gửi tin | 19/11/2026 12:59 Asia/Saigon |",
+  "postPlanRow": "| SP-045.02 | Triển khai | #47 | Adapter metric bài | Nghị | — | 1,5h / — | W2 16/11 | Có thể làm | Metric mapping §1, A draft-4 | Agent pin definition và test parser | 18/11 |"
+}
