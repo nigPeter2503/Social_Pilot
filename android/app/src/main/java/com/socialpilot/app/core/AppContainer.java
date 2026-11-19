@@ -17,7 +17,7 @@ public final class AppContainer {
     public final FacebookOAuthCoordinator facebookOAuth;
     public AppContainer(Context context) {
         database = Room.databaseBuilder(context.getApplicationContext(), AppDatabase.class, "socialpilot.db")
-                .addMigrations(AppDatabase.MIGRATION_1_2).build();
+                .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3).build();
         drafts = new DraftRepository(database.drafts(), io);
         briefs = new BriefRepository(database.briefs(), io);
         facebookOAuth = new FacebookOAuthCoordinator(context, io, BuildConfig.OAUTH_API_BASE_URL);

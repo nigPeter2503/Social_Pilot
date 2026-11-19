@@ -13,6 +13,8 @@ public final class BriefTargetEntity {
     @NonNull public String briefId;
     @NonNull public String channelId;
     @NonNull public String platform;
+    public String currentVersionId;
+    public String approvedVersionId;
 
     public BriefTargetEntity(@NonNull String briefId, @NonNull String channelId,
             @NonNull String platform) {
