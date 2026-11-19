@@ -134,6 +134,40 @@ public class SnapshotStorageTest {
                 () -> save("late-post", START, post(next, PostRequest.Query.MEMBER_COMMENT, null, 4L, START)));
     }
 
+    @Test public void disconnectOrdersWritesAndPreservesOtherChannelAcrossReconnect() {
+        Snapshot savedA = save("before", START, follower(a, "before", 3L, false, START));
+        save("seed-B", START, follower(b, "seed", 11L, false, START));
+        SnapshotDao.History cachedB = history(b);
+        assertEquals(1, cachedB.snapshots().size());
+        assertEquals(1, cachedB.attempts().size());
+        assertEquals(Long.valueOf(11), cachedB.lastGood().get(0).sample().value());
+        assertEquals(savedA, history(a).snapshots().get(0));
+        assertEquals("before", history(a).lastAttempt().attemptId());
+        SnapshotReading delayed = follower(a, "in-flight", 99L, false, START);
+        Snapshot.Key lateKey = new Snapshot.Key(a.channelId(), Snapshot.Subject.CHANNEL, a.channelId(), "in-flight");
+
+        bind(scope(a.channelId(), 8), ConnectionStatus.DISCONNECTED);
+        assertThrows(IllegalStateException.class, () -> save("late", START, delayed));
+        assertEquals(cachedB, history(b));
+
+        Snapshot.Scope reconnected = scope(a.channelId(), 9);
+        bind(reconnected, ConnectionStatus.CONNECTED);
+        SnapshotWriter restarted = SnapshotWriter.simulation(dao);
+        assertThrows(IllegalStateException.class,
+                () -> restarted.write("replay", START, START, Collections.singletonList(delayed)));
+        // Inspect the physical fixture keys too: a scoped read alone could hide a stale write.
+        dao.transaction(tx -> {
+            assertNull(tx.snapshot(lateKey));
+            assertTrue(tx.attemptsForCollection(lateKey).isEmpty());
+            return null;
+        });
+        Snapshot fresh = save("new", START, follower(reconnected, "new", 5L, false, START));
+        assertEquals(Collections.singletonList(fresh), history(reconnected).snapshots());
+        assertEquals(1, history(reconnected).attempts().size());
+        assertEquals(cachedB, history(b));
+        assertEquals(1, dao.definitionCount());
+    }
+
     @Test public void disconnectedChannelAndReplacedIdentityCannotCommit() {
         SnapshotReading pending = follower(a, COLLECTION, 3L, false, START);
         bind(a, ConnectionStatus.DISCONNECTED);

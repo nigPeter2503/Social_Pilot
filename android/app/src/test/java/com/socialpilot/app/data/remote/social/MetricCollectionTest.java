@@ -295,6 +295,24 @@ public class MetricCollectionTest {
         } finally { executor.shutdownNow(); }
     }
 
+    @Test public void cancelStopsOnlyTheMatchingInFlightHttpCall() throws Exception {
+        server.enqueue(new MockResponse().setSocketPolicy(okhttp3.mockwebserver.SocketPolicy.NO_RESPONSE));
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            Future<MetricCollectionCoordinator.Result> running = executor.submit(() -> run(job(true), 0));
+            assertNotNull(server.takeRequest(5, TimeUnit.SECONDS));
+            okhttp3.Call http = client.dispatcher().runningCalls().get(0);
+            coordinator.cancel("MO_PHONG-B", 7);
+            coordinator.cancel(scope.channelId(), 8);
+            assertFalse(http.isCanceled());
+            coordinator.cancel(scope.channelId(), 7);
+            assertEquals(CANCELLED, running.get(5, TimeUnit.SECONDS).state());
+            assertTrue(http.isCanceled());
+            assertTrue(history().attempts().isEmpty());
+            assertTrue(history().snapshots().isEmpty());
+        } finally { executor.shutdownNow(); }
+    }
+
     @Test public void revisionChangeBetweenDispatchAndWriteFailsTransaction() throws Exception {
         Held held = new Held();
         coordinator = coordinator(held);

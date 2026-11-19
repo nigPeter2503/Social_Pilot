@@ -11,11 +11,19 @@ import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.work.*;
 import androidx.work.testing.*;
 import com.socialpilot.app.data.local.snapshot.Snapshot;
+import com.socialpilot.app.data.local.snapshot.SnapshotDao;
 import com.socialpilot.app.data.remote.social.*;
+import com.socialpilot.app.data.repository.metrics.MetricCollectionCoordinator;
 import com.socialpilot.app.data.repository.metrics.MetricJob;
+import com.socialpilot.app.data.repository.metrics.MetricProvider;
+import com.socialpilot.app.domain.contract.Cancelable;
+import com.socialpilot.app.domain.contract.social.*;
 import java.io.FileInputStream;
 import java.util.Collections;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.junit.*;
 import static org.junit.Assert.*;
@@ -24,10 +32,10 @@ import static com.socialpilot.app.data.remote.social.DeviceMetricFixture.SCOPE;
 public class MetricWorkDeviceTest {
     private final Context context = InstrumentationRegistry.getInstrumentation().getTargetContext().getApplicationContext();
 
-    private static WorkerFactory factory(DeviceMetricFixture fixture) {
+    private static WorkerFactory factory(MetricCollectionCoordinator coordinator) {
         return new WorkerFactory() {
             @Override public ListenableWorker createWorker(Context app, String name, WorkerParameters params) {
-                return name.equals(MetricCollectionWorker.class.getName()) ? new MetricCollectionWorker(app, params, fixture.coordinator) : null;
+                return name.equals(MetricCollectionWorker.class.getName()) ? new MetricCollectionWorker(app, params, coordinator) : null;
             }
         };
     }
@@ -41,7 +49,7 @@ public class MetricWorkDeviceTest {
         fixture.online = false;
         for (int start = 0; start <= 2; start++) {
             MetricCollectionWorker worker = TestListenableWorkerBuilder.from(context, MetricCollectionWorker.class)
-                    .setInputData(input).setId(id).setWorkerFactory(factory(fixture)).setRunAttemptCount(start).build();
+                    .setInputData(input).setId(id).setWorkerFactory(factory(fixture.coordinator)).setRunAttemptCount(start).build();
             ListenableWorker.Result result = worker.doWork();
             if (start < 2) assertEquals(ListenableWorker.Result.retry(), result);
             else assertTrue(result instanceof ListenableWorker.Result.Success);
@@ -62,7 +70,7 @@ public class MetricWorkDeviceTest {
     @Test public void driverQueuesTwoManualCollectionsAndRunsWorkerOnlyWhenConnected() throws Exception {
         DeviceMetricFixture fixture = new DeviceMetricFixture();
         WorkManagerTestInitHelper.initializeTestWorkManager(context, new Configuration.Builder()
-                .setWorkerFactory(factory(fixture)).setExecutor(new SynchronousExecutor()).build());
+                .setWorkerFactory(factory(fixture.coordinator)).setExecutor(new SynchronousExecutor()).build());
         try {
             WorkManager wm = WorkManager.getInstance(context);
             TestDriver driver = WorkManagerTestInitHelper.getTestDriver(context);
@@ -82,6 +90,87 @@ public class MetricWorkDeviceTest {
             assertEquals(2, fixture.calls);
             assertEquals(2, fixture.dao.read(SCOPE, FollowerResult.Source.MO_PHONG, 0, Long.MAX_VALUE).snapshots().size());
         } finally { WorkManagerTestInitHelper.closeWorkDatabase(); }
+    }
+
+    private static void bind(DeviceMetricFixture fixture, Snapshot.Scope scope, ConnectionStatus status) {
+        fixture.dao.bind(new ChannelInfo(scope.channelId(), scope.platform(), scope.externalAccountId(),
+                AccountType.PAGE, "MO_PHONG", status, scope.connectionRevision(),
+                status == ConnectionStatus.DISCONNECTED ? null : "mock-ref"));
+    }
+
+    private static MetricCollectionWork.Ticket queue(MetricCollectionWork work, Snapshot.Scope scope) throws Exception {
+        MetricCollectionWork.Ticket ticket = work.manualRefresh(scope, "v27.0", true, Collections.emptyList());
+        ticket.enqueue().getResult().get(10, TimeUnit.SECONDS);
+        return ticket;
+    }
+
+    @Test public void disconnectCancelsRunningAndBlockedRevisionWhileOtherWorkSurvives() throws Exception {
+        DeviceMetricFixture fixture = new DeviceMetricFixture();
+        Snapshot.Scope b = new Snapshot.Scope(SCOPE.platform(), SCOPE.account(), "MO_PHONG-B", "MO_PHONG-page-B", 7);
+        bind(fixture, b, ConnectionStatus.CONNECTED);
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch cancelled = new CountDownLatch(1);
+        MetricProvider provider = new MetricProvider() {
+            @Override public Cancelable read(FollowerRequest r, FollowerMetricAdapter.ResultCallback cb) {
+                if (r.channelId.equals(SCOPE.channelId()) && r.connectionRevision == SCOPE.connectionRevision()) {
+                    started.countDown();
+                    return cancelled::countDown;
+                }
+                return fixture.read(r, cb);
+            }
+            @Override public Cancelable read(PostRequest r, PostMetricAdapter.ResultCallback cb) {
+                throw new AssertionError("unexpected post");
+            }
+        };
+        MetricCollectionCoordinator coordinator = new MetricCollectionCoordinator(fixture.dao,
+                FollowerResult.Source.MO_PHONG, provider, System::currentTimeMillis, () -> true);
+        ExecutorService workers = Executors.newFixedThreadPool(2);
+        WorkManagerTestInitHelper.initializeTestWorkManager(context, new Configuration.Builder()
+                .setWorkerFactory(factory(coordinator)).setExecutor(workers).build());
+        try {
+            WorkManager wm = WorkManager.getInstance(context);
+            TestDriver driver = WorkManagerTestInitHelper.getTestDriver(context);
+            MetricCollectionWork work = new MetricCollectionWork(context, coordinator, System::currentTimeMillis);
+            MetricCollectionWork.Ticket seed = queue(work, b);
+            driver.setAllConstraintsMet(seed.workId());
+            assertEquals("COMPLETE", finished(wm, seed.workId()).getString("state"));
+            SnapshotDao.History cacheB = coordinator.cached(seed.job(), 0, Long.MAX_VALUE).history();
+            assertEquals(1, cacheB.snapshots().size());
+            assertEquals(1, cacheB.attempts().size());
+            assertEquals(Long.valueOf(0), cacheB.lastGood().get(0).sample().value());
+
+            MetricCollectionWork.Ticket running = queue(work, SCOPE);
+            MetricCollectionWork.Ticket waiting = queue(work, SCOPE);
+            MetricCollectionWork.Ticket other = queue(work, b);
+            driver.setAllConstraintsMet(running.workId());
+            assertTrue(started.await(5, TimeUnit.SECONDS));
+            assertEquals(WorkInfo.State.RUNNING, wm.getWorkInfoById(running.workId()).get().getState());
+            assertEquals(WorkInfo.State.BLOCKED, wm.getWorkInfoById(waiting.workId()).get().getState());
+            Snapshot.Scope invalid = new Snapshot.Scope(SCOPE.platform(), SCOPE.account(), SCOPE.channelId(), SCOPE.externalAccountId(), 8);
+            bind(fixture, invalid, ConnectionStatus.DISCONNECTED);
+            Snapshot.Scope next = new Snapshot.Scope(SCOPE.platform(), SCOPE.account(), SCOPE.channelId(), SCOPE.externalAccountId(), 9);
+            bind(fixture, next, ConnectionStatus.CONNECTED);
+            MetricCollectionWork.Ticket fresh = queue(work, next);
+            work.cancel(SCOPE.channelId(), SCOPE.connectionRevision()).getResult().get(10, TimeUnit.SECONDS);
+            assertTrue(cancelled.await(5, TimeUnit.SECONDS));
+            WorkInfo stopped = wm.getWorkInfoById(running.workId()).get();
+            // The interrupted Worker can return its domain result before the tag operation completes.
+            assertTrue(stopped.getState() == WorkInfo.State.CANCELLED || (stopped.getState() == WorkInfo.State.SUCCEEDED
+                    && "CANCELLED".equals(stopped.getOutputData().getString("state"))));
+            assertEquals(WorkInfo.State.CANCELLED, wm.getWorkInfoById(waiting.workId()).get().getState());
+            assertEquals(cacheB, coordinator.cached(seed.job(), 0, Long.MAX_VALUE).history());
+            driver.setAllConstraintsMet(other.workId());
+            assertEquals("COMPLETE", finished(wm, other.workId()).getString("state"));
+            driver.setAllConstraintsMet(fresh.workId());
+            assertEquals("COMPLETE", finished(wm, fresh.workId()).getString("state"));
+            assertEquals(2, coordinator.cached(other.job(), 0, Long.MAX_VALUE).history().snapshots().size());
+            assertEquals(1, coordinator.cached(fresh.job(), 0, Long.MAX_VALUE).history().snapshots().size());
+            report("A7 running=" + stopped.getState() + " domain=" + stopped.getOutputData().getString("state")
+                    + " queued=CANCELLED; B7 snapshots=2; A9 snapshots=1");
+        } finally {
+            workers.shutdownNow();
+            WorkManagerTestInitHelper.closeWorkDatabase();
+        }
     }
 
     @Test public void restoresPostTargetsAndVerifiedPeriodFromWorkData() {
@@ -104,9 +193,11 @@ public class MetricWorkDeviceTest {
     @Test public void offlineProcessRestart() throws Exception {
         String phase = InstrumentationRegistry.getArguments().getString("sp045Phase");
         Assume.assumeTrue("requires two externally controlled processes", phase != null);
+        boolean disconnect = "true".equals(InstrumentationRegistry.getArguments().getString("sp045Disconnect"));
         MetricDeviceRunner.FixtureApplication app = (MetricDeviceRunner.FixtureApplication) context;
         WorkManager wm = WorkManager.getInstance(context);
-        SharedPreferences marker = context.getSharedPreferences("MO_PHONG-device-restart", Context.MODE_PRIVATE);
+        SharedPreferences marker = context.getSharedPreferences(disconnect ? "MO_PHONG-disconnect-restart"
+                : "MO_PHONG-device-restart", Context.MODE_PRIVATE);
         ConnectivityManager network = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
         assertNull("device must start offline", network.getActiveNetwork());
         if ("queue".equals(phase)) {
@@ -114,6 +205,12 @@ public class MetricWorkDeviceTest {
             t.enqueue().getResult().get(10, TimeUnit.SECONDS);
             assertEquals(WorkInfo.State.ENQUEUED, wm.getWorkInfoById(t.workId()).get().getState());
             assertEquals(0, app.fixture.calls);
+            if (disconnect) {
+                // Simulate death after invalidation and before the tag cancellation can run.
+                Snapshot.Scope invalid = new Snapshot.Scope(SCOPE.platform(), SCOPE.account(), SCOPE.channelId(), SCOPE.externalAccountId(), 8);
+                bind(app.fixture, invalid, ConnectionStatus.DISCONNECTED);
+                assertTrue(marker.edit().putLong("invalidRevision", invalid.connectionRevision()).commit());
+            }
             assertTrue(marker.edit().putString("work", t.workId().toString()).putString("id", t.job().collectionId())
                     .putLong("started", t.job().collectionStartedAt()).putInt("pid", Process.myPid()).commit());
             report("queued pid=" + Process.myPid() + " work=" + t.workId() + " collection=" + t.job().collectionId()
@@ -124,6 +221,30 @@ public class MetricWorkDeviceTest {
             UUID id = UUID.fromString(marker.getString("work", null));
             assertEquals(WorkInfo.State.ENQUEUED, wm.getWorkInfoById(id).get().getState());
             assertEquals(0, app.fixture.calls);
+            if (disconnect) {
+                long invalidRevision = marker.getLong("invalidRevision", -1);
+                assertEquals(8, invalidRevision);
+                Snapshot.Scope next = new Snapshot.Scope(SCOPE.platform(), SCOPE.account(), SCOPE.channelId(),
+                        SCOPE.externalAccountId(), invalidRevision + 1);
+                bind(app.fixture, next, ConnectionStatus.CONNECTED);
+                shell("svc wifi enable");
+                shell("svc data enable");
+                Data stale = finished(wm, id);
+                assertEquals("FAILED", stale.getString("state"));
+                assertArrayEquals(new String[]{"CHANNEL_DISCONNECTED/RECONNECT"}, stale.getStringArray("errors"));
+                assertEquals(marker.getString("id", null), stale.getString("resultCollection"));
+                assertEquals(0, app.fixture.calls);
+                SnapshotDao.History history = app.fixture.dao.read(next, FollowerResult.Source.MO_PHONG, 0, Long.MAX_VALUE);
+                assertTrue(history.snapshots().isEmpty());
+                assertTrue(history.attempts().isEmpty());
+                MetricCollectionWork.Ticket fresh = queue(app.container().metrics, next);
+                assertEquals("COMPLETE", finished(wm, fresh.workId()).getString("state"));
+                assertEquals(1, app.fixture.calls);
+                assertEquals(fresh.job().collectionId(), app.fixture.dao.read(next, FollowerResult.Source.MO_PHONG,
+                        0, Long.MAX_VALUE).lastAttempt().key().collectionId());
+                report("reconnected pid=" + Process.myPid() + " rejectedWork=" + id + " oldCalls=0 freshCalls=1");
+                return;
+            }
             shell("svc wifi enable");
             shell("svc data enable");
             Data data = finished(wm, id);
