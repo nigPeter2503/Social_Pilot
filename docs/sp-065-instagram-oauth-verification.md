@@ -73,3 +73,20 @@ Spike yêu cầu kết nối lại khi token hết hạn, hoặc Graph báo toke
 App giữ riêng credential theo kênh; không thực hiện refresh tự động trong thay đổi này.
 Hạn nhận được lấy từ ngày hết hạn token hoặc ngày hết quyền truy cập dữ liệu sớm hơn nếu Meta cung cấp cả hai.
 Kết quả mô phỏng kiểm tra hành vi app. Kết quả thiết bị và Meta thật được ghi riêng theo mỗi lần chạy.
+
+## Ca mô phỏng có kiểm soát trên thiết bị
+
+Người dùng chọn giữ nguyên grant Meta thật. AndroidJUnitRunner chạy trên Samsung
+SM-G990E trong vùng SharedPreferences riêng với credential giả, response Graph mô
+phỏng và không gửi bài mới. Kết quả `OK (3 tests)`:
+
+- Hết hạn: app yêu cầu kết nối lại, chỉ vô hiệu bản ghi Instagram thử và dừng trước khi gọi Graph.
+- Thu hồi: phản hồi Graph mô phỏng với mã `190` yêu cầu kết nối lại. Sau khi nạp phiên
+  Instagram giả mới, phép kiểm tra trả `READY`. Credential Facebook thử vẫn dùng được ở mỗi bước.
+- Mất phản hồi sau publish: lưu container, kiểm tra trạng thái bằng GET sau khi mở lại
+  repository và giữ trạng thái đã đăng dù thiếu ID. Lệnh publish lần nữa bị chặn.
+
+[Kết quả AndroidJUnitRunner](evidence/sp-065-controlled-device-tests-2026-11-20.txt)
+
+Mốc hết hạn hiển thị trong ca Meta thật được cung cấp từ metadata. Ca thu hồi thật
+và cơ chế đổi sang token dài hạn chưa chạy trong các phép thử trên.

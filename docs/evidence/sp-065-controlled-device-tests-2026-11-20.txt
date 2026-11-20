@@ -1,0 +1,6 @@
+INSTRUMENTATION_STATUS: test=losingPublishResponseKeepsContainerAndPreventsAnotherPost
+INSTRUMENTATION_STATUS: test=expiredInstagramRequiresReconnectWithoutCallingGraph
+INSTRUMENTATION_STATUS: test=revokedInstagramAndNewSessionLeaveFacebookCredentialsUntouched
+Time: 0.401
+OK (3 tests)
+INSTRUMENTATION_CODE: -1

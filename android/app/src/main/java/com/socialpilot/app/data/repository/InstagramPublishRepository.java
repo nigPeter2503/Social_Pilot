@@ -33,11 +33,16 @@ public final class InstagramPublishRepository {
 
     private final EncryptedOAuthStore connections;
     private final SharedPreferences attempts;
-    private final InstagramGraphClient graph = new InstagramGraphClient();
+    private final InstagramGraphClient graph;
     private final Gson gson = new Gson();
 
     public InstagramPublishRepository(Context context, EncryptedOAuthStore connections) {
+        this(context, connections, new InstagramGraphClient());
+    }
+
+    InstagramPublishRepository(Context context, EncryptedOAuthStore connections, InstagramGraphClient graph) {
         this.connections = connections;
+        this.graph = graph;
         attempts = context.getApplicationContext().getSharedPreferences("instagram_feed_spike", Context.MODE_PRIVATE);
     }
 
