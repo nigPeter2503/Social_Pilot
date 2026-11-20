@@ -78,8 +78,12 @@ Kết quả mô phỏng kiểm tra hành vi app. Kết quả thiết bị và Me
 
 Người dùng chọn giữ nguyên grant Meta thật. AndroidJUnitRunner chạy trên Samsung
 SM-G990E trong vùng SharedPreferences riêng với credential giả, response Graph mô
-phỏng và không gửi bài mới. Kết quả `OK (3 tests)`:
+phỏng và không gửi bài mới. Kết quả `OK (4 tests)`:
 
+- Từ chối cấp quyền: callback `ACCESS_DENIED` xóa phiên đang chờ, trả lỗi ở app
+  và giữ cả hai kết nối thử. Kiểm tra backend cũng xác nhận callback từ chối
+  không đổi code với Meta và không cấp mã bàn giao. Lượt Meta thật trước đó quay
+  lại app mà người dùng chưa bấm Hủy, nên chỉ có bằng chứng từ chối mô phỏng.
 - Hết hạn: app yêu cầu kết nối lại, chỉ vô hiệu bản ghi Instagram thử và dừng trước khi gọi Graph.
 - Thu hồi: phản hồi Graph mô phỏng với mã `190` yêu cầu kết nối lại. Sau khi nạp phiên
   Instagram giả mới, phép kiểm tra trả `READY`. Credential Facebook thử vẫn dùng được ở mỗi bước.

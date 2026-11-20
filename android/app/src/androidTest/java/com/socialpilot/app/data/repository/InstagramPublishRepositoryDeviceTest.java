@@ -3,8 +3,10 @@ package com.socialpilot.app.data.repository;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.SharedPreferences;
+import android.net.Uri;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
+import com.socialpilot.app.core.FacebookOAuthCoordinator;
 import com.socialpilot.app.data.remote.instagram.ControlledInstagramGraph;
 import com.socialpilot.app.data.remote.instagram.InstagramGraphClient;
 import com.socialpilot.app.data.security.EncryptedOAuthStore;
@@ -13,7 +15,12 @@ import com.socialpilot.app.domain.editor.ContentVersion;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import okhttp3.Protocol;
 import okhttp3.Request;
 import okhttp3.Response;
@@ -29,6 +36,7 @@ import static com.socialpilot.app.data.repository.InstagramPublishRepository.Sta
 import static com.socialpilot.app.data.repository.InstagramPublishRepository.Status.RECONNECT;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 @RunWith(AndroidJUnit4.class)
 public final class InstagramPublishRepositoryDeviceTest {
@@ -90,6 +98,37 @@ public final class InstagramPublishRepositoryDeviceTest {
         saveInstagram("new-test-session", "new-ig-token", null);
         assertEquals(READY, repository.reconcile().status);
         assertEquals(FACEBOOK_TOKEN, connections.accessToken());
+    }
+
+    @Test public void deniedCallbackKeepsPriorInstagramAndFacebookConnections() throws Exception {
+        saveInstagram("prior-instagram-session", "prior-ig-token", null);
+        connections.savePending("denied-instagram-session",
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "INSTAGRAM");
+        ExecutorService io = Executors.newSingleThreadExecutor();
+        CountDownLatch completed = new CountDownLatch(1);
+        AtomicReference<String> event = new AtomicReference<>();
+        try {
+            FacebookOAuthCoordinator coordinator = new FacebookOAuthCoordinator(
+                    connections, io, "https://127.0.0.1/");
+            Uri callback = Uri.parse("socialpilot://oauth/callback?sessionId=denied-instagram-session&error=ACCESS_DENIED");
+            coordinator.handleCallback(callback, new FacebookOAuthCoordinator.Listener() {
+                @Override public void onAuthorizationUrl(String url) { finish("UNEXPECTED_AUTHORIZATION"); }
+                @Override public void onConnected(String provider, String name, String id) { finish("UNEXPECTED_CONNECTION"); }
+                @Override public void onFailure(String code) { finish(code); }
+
+                private void finish(String value) {
+                    event.set(value);
+                    completed.countDown();
+                }
+            });
+            assertTrue("The app did not receive the denied callback", completed.await(5, TimeUnit.SECONDS));
+            assertEquals("ACCESS_DENIED", event.get());
+            assertNull(connections.getPending());
+            assertEquals("prior-instagram-session", connections.instagramConnection().sessionId);
+            assertEquals(FACEBOOK_TOKEN, connections.accessToken());
+        } finally {
+            io.shutdownNow();
+        }
     }
 
     @Test public void losingPublishResponseKeepsContainerAndPreventsAnotherPost() {

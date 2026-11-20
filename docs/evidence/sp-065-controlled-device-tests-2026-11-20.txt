@@ -1,6 +1,7 @@
 INSTRUMENTATION_STATUS: test=losingPublishResponseKeepsContainerAndPreventsAnotherPost
+INSTRUMENTATION_STATUS: test=deniedCallbackKeepsPriorInstagramAndFacebookConnections
 INSTRUMENTATION_STATUS: test=expiredInstagramRequiresReconnectWithoutCallingGraph
 INSTRUMENTATION_STATUS: test=revokedInstagramAndNewSessionLeaveFacebookCredentialsUntouched
-Time: 0.401
-OK (3 tests)
+Time: 0.47
+OK (4 tests)
 INSTRUMENTATION_CODE: -1
