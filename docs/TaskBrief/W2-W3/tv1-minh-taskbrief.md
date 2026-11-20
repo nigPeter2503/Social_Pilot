@@ -6,7 +6,7 @@
 
 Minh sở hữu F1/F5, backend OAuth, hợp đồng social và điều phối tích hợp. Mục tiêu cá nhân: chuyển các spike tuần 1 thành kết nối production, đầu vào đăng đã duyệt và hàng đợi bền vững; cung cấp auth/capability cho Nghị, hợp đồng kết quả đăng cho Thiện và ranh giới lưu bí mật cho Đạt.
 
-Tuần 1 và bảy PR #69/#70/#73/#74/#75/#76/#77 được coi là đã xong theo giả định đã thống nhất; không giao lại spike hoặc coi chờ approve là blocker. **SP-021 là đầu vào đã hoàn tất.** Hai giờ SP-021/người trong bảng chung chỉ được giữ để đối chiếu baseline, không phải task mới. Phê duyệt nội dung trong chat không phải hai approval GitHub hoặc bằng chứng nghiệm thu tính năng.
+Ước lượng ngày 15/11 giả định tuần 1 hoàn tất. Từ 20/11, dùng Facebook Page và Instagram Professional; Minh và Nghị cần đối chiếu lại phần công tích hợp Instagram. **SP-021 là đầu vào đã hoàn tất.** Hai giờ SP-021/người trong bảng chung chỉ được giữ để đối chiếu baseline, không phải task mới. Phê duyệt nội dung trong chat không phải hai approval GitHub hoặc bằng chứng nghiệm thu tính năng.
 
 Các issue bên dưới có thật; người chịu trách nhiệm theo brief đã duyệt là Minh. Khi đọc tracker ngày 15/11, các issue triển khai này chưa có assignee; tài liệu không tự cập nhật assignment/status. Nhãn In Progress trong bản report là kịch bản báo cáo, không thay việc nhận task trên Project trước khi sửa code.
 
@@ -42,11 +42,11 @@ Các issue bên dưới có thật; người chịu trách nhiệm theo brief đ
 - **Hai reviewer dự kiến:** Nguyễn Đức Đạt (@dat532006), Tô Lãng Nghị (@bob35306).
 - **Nhánh đề xuất, chưa tạo:** `feat/sp-022-oauth-token-lifecycle`. **Nguồn:** [Proposal F1, §3.3 và §5.1/F1](../../SocialPilot_Proposal_Java.md), [social contract §§3/6](../../social-contract.md), [Room contract §4](../../room-schema-contract.md).
 
-**Đầu vào/phụ thuộc:** SP-009/SP-010/SP-011 đã xong theo giả định; SP-027 bàn giao API kho bí mật, namespace và lỗi đọc/ghi. Nhận danh tính, loại tài khoản, token reference, thời hạn thực được provider trả và capability gắn đúng connection revision; không yêu cầu token thật trong repo/chat.
+**Đầu vào/phụ thuộc:** SP-009/SP-010 cung cấp hợp đồng và callback. SP-011 cần xác minh handoff Instagram trên thiết bị; SP-027 bàn giao API kho bí mật, namespace và lỗi đọc/ghi. Nhận danh tính, loại tài khoản, token reference, thời hạn thực được provider trả và capability gắn đúng connection revision; không yêu cầu token thật trong repo/chat.
 
 **Thực hiện:**
 
-1. Đối chiếu kết nối Facebook/LinkedIn đã có với kho secret production; thống nhất cách truy xuất reference cùng Đạt. Giữ dữ liệu provider độc lập và dữ liệu cũ khi ghi mới thất bại theo hợp đồng đã bàn giao.
+1. Nối Page ID và Instagram user ID từ Facebook Login với kho secret production; thống nhất cách truy xuất reference cùng Đạt. Giữ dữ liệu provider độc lập và dữ liệu cũ khi ghi mới thất bại theo hợp đồng đã bàn giao.
 2. Nối trạng thái kết nối, hết hạn/thu hồi và yêu cầu kết nối lại vào repository. Refresh chỉ dùng khi provider/app có cơ chế đã được cấp; giữ bản nháp khi xác thực lỗi.
 3. Giữ state, phiên, redirect allow-list, mã bàn giao một lần/TTL và PKCE khi hỗ trợ; bổ sung regression ở chỗ wiring mới ảnh hưởng, không tính lại spike thành task mới.
 4. Ghi tài liệu cấu hình/thử nghiệm và bàn giao auth/capability cho consumer. Backend giữ client secret; không chuyển AI key qua backend hoặc lưu social token dài hạn phía server.
@@ -70,7 +70,7 @@ Các issue bên dưới có thật; người chịu trách nhiệm theo brief đ
 - **Issue:** [#55](https://github.com/nigPeter2503/Social_Pilot/issues/55). **Yêu cầu:** INFRA, DOCS. **Ưu tiên:** High theo brief chung.
 - **Công sức/mốc:** 6h thiết lập bàn giao 16/11; 2h kiểm chứng/runbook bàn giao 21/11; tổng 8h. Phần đầu chưa đóng toàn issue.
 - **Hai reviewer dự kiến:** Nguyễn Đức Đạt (@dat532006), Đỗ Phước Thiện (@PhuocThien06). **Nhánh đề xuất:** `chore/sp-053-https-oauth-deployment`.
-- **Nguồn/phụ thuộc:** [Proposal §3.3, §4.4, §5.4](../../SocialPilot_Proposal_Java.md), [development](../../development.md); đầu ra SP-010/SP-011 đã xong.
+- **Nguồn/phụ thuộc:** [Proposal §3.3, §4.4, §5.4](../../SocialPilot_Proposal_Java.md), [development](../../development.md); callback SP-010 và handoff Instagram cần kiểm chứng theo SP-011.
 
 **Thực hiện và đầu ra:** xác nhận môi trường JVM/HTTPS, biến cấu hình với giá trị mẫu, redirect đã đăng ký, health check và trình tự triển khai/khởi động lại. Đo RAM, startup, sleep/wake từ môi trường thật rồi ghi nguồn thời gian; không bịa gói hosting hay chi phí. Chốt dịch vụ/trần chi với owner trước khi phát sinh phí. Một instance có phiên tạm TTL; nếu cần nhiều instance, ghi yêu cầu kho phiên chung để quyết định trước triển khai, không tự mở rộng kiến trúc.
 
@@ -107,7 +107,7 @@ Các issue bên dưới có thật; người chịu trách nhiệm theo brief đ
 - **Hai reviewer dự kiến:** Đỗ Phước Thiện (@PhuocThien06), Tô Lãng Nghị (@bob35306). **Nhánh đề xuất:** `feat/sp-023-my-channels`.
 - **Nguồn/phụ thuộc:** [Proposal F1/§5.1](../../SocialPilot_Proposal_Java.md), [social contract §3](../../social-contract.md); SP-022.
 
-**Thực hiện:** nối XML/ViewModel tới repository; hiển thị identity, Page/person/organization, trạng thái kết nối và từng operation/capability từ dữ liệu đã xác minh. Giữ phân biệt AVAILABLE/PERMISSION_REQUIRED/UNSUPPORTED/UNVERIFIED; không suy quyền comment/metrics từ OAuth hoặc đăng thành công. Không tính năng ngoài contract như mention trở thành AVAILABLE khi chưa có bằng chứng; phần chưa có operation được ghi thiếu/chờ xác nhận.
+**Thực hiện:** nối XML/ViewModel tới repository; hiển thị identity, Facebook Page hoặc Instagram Professional, trạng thái kết nối và từng operation/capability từ dữ liệu đã xác minh. Giữ phân biệt AVAILABLE/PERMISSION_REQUIRED/UNSUPPORTED/UNVERIFIED; không suy quyền comment/metrics từ OAuth hoặc đăng thành công. Không tính năng ngoài contract như mention trở thành AVAILABLE khi chưa có bằng chứng; phần chưa có operation được ghi thiếu/chờ xác nhận.
 
 - [ ] Restart/offline vẫn xem được metadata đã lưu và thời điểm xác minh; không hiển thị credential.
 - [ ] Trạng thái hết hạn/thiếu quyền có thông báo VI/EN và thao tác xử lý phù hợp.
@@ -133,6 +133,7 @@ Các issue bên dưới có thật; người chịu trách nhiệm theo brief đ
 - [ ] SUCCESS chỉ khi có ID và URL thật đã đối chiếu; có ID chưa có URL giữ PUBLISHED_URL_PENDING và không đăng lại.
 - [ ] Timeout sau khi có thể đã gửi giữ UNKNOWN/RECONCILE, không báo lỗi an toàn để retry mù.
 - [ ] Bàn giao sang app mạng xã hội là trạng thái riêng, không tính là API thành công.
+- [ ] Với Instagram, tạo container từ ảnh và caption đã duyệt, xuất bản và đối soát bằng media ID, permalink. Thử mất phản hồi trước khi cho phép gửi lại.
 - [ ] Tuần 4 tích hợp đúng ảnh/alt-text capability do provider hỗ trợ, lấy từ version đã duyệt; không gán thành công alt text khi API không truyền được.
 - [ ] Phiên bản đã thay đổi trong lúc tác vụ chạy không bị callback cũ ghi đè; dữ liệu của kết nối mới không nhận kết quả revision cũ.
 

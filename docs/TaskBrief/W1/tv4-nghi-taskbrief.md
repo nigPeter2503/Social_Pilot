@@ -1,5 +1,7 @@
 # Taskbrief Tuần 1 — Tô Lãng Nghị (TV4)
 
+Cập nhật phạm vi ngày 20/11. SP-011 và SP-019 dưới đây là đầu ra Instagram thay thế. Các liên kết issue truy vết ticket gốc. Trạng thái, giờ và hạn tuần 1 thuộc kế hoạch ban đầu. [Quyết định đổi kênh](../../SocialPilot_Proposal_Java.md#doi-kenh)
+
 Đồng bộ ngày 04/11/2026 (Asia/Bangkok) từ GitHub Issues và [Project #5](https://github.com/users/nigPeter2503/projects/5). Các ticket dưới đây đã tạo, đã assign cho `bob35306`, hiện ở **Todo (Chưa làm)**. [Bản tổng hợp Tuần 1](week-1-taskbrief.md).
 
 - **Trách nhiệm:** F6, API comment/số liệu và dữ liệu/công thức F7.
@@ -13,7 +15,7 @@
 | Issue | Owner | Mốc bàn giao | Nội dung |
 |---|---|---|---|
 | [SP-009](https://github.com/nigPeter2503/Social_Pilot/issues/11) | Minh (`nigPeter2503`) | Hết ngày làm việc 2 | Chốt hợp đồng OAuth, capability và kết quả đăng |
-| [SP-011](https://github.com/nigPeter2503/Social_Pilot/issues/13) | Minh (`nigPeter2503`) | Hết ngày làm việc 4 | Kiểm chứng LinkedIn OAuth, quyền đăng và refresh |
+| [SP-011](https://github.com/nigPeter2503/Social_Pilot/issues/13) | Minh (`nigPeter2503`) | Hết ngày làm việc 4 | Kiểm chứng Instagram OAuth, quyền đăng và refresh |
 | [SP-013](https://github.com/nigPeter2503/Social_Pilot/issues/15) | Đạt (`dat532006`) | Hết ngày làm việc 3 | Chốt hợp đồng AI và đo tác vụ thật trên hai provider |
 | [SP-014](https://github.com/nigPeter2503/Social_Pilot/issues/16) | Đạt (`dat532006`) | Hết ngày làm việc 4 | Kiểm chứng hai nhánh stream và hủy độc lập trên Java |
 | [SP-015](https://github.com/nigPeter2503/Social_Pilot/issues/17) | Thiện (`PhuocThien06`) | Hết ngày làm việc 2 | Xác nhận baseline build, CI và thiết bị demo |
@@ -73,7 +75,7 @@ Khi bàn giao ghi phần đã làm, kiểm thử đã chạy, phần còn thiế
 
 <a id="sp-019"></a>
 
-## SP-019 — Kiểm chứng LinkedIn comment, reply, follower và số liệu
+## SP-019 — Kiểm chứng Instagram comment, reply, follower và số liệu
 
 - **Issue:** [SP-019](https://github.com/nigPeter2503/Social_Pilot/issues/21) — #21.
 - **Issue cha:** [SP-006](https://github.com/nigPeter2503/Social_Pilot/issues/8).
@@ -85,20 +87,20 @@ Khi bàn giao ghi phần đã làm, kiểm thử đã chạy, phần còn thiế
 - **Ưu tiên:** Cao, ghi trong issue; board hiện không có field Priority riêng.
 - **Mốc bàn giao:** Hết ngày làm việc 4, tính từ đầu Tuần 1.
 - **Ước lượng owner:** 6 giờ gồm thiết kế/triển khai, tích hợp, kiểm thử và tài liệu. Review thêm 0,75 giờ/người/PR, tính riêng.
-- **Branch dự kiến:** `feat/sp-019-linkedin-comments-metrics-spike` (chưa tạo), base `main`.
+- **Branch dự kiến:** `feat/sp-019-instagram-comments-metrics-spike` (chưa tạo), base `main`.
 - **PR:** chưa tạo; liên kết issue ở trên và yêu cầu hai reviewer đã ghi.
 
 ### Mục tiêu, phạm vi và khu vực
 
-Kiểm chứng từng khả năng theo loại tài khoản [SP-011](https://github.com/nigPeter2503/Social_Pilot/issues/13) đã chọn; mẫu comment/phân trang/trả lời và metrics. Không thay số follower bằng connections, không suy ra quyền từ OAuth thành công.
+Kiểm chứng từng khả năng theo loại tài khoản [SP-011](https://github.com/nigPeter2503/Social_Pilot/issues/13) đã chọn; mẫu comment/phân trang/trả lời và metrics. Ghi riêng tổng follower của tài khoản và reach của bài, không suy ra quyền từ OAuth thành công.
 
-Khu vực dự kiến: Adapter comment/metrics LinkedIn dự kiến, test parser, bảng quyền/bằng chứng; thống nhất lỗi với Minh.
+Khu vực dự kiến: Adapter comment/metrics Instagram dự kiến, test parser, bảng quyền/bằng chứng; thống nhất lỗi với Minh.
 
 Các đường dẫn package Android rút gọn tính từ `android/app/src/main/java/com/socialpilot/app/`; backend từ `backend/src/main/java/com/socialpilot/oauth/`. Vị trí ghi “dự kiến” chưa tồn tại, sẽ chốt khi triển khai. API AI gọi từ thiết bị; backend chỉ giữ client secret phục vụ OAuth.
 
 ### Đầu vào, phụ thuộc và điều kiện mở chặn
 
-Token/author/post ID [SP-011](https://github.com/nigPeter2503/Social_Pilot/issues/13) hoặc fixture thật có sẵn; không cần đợi callback UI hoàn chỉnh nếu đã có token hợp lệ. Nhận schema cơ bản [SP-012](https://github.com/nigPeter2503/Social_Pilot/issues/14).
+Token reference, Instagram user ID và media ID [SP-011](https://github.com/nigPeter2503/Social_Pilot/issues/13) hoặc fixture thật có sẵn; không cần đợi callback UI hoàn chỉnh nếu đã có token hợp lệ. Nhận schema cơ bản [SP-012](https://github.com/nigPeter2503/Social_Pilot/issues/14).
 
 ### Đầu ra và tiêu chí đạt
 
@@ -117,7 +119,7 @@ Nộp revision/PR khi có, lệnh/ca thử, môi trường, ngày thử, kết q
 
 Ngày làm việc 4: Minh nhận capability/lỗi; Thiện nhận DTO metrics/comment; Đạt nhận vấn đề schema/usage khi liên quan.
 
-Nếu [SP-011](https://github.com/nigPeter2503/Social_Pilot/issues/13) chưa có token cuối ngày làm việc 3, chuẩn bị test/parser và nêu rủi ro W1 ngay. Không lấy thành công Facebook thay LinkedIn.
+Nếu [SP-011](https://github.com/nigPeter2503/Social_Pilot/issues/13) chưa có token cuối ngày làm việc 3, chuẩn bị test/parser và nêu rủi ro W1 ngay. Không lấy thành công Facebook thay Instagram.
 
 Khi bàn giao ghi phần đã làm, kiểm thử đã chạy, phần còn thiếu, contract revision, người nhận và giờ còn lại. Nếu có nguy cơ trễ mốc, cập nhật việc còn lại và phụ thuộc trên issue; chỉ tạo task mới khi đầu ra độc lập, không đánh dấu tiêu chí chưa đạt thành đạt.
 

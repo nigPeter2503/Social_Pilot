@@ -1,5 +1,7 @@
 # Taskbrief Tuần 1 — Ngô Gia Minh (TV1)
 
+Cập nhật phạm vi ngày 20/11. SP-011 và SP-019 dưới đây là đầu ra Instagram thay thế. Các liên kết issue truy vết ticket gốc. Trạng thái, giờ và hạn tuần 1 thuộc kế hoạch ban đầu. [Quyết định đổi kênh](../../SocialPilot_Proposal_Java.md#doi-kenh)
+
 Đồng bộ ngày 04/11/2026 (Asia/Bangkok) từ GitHub Issues và [Project #5](https://github.com/users/nigPeter2503/projects/5). Các ticket dưới đây đã tạo, đã assign cho `nigPeter2503`, ở **Todo (Chưa làm)** tại thời điểm 04/11; SP-009 có cập nhật ngày 09/11 bên dưới. [Bản tổng hợp Tuần 1](week-1-taskbrief.md).
 
 - **Trách nhiệm:** F1/F5, OAuth/backend, hợp đồng social và điều phối tích hợp.
@@ -127,7 +129,7 @@ Khi bàn giao ghi phần đã làm, kiểm thử đã chạy, phần còn thiế
 
 <a id="sp-011"></a>
 
-## SP-011 — Kiểm chứng LinkedIn OAuth, quyền đăng và refresh
+## SP-011 — Kiểm chứng Instagram OAuth, quyền đăng và refresh
 
 - **Issue:** [SP-011](https://github.com/nigPeter2503/Social_Pilot/issues/13) — #13.
 - **Issue cha:** [SP-002](https://github.com/nigPeter2503/Social_Pilot/issues/4).
@@ -139,20 +141,20 @@ Khi bàn giao ghi phần đã làm, kiểm thử đã chạy, phần còn thiế
 - **Ưu tiên:** Cao, ghi trong issue; board hiện không có field Priority riêng.
 - **Mốc bàn giao:** Hết ngày làm việc 4, tính từ đầu Tuần 1.
 - **Ước lượng owner:** 8 giờ gồm thiết kế/triển khai, tích hợp, kiểm thử và tài liệu. Review thêm 0,75 giờ/người/PR, tính riêng.
-- **Branch dự kiến:** `feat/sp-011-linkedin-oauth-spike` (chưa tạo), base `main`.
+- **Branch dự kiến:** `feat/sp-011-instagram-oauth-spike` (chưa tạo), base `main`.
 - **PR:** chưa tạo; liên kết issue ở trên và yêu cầu hai reviewer đã ghi.
 
 ### Mục tiêu, phạm vi và khu vực
 
-Chốt cá nhân/tổ chức theo tài khoản thực, kiểm kê app/product/quyền; dùng khung callback chung để đăng một bài thử. Xác minh refresh có được cấp và API version đang hỗ trợ. Chưa triển khai mọi API LinkedIn.
+Tái dùng Facebook Login của SP-010 để chọn Page liên kết và nhận đúng Instagram user ID. Đăng ảnh feed kèm caption đã duyệt, đối chiếu media ID và permalink. Kiểm tra gia hạn, thu hồi quyền và kết nối lại từ ứng dụng.
 
-Khu vực dự kiến: Backend OAuth adapter, Android domain/social (dự kiến), phần cấu hình và bằng chứng LinkedIn.
+Khu vực dự kiến: Backend OAuth adapter, Android domain/social (dự kiến), phần cấu hình và bằng chứng Instagram.
 
 Các đường dẫn package Android rút gọn tính từ `android/app/src/main/java/com/socialpilot/app/`; backend từ `backend/src/main/java/com/socialpilot/oauth/`. Vị trí ghi “dự kiến” chưa tồn tại, sẽ chốt khi triển khai. API AI gọi từ thiết bị; backend chỉ giữ client secret phục vụ OAuth.
 
 ### Đầu vào, phụ thuộc và điều kiện mở chặn
 
-[SP-009](https://github.com/nigPeter2503/Social_Pilot/issues/11); phần callback chung đã kiểm thử của [SP-010](https://github.com/nigPeter2503/Social_Pilot/issues/12), không phụ thuộc Facebook được duyệt quyền. Cần LinkedIn app/tài khoản/quyền; token thử sẵn có có thể mở chặn [SP-019](https://github.com/nigPeter2503/Social_Pilot/issues/21) sớm.
+[SP-009](https://github.com/nigPeter2503/Social_Pilot/issues/11); phần callback chung đã kiểm thử của [SP-010](https://github.com/nigPeter2503/Social_Pilot/issues/12), cần Meta app, Instagram Professional liên kết Page và quyền thực cấp; token thử sẵn có có thể mở chặn [SP-019](https://github.com/nigPeter2503/Social_Pilot/issues/21) sớm.
 
 ### Đầu ra và tiêu chí đạt
 
@@ -168,7 +170,7 @@ Nộp revision/PR khi có, lệnh/ca thử, môi trường, ngày thử, kết q
 
 ### Bàn giao và xử lý blocker
 
-Ngày làm việc 3 gửi sớm thông tin khả dụng cho Nghị; ngày làm việc 4 bàn giao token reference, author/post ID, lỗi/quyền và kết quả đã che bí mật.
+Ngày làm việc 3 gửi sớm thông tin khả dụng cho Nghị; ngày làm việc 4 bàn giao token reference, Instagram user ID/media ID, lỗi/quyền và kết quả đã che bí mật.
 
 Nếu callback chung [SP-010](https://github.com/nigPeter2503/Social_Pilot/issues/12) trễ, chốt hợp đồng và xác minh quyền bằng công cụ thử trước; phần callback end-to-end còn thiếu phải ghi rõ. Không đăng lại mù quáng khi không biết yêu cầu trước đã thành công.
 

@@ -1,5 +1,7 @@
 # Hợp đồng dữ liệu comment và analytics — SP-020
 
+Với Instagram, gắn comment vào media ID của đúng tài khoản Professional. Lưu riêng tổng follower tại thời điểm đo và reach lifetime của bài. Tỷ lệ tương tác theo impression cần đúng mẫu số và đủ các thành phần đã định nghĩa.
+
 Revision: **draft-4**, 11/11/2026, Asia/Saigon. Owner: Tô Lãng Nghị (`bob35306`).
 Trạng thái: **bản đề xuất để review**, chưa phải hợp đồng đã được nhóm phê duyệt.
 Ticket: [SP-020 / #22](https://github.com/nigPeter2503/Social_Pilot/issues/22).
@@ -43,7 +45,7 @@ Timestamp trao đổi dùng UTC ISO 8601 dạng `yyyy-MM-dd'T'HH:mm:ss'Z'` theo 
 Đề xuất lưu UTC epoch millisecond trong Room theo SP-012. ID là chuỗi opaque không rỗng, không đổi chữ hoa/thường,
 không cắt/gộp provider ID/URN. Không dùng tên hiển thị hoặc parse số để làm khóa.
 
-`ChannelScope = {platform, channelId, connectionRevision}`: platform là FACEBOOK/LINKEDIN,
+`ChannelScope = {platform, channelId, connectionRevision}`: platform là FACEBOOK/INSTAGRAM,
 channelId là ID nội bộ, revision dương và bền vững theo SP-009. Không sao chép tokenReference
 hay token vào comment/metric/fixture. Account type lấy từ ChannelInfo, không đoán từ ID.
 

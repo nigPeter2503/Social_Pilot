@@ -1,6 +1,6 @@
 # SocialPilot
 
-SocialPilot là ứng dụng Android sử dụng AI Agent để hỗ trợ xây dựng nội dung và quản lý kênh mạng xã hội. Từ một ý tưởng chung, ứng dụng hướng đến việc tạo nội dung riêng cho **Facebook Page và LinkedIn**, cho phép người dùng chỉnh sửa, duyệt và đăng bài, sau đó theo dõi bình luận và hiệu quả hoạt động.
+SocialPilot là ứng dụng Android sử dụng AI Agent để hỗ trợ xây dựng nội dung và quản lý kênh mạng xã hội. Từ một ý tưởng chung, ứng dụng hướng đến việc tạo nội dung riêng cho **Facebook Page và Instagram Professional**, cho phép người dùng chỉnh sửa, duyệt và đăng bài, sau đó theo dõi bình luận và hiệu quả hoạt động.
 
 Dự án được thực hiện dưới hình thức đồ án môn học bởi nhóm **4 thành viên** trong **6 tuần**. Ngôn ngữ phát triển chính là **Java** cho ứng dụng Android và backend OAuth.
 
@@ -41,7 +41,7 @@ Bài viết phải được người dùng duyệt trước khi đưa vào hàng
 
 Phạm vi nghiệm thu gồm **44 yêu cầu bắt buộc**: 33 yêu cầu `[B]` và 11 yêu cầu `[N]` không có tag Optional. Hai hạng mục mở rộng là nhập topic bằng ảnh và thông báo comment mới kèm mở đúng comment. Xem [ma trận yêu cầu](docs/requirements.md).
 
-Phiên bản đồ án không bao gồm iOS, video/Reels, quảng cáo trả phí, phân quyền nhóm hoặc đồng bộ nhiều thiết bị. Các khả năng tích hợp thật phụ thuộc quyền API được Facebook và LinkedIn cấp; cần kiểm chứng từ tuần đầu.
+Phiên bản đồ án không bao gồm iOS, video/Reels, quảng cáo trả phí, phân quyền nhóm hoặc đồng bộ nhiều thiết bị. Các khả năng tích hợp thật phụ thuộc quyền API của từng kênh. Xem [quyết định đổi kênh ngày 20/11](docs/SocialPilot_Proposal_Java.md#doi-kenh).
 
 ## Công nghệ và kiến trúc
 
@@ -66,6 +66,7 @@ Project đang ở giai đoạn khởi tạo nền tảng:
 - Đã có màn hình nhập topic, kiểm tra đầu vào, lưu bản nháp bằng Room và danh sách gần đây.
 - Đã có tài nguyên giao diện VI/EN theo ngôn ngữ thiết bị và các interface nghiệp vụ để mở rộng.
 - Backend có health check. SP-010 đã ghi nhận kết nối Facebook OAuth trên điện thoại thật và một bài Page thật qua Graph API Explorer; xem [trạng thái và bằng chứng SP-010](docs/drafts/sp-010-implementation-status.md). State/replay/TTL/race có test hồi quy với provider giả; vòng đời token và publish từ hàng đợi ứng dụng còn chưa nghiệm thu.
+- Ngày 20/11, nhóm đã dùng Graph API Explorer để đăng ảnh Instagram, lấy permalink, đọc và trả lời bình luận, lấy follower và reach trên tài khoản demo. Luồng Instagram từ Android còn cần kiểm thử.
 - Đã có bộ kiểm thử nền tảng và cấu hình CI; xem [kết quả kiểm tra](docs/build-verification.md).
 
 OAuth Facebook cơ bản đã được kiểm chứng trong spike SP-010; luồng publish production trong app, AI/BYOK, sinh ảnh, duyệt phiên bản, hàng đợi đăng, inbox, analytics và lựa chọn ngôn ngữ còn cần triển khai. Các nhóm chức năng F1–F9 chưa được nghiệm thu đầy đủ.

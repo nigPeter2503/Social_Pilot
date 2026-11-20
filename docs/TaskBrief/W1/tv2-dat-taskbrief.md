@@ -14,10 +14,10 @@
 |---|---|---|---|
 | [SP-009](https://github.com/nigPeter2503/Social_Pilot/issues/11) | Minh (`nigPeter2503`) | Hết ngày làm việc 2 | Chốt hợp đồng OAuth, capability và kết quả đăng |
 | [SP-010](https://github.com/nigPeter2503/Social_Pilot/issues/12) | Minh (`nigPeter2503`) | Hết ngày làm việc 3 | Kiểm chứng Facebook OAuth callback và một bài đăng thật |
-| [SP-011](https://github.com/nigPeter2503/Social_Pilot/issues/13) | Minh (`nigPeter2503`) | Hết ngày làm việc 4 | Kiểm chứng LinkedIn OAuth, quyền đăng và refresh |
+| [SP-011](https://github.com/nigPeter2503/Social_Pilot/issues/13) | Minh (`nigPeter2503`) | Hết ngày làm việc 4 | Kiểm chứng Instagram OAuth, quyền đăng và refresh |
 | [SP-016](https://github.com/nigPeter2503/Social_Pilot/issues/18) | Thiện (`PhuocThien06`) | Hết ngày làm việc 3 | Chốt wireframe và hợp đồng brief, phiên bản, duyệt |
 | [SP-017](https://github.com/nigPeter2503/Social_Pilot/issues/19) | Thiện (`PhuocThien06`) | Trước demo cuối Tuần 1 | Nối bản mẫu UI, Room và WorkManager có kiểm thử vòng đời |
-| [SP-019](https://github.com/nigPeter2503/Social_Pilot/issues/21) | Nghị (`bob35306`) | Hết ngày làm việc 4 | Kiểm chứng LinkedIn comment, reply, follower và số liệu |
+| [SP-019](https://github.com/nigPeter2503/Social_Pilot/issues/21) | Nghị (`bob35306`) | Hết ngày làm việc 4 | Kiểm chứng Instagram comment, reply, follower và số liệu |
 
 Dành 0,75 giờ/người/task cho review ban đầu; chủ task gửi hợp đồng và ca thử sớm. Bố trí review theo mốc bàn giao, phản hồi các nhận xét bắt buộc trước merge.
 
