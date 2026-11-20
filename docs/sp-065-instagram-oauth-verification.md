@@ -38,6 +38,20 @@ token, client secret, authorization code, session verifier, mã bàn giao và UR
 | Đăng từ bản duyệt | Nhập URL và caption, bấm **Duyệt ảnh và caption này**, rồi **Đăng thật lên Instagram**. | Bài mới có media ID và permalink. Bấm **Mở bài gốc** để xác nhận. Đổi nội dung sau khi duyệt phải tắt quyền đăng của bản đó. |
 | Mất phản hồi khi xuất bản | Đối soát bằng container đã lưu. Kiểm thử transport dùng phản hồi giả để tái hiện mất phản hồi có kiểm soát. | Chỉ đọc trạng thái container. Khi Meta trả `PUBLISHED` mà chưa nhận media ID, app giữ kết quả đã xuất bản chưa rõ ID để người thử đối chiếu thủ công. |
 
+## Kết quả OAuth trên thiết bị
+
+Ngày 20/11/2026 khoảng 17:24 (UTC+07:00), trên Samsung SM-G990E, APK debug
+revision `1d9978a` mở Facebook Login từ nút **Connect Instagram**. Sau khi người dùng
+cấp quyền Meta, app quay lại với `@gm_md253`, Instagram user ID `17841459976957663`
+và Page ID `1427548503779474`. Graph API là `v27.0`. Hạn hiệu lực hiển thị từ metadata Meta
+là `2027-02-18T10:22:39Z`.
+
+Meta trả các scope của grant hiện tại gồm `pages_show_list`, `business_management`,
+`instagram_basic`, `instagram_manage_comments`, `instagram_manage_insights`,
+`instagram_content_publish`, `pages_read_engagement`, `pages_read_user_content`,
+`pages_manage_posts`, `pages_manage_engagement` và `public_profile`.
+[Ảnh SocialPilot sau callback](evidence/sp-065-instagram-oauth-device-2026-11-20.png)
+
 Spike yêu cầu kết nối lại khi token hết hạn, hoặc Graph báo token không còn hiệu lực.
 App giữ riêng credential theo kênh; không thực hiện refresh tự động trong thay đổi này.
 Hạn nhận được lấy từ ngày hết hạn token hoặc ngày hết quyền truy cập dữ liệu sớm hơn nếu Meta cung cấp cả hai.
