@@ -52,6 +52,23 @@ Meta trả các scope của grant hiện tại gồm `pages_show_list`, `busines
 `pages_manage_posts`, `pages_manage_engagement` và `public_profile`.
 [Ảnh SocialPilot sau callback](evidence/sp-065-instagram-oauth-device-2026-11-20.png)
 
+## Kết quả đăng ảnh từ SocialPilot
+
+Ngày 20/11/2026 khoảng 18:06 (UTC+07:00), cùng APK và tài khoản ở trên.
+Dùng lại ảnh JPEG demo của media `18028517477875672`. URL đầu tiên có
+khoảng trắng nên app chặn ở bước duyệt. Sau khi thay bằng URL JPEG đúng, kiểm
+tra nội dung và duyệt caption `Kiem tra OAuth va dang anh tu SocialPilot [SP-065]`
+trong app, rồi bấm **Publish to Instagram** một lần.
+
+- Container ID lưu trước khi xuất bản `17973051317999232`.
+- Media ID đã xuất bản `18439504675178856`.
+- **Open original post** mở đúng bài của `@gm_md253`. Đã đối chiếu ảnh và caption.
+  [Bài đã đăng](https://www.instagram.com/p/Df9gdnCkuI0/) · [Ảnh bài trên điện thoại](evidence/sp-065-instagram-published-from-app-2026-11-20.png)
+- Đóng tiến trình SocialPilot và mở lại. **Check connection and post status** lấy
+  lại đúng media ID và bật **Open original post**. Phép thử này đọc lại kết quả
+  đã lưu của bài thật. Ca mất phản hồi khi xuất bản được kiểm thử riêng với phản
+  hồi mô phỏng. [Ảnh đối soát sau khi mở lại](evidence/sp-065-instagram-reconcile-after-restart-2026-11-20.png)
+
 Spike yêu cầu kết nối lại khi token hết hạn, hoặc Graph báo token không còn hiệu lực.
 App giữ riêng credential theo kênh; không thực hiện refresh tự động trong thay đổi này.
 Hạn nhận được lấy từ ngày hết hạn token hoặc ngày hết quyền truy cập dữ liệu sớm hơn nếu Meta cung cấp cả hai.
