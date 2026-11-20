@@ -6,9 +6,12 @@ import com.socialpilot.oauth.flow.OAuthFlowException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.HashSet;
 import java.util.Locale;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import org.springframework.http.MediaType;
@@ -42,6 +45,14 @@ public final class FacebookGraphClient {
     }
 
     public PageIdentity exchangeCodeForTargetPage(String code) {
+        return exchangeCode(code, false);
+    }
+
+    public PageIdentity exchangeCodeForInstagram(String code) {
+        return exchangeCode(code, true);
+    }
+
+    private PageIdentity exchangeCode(String code, boolean instagram) {
         properties.requireConfigured();
         String stage = "code_exchange";
         try {
@@ -52,10 +63,31 @@ public final class FacebookGraphClient {
             String userToken = text(tokenJson, "access_token");
 
             stage = "page_list";
-            JsonNode page = findTargetPage(userToken);
+            JsonNode page = findTargetPage(userToken, instagram);
             String pageName = text(page, "name");
             String pageToken = text(page, "access_token");
             if (!hasContentTask(page.get("tasks"))) throw OAuthFlowException.accessDenied();
+
+            if (instagram) {
+                stage = "instagram_identity";
+                JsonNode linked = page.path("instagram_business_account");
+                String instagramId = linked.path("id").asText("");
+                String username = linked.path("username").asText("");
+                if (!instagramId.matches("[0-9]{5,30}") || instagramId.equals(properties.getTargetPageId())
+                        || !username.matches("[A-Za-z0-9._]{1,30}")) {
+                    throw OAuthFlowException.accessDenied();
+                }
+                stage = "instagram_token";
+                JsonNode metadata = instagramTokenMetadata(pageToken);
+                List<String> scopes = new ArrayList<>();
+                for (JsonNode scope : metadata.path("scopes")) {
+                    if (scope.isTextual() && scope.asText().matches("[a-z][a-z0-9_]*")) scopes.add(scope.asText());
+                }
+                if (!scopes.containsAll(List.of("instagram_basic", "instagram_content_publish",
+                        "pages_read_engagement"))) throw OAuthFlowException.accessDenied();
+                return new PageIdentity(properties.getTargetPageId(), pageName, pageToken, instagramId,
+                        username, scopes, instagramExpiry(metadata));
+            }
 
             stage = "page_identity";
             ResponseEntity<byte[]> identityResponse = graph.get().uri(uri -> uri
@@ -66,7 +98,7 @@ public final class FacebookGraphClient {
             JsonNode identity = parseGraphJson(identityResponse, stage);
             if (!properties.getTargetPageId().equals(text(identity, "id"))
                     || !pageName.equals(text(identity, "name"))) throw OAuthFlowException.providerError();
-            return new PageIdentity(properties.getTargetPageId(), pageName, pageToken);
+            return new PageIdentity(properties.getTargetPageId(), pageName, pageToken, null, null, List.of(), null);
         } catch (OAuthFlowException exception) {
             LOGGER.warn("Facebook OAuth stopped at stage={} code={}", stage, exception.getCode());
             throw exception;
@@ -75,6 +107,10 @@ public final class FacebookGraphClient {
                     exception.stage, exception.httpStatus, exception.contentType, exception.bodyLength);
             throw OAuthFlowException.providerError();
         } catch (RestClientResponseException exception) {
+            if ("instagram_token".equals(stage)) {
+                LOGGER.warn("Instagram token inspection failed with HTTP {}", exception.getStatusCode().value());
+                throw OAuthFlowException.providerError();
+            }
             byte[] body = exception.getResponseBodyAsByteArray();
             String requestCode = "code_exchange".equals(stage) ? code : null;
             String codeFingerprint = "code_exchange".equals(stage) ? codeFingerprint(code) : "n/a";
@@ -97,7 +133,31 @@ public final class FacebookGraphClient {
         }
     }
 
-    private JsonNode findTargetPage(String userToken) {
+    private JsonNode instagramTokenMetadata(String pageToken) {
+        // Pass app credentials as an Authorization header. Do not log the request or its response.
+        ResponseEntity<byte[]> response = graph.get().uri(uri -> uri
+                .pathSegment(properties.getGraphApiVersion(), "debug_token")
+                .queryParam("input_token", "{pageToken}").build(pageToken))
+                .headers(headers -> headers.setBearerAuth(properties.getAppId() + "|" + properties.getAppSecret()))
+                .retrieve().toEntity(byte[].class);
+        JsonNode data = parseGraphJson(response, "instagram_token").path("data");
+        if (!data.path("is_valid").asBoolean(false) || !properties.getAppId().equals(data.path("app_id").asText())) {
+            throw OAuthFlowException.accessDenied();
+        }
+        return data;
+    }
+
+    private static Instant instagramExpiry(JsonNode metadata) {
+        long tokenExpiry = metadata.path("expires_at").asLong(0);
+        long dataExpiry = metadata.path("data_access_expires_at").asLong(0);
+        long expiry = tokenExpiry > 0 && dataExpiry > 0
+                ? Math.min(tokenExpiry, dataExpiry) : Math.max(tokenExpiry, dataExpiry);
+        return expiry > 0 ? Instant.ofEpochSecond(expiry) : null;
+    }
+
+    private JsonNode findTargetPage(String userToken, boolean instagram) {
+        String fields = instagram ? "id,name,tasks,access_token,instagram_business_account{id,username}"
+                : "id,name,tasks,access_token";
         String after = null;
         Set<String> seenCursors = new HashSet<>();
         long startedAt = System.nanoTime();
@@ -107,8 +167,9 @@ public final class FacebookGraphClient {
             // Never follow paging.next: it is untrusted and may embed a token or another host.
             ResponseEntity<byte[]> response = graph.get().uri(uri -> {
                 uri.pathSegment(properties.getGraphApiVersion(), "me", "accounts")
-                        .queryParam("fields", "id,name,tasks,access_token");
+                        .queryParam("fields", instagram ? "{fields}" : fields);
                 if (cursor != null) uri.queryParam("after", "{cursor}");
+                if (instagram) return cursor == null ? uri.build(fields) : uri.build(fields, cursor);
                 return cursor == null ? uri.build() : uri.build(cursor);
             }).headers(headers -> headers.setBearerAuth(userToken)).retrieve().toEntity(byte[].class);
             JsonNode pageList = parseGraphJson(response, "page_list");
@@ -225,7 +286,8 @@ public final class FacebookGraphClient {
     private static boolean hasContentTask(JsonNode tasks) {
         if (tasks == null || !tasks.isArray()) return false;
         for (JsonNode task : tasks) {
-            if ("CREATE_CONTENT".equals(task.asText()) || "MANAGE".equals(task.asText())) return true;
+            if (Set.of("CREATE_CONTENT", "MANAGE", "PROFILE_PLUS_CREATE_CONTENT",
+                    "PROFILE_PLUS_FULL_CONTROL").contains(task.asText())) return true;
         }
         return false;
     }
@@ -240,8 +302,15 @@ public final class FacebookGraphClient {
         public final String id;
         public final String name;
         public final String accessToken;
-        private PageIdentity(String id, String name, String accessToken) {
+        public final String instagramId;
+        public final String instagramUsername;
+        public final List<String> grantedScopes;
+        public final Instant expiresAt;
+        private PageIdentity(String id, String name, String accessToken, String instagramId,
+                String instagramUsername, List<String> grantedScopes, Instant expiresAt) {
             this.id = id; this.name = name; this.accessToken = accessToken;
+            this.instagramId = instagramId; this.instagramUsername = instagramUsername;
+            this.grantedScopes = List.copyOf(grantedScopes); this.expiresAt = expiresAt;
         }
     }
 }

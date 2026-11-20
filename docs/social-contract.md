@@ -197,12 +197,17 @@ Android lưu token vào kho bí mật, tạo tokenReference cho ChannelInfo
 | OAuthExchangeResponse | sessionId, provider, externalAccountId, accountType, displayName, accessToken, refreshToken, tokenType, expiresAt |
 | OAuthFailure | code |
 
-provider dùng FACEBOOK/LINKEDIN. redirectId tra cấu hình cho phép ở backend, không phải URL tùy ý.
+provider dùng `FACEBOOK`, `INSTAGRAM` hoặc `LINKEDIN`. `redirectId` tra theo cấu hình cho phép ở backend.
+SP-065 bắt đầu phiên bằng `POST /api/oauth/instagram/start`, rồi dùng chung callback
+`GET /api/oauth/facebook/callback` và handoff `POST /api/oauth/facebook/exchange`.
+Phiên phía backend xác định provider. Android kiểm tra provider và sessionId trả về khớp phiên đang chờ.
+Phản hồi Instagram có `accountType=PROFESSIONAL`, `externalAccountId` là ID Instagram,
+`linkedPageId` là ID Page cấp quyền, `grantedScopes` là quyền được Meta trả khi kiểm tra token
+và `graphApiVersion` là phiên bản Graph dùng cho lần kết nối. Các trường bổ sung này thuộc phản hồi Instagram.
 authorizationUrl phải HTTPS; adapter phải thêm kiểm tra host provider được cấu hình.
 expiresAt bắt buộc ở phiên; ở token có thể null khi provider không cung cấp. Không coi null là không hết hạn.
 refreshToken có thể null: không được cấp refresh không đồng nghĩa kết nối lại là refresh thành công.
 Token response nhạy cảm là ngoại lệ có chủ đích của luồng xác thực; không đưa vào DTO nghiệp vụ.
-Các endpoint/path chưa được định nghĩa ở task này để tránh giả vờ backend đã phục vụ chúng.
 
 ### Ràng buộc phiên và TTL
 

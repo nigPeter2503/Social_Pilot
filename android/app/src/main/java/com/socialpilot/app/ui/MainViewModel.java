@@ -12,7 +12,17 @@ import com.socialpilot.app.SocialPilotApplication;
 import com.socialpilot.app.core.FacebookOAuthCoordinator;
 import com.socialpilot.app.data.local.DraftEntity;
 import com.socialpilot.app.data.repository.DraftRepository;
+import com.socialpilot.app.data.repository.InstagramPublishRepository;
+import com.socialpilot.app.data.security.EncryptedOAuthStore;
+import com.socialpilot.app.domain.contract.oauth.OAuthContract.OAuthExchangeResponse;
+import com.socialpilot.app.domain.editor.Brief;
+import com.socialpilot.app.domain.editor.ContentVersion;
+import com.socialpilot.app.domain.editor.VersionApprovalState;
+import java.net.URI;
+import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.ExecutorService;
 
 public final class MainViewModel extends AndroidViewModel {
     public enum SaveState { IDLE, SAVING, SAVED, FAILED }
@@ -20,13 +30,29 @@ public final class MainViewModel extends AndroidViewModel {
     public static final class OAuthUiState {
         public final OAuthStatus status;
         public final String value;
-        private OAuthUiState(OAuthStatus status, String value) { this.status = status; this.value = value; }
+        public final String provider;
+        private OAuthUiState(OAuthStatus status, String value) { this(status, value, null); }
+        private OAuthUiState(OAuthStatus status, String value, String provider) {
+            this.status = status;
+            this.value = value;
+            this.provider = provider;
+        }
     }
 
     private final DraftRepository repository;
     private final FacebookOAuthCoordinator facebookOAuth;
+    private final EncryptedOAuthStore connections;
+    private final InstagramPublishRepository instagram;
+    private final ExecutorService io;
+    private final Handler main = new Handler(Looper.getMainLooper());
     private final MutableLiveData<SaveState> saveState = new MutableLiveData<>(SaveState.IDLE);
     private final MutableLiveData<OAuthUiState> oauthState = new MutableLiveData<>(new OAuthUiState(OAuthStatus.IDLE, null));
+    private final MutableLiveData<InstagramPublishRepository.Result> instagramResult = new MutableLiveData<>();
+    private final MutableLiveData<Boolean> instagramBusy = new MutableLiveData<>(false);
+    private final MutableLiveData<Boolean> instagramApproved = new MutableLiveData<>(false);
+    private VersionApprovalState approval;
+    private ContentVersion approvedVersion;
+    private String approvedSessionId;
 
     public MainViewModel(@NonNull Application application) {
         super(application);
@@ -34,12 +60,20 @@ public final class MainViewModel extends AndroidViewModel {
         com.socialpilot.app.core.AppContainer appContainer = ((SocialPilotApplication) application).container();
         repository = appContainer.drafts;
         facebookOAuth = appContainer.facebookOAuth;
+        connections = appContainer.oauthStore;
+        instagram = new InstagramPublishRepository(application, connections);
+        io = appContainer.io;
     }
 
     public LiveData<List<DraftEntity>> drafts() { return repository.observeRecent(); }
     public LiveData<SaveState> saveState() { return saveState; }
     public LiveData<OAuthUiState> oauthState() { return oauthState; }
     public String connectedPageSummary() { return facebookOAuth.connectedPageSummary(); }
+    public String connectedInstagramSummary() { return facebookOAuth.connectedInstagramSummary(); }
+    public OAuthExchangeResponse instagramConnection() { return connections.instagramConnection(); }
+    public LiveData<InstagramPublishRepository.Result> instagramResult() { return instagramResult; }
+    public LiveData<Boolean> instagramBusy() { return instagramBusy; }
+    public LiveData<Boolean> instagramApproved() { return instagramApproved; }
     public void acknowledge() { saveState.setValue(SaveState.IDLE); }
 
     public void save(String topic) {
@@ -50,8 +84,16 @@ public final class MainViewModel extends AndroidViewModel {
     }
 
     public void connectFacebook() {
+        connect("FACEBOOK");
+    }
+
+    public void connectInstagram() {
+        connect("INSTAGRAM");
+    }
+
+    private void connect(String provider) {
         oauthState.setValue(new OAuthUiState(OAuthStatus.STARTING, null));
-        facebookOAuth.start(oauthListener());
+        facebookOAuth.start(provider, oauthListener());
     }
 
     public void handleFacebookCallback(Uri callback) {
@@ -68,13 +110,82 @@ public final class MainViewModel extends AndroidViewModel {
 
     public void acknowledgeOAuth() { oauthState.setValue(new OAuthUiState(OAuthStatus.IDLE, null)); }
 
+    public void approveInstagram(String caption, String image) {
+        OAuthExchangeResponse connection = instagramConnection();
+        if (connection == null) throw new IllegalStateException("Instagram connection required");
+        String text = caption.trim();
+        if (text.isEmpty() || text.codePointCount(0, text.length()) > 2200) {
+            throw new IllegalArgumentException("Invalid caption");
+        }
+        String imageUrl = image.trim();
+        URI uri = URI.create(imageUrl);
+        if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null
+                || uri.getUserInfo() != null || uri.getFragment() != null) {
+            throw new IllegalArgumentException("Invalid image URL");
+        }
+        String briefId = UUID.randomUUID().toString();
+        String accountId = connection.externalAccountId;
+        Brief brief = new Brief(briefId, text, "Feed image verification", "Demo", "Neutral",
+                "vi", Collections.singletonList(new Brief.Target(accountId, "INSTAGRAM")),
+                Collections.emptyList());
+        VersionApprovalState nextApproval = new VersionApprovalState(brief);
+        ContentVersion version = new ContentVersion(UUID.randomUUID().toString(), briefId, accountId,
+                null, text, imageUrl, System.currentTimeMillis());
+        nextApproval.saveVersion(version, null);
+        nextApproval.approve(accountId, version.versionId());
+        approval = nextApproval;
+        approvedVersion = version;
+        approvedSessionId = connection.sessionId;
+        instagramApproved.setValue(true);
+    }
+
+    public void clearInstagramApproval() {
+        approval = null;
+        approvedVersion = null;
+        approvedSessionId = null;
+        instagramApproved.setValue(false);
+    }
+
+    public void publishInstagram() {
+        if (approvedVersion == null || Boolean.TRUE.equals(instagramBusy.getValue())) return;
+        ContentVersion version = approval.requireEnqueueable(approvedVersion.channelId(), approvedVersion.versionId());
+        String sessionId = approvedSessionId;
+        clearInstagramApproval();
+        runInstagram(() -> instagram.publish(version, sessionId));
+    }
+
+    public void reconcileInstagram() {
+        if (Boolean.TRUE.equals(instagramBusy.getValue())) return;
+        runInstagram(instagram::reconcile);
+    }
+
+    private void runInstagram(java.util.concurrent.Callable<InstagramPublishRepository.Result> operation) {
+        instagramBusy.setValue(true);
+        io.execute(() -> {
+            try {
+                InstagramPublishRepository.Result result = operation.call();
+                main.post(() -> instagramResult.setValue(result));
+            } catch (Exception failure) {
+                main.post(() -> instagramResult.setValue(null));
+            } finally {
+                main.post(() -> instagramBusy.setValue(false));
+            }
+        });
+    }
+
     private FacebookOAuthCoordinator.Listener oauthListener() {
         return new FacebookOAuthCoordinator.Listener() {
             @Override public void onAuthorizationUrl(String url) {
                 oauthState.setValue(new OAuthUiState(OAuthStatus.AUTHORIZATION_READY, url));
             }
-            @Override public void onConnected(String pageName, String pageId) {
-                oauthState.setValue(new OAuthUiState(OAuthStatus.CONNECTED, pageName + " (" + pageId + ")"));
+            @Override public void onConnected(String provider, String displayName, String accountId) {
+                String summary = displayName + " (" + accountId + ")";
+                if ("INSTAGRAM".equals(provider)) {
+                    clearInstagramApproval();
+                    instagramResult.setValue(null);
+                    summary = FacebookOAuthCoordinator.instagramSummary(displayName, accountId);
+                }
+                oauthState.setValue(new OAuthUiState(OAuthStatus.CONNECTED, summary, provider));
             }
             @Override public void onFailure(String code) {
                 oauthState.setValue(new OAuthUiState(OAuthStatus.FAILED, code));
