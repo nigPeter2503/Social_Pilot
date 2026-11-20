@@ -1,11 +1,11 @@
 # Taskbrief Tuần 1 — Ngô Gia Minh (TV1)
 
-Cập nhật phạm vi ngày 20/11. SP-011 và SP-019 dưới đây là đầu ra Instagram thay thế. Các liên kết issue truy vết ticket gốc. Trạng thái, giờ và hạn tuần 1 thuộc kế hoạch ban đầu. [Quyết định đổi kênh](../../SocialPilot_Proposal_Java.md#doi-kenh)
+Cập nhật phạm vi ngày 20/11. SP-065 và SP-066 dưới đây là đầu ra Instagram thay thế. Các ticket gốc là [SP-011 / #13](https://github.com/nigPeter2503/Social_Pilot/issues/13) và [SP-019 / #21](https://github.com/nigPeter2503/Social_Pilot/issues/21). Mốc bàn giao hiện tại theo #90 và #91. Trạng thái, giờ và hạn tuần 1 thuộc kế hoạch ban đầu. [Quyết định đổi kênh](../../SocialPilot_Proposal_Java.md#doi-kenh)
 
 Đồng bộ ngày 04/11/2026 (Asia/Bangkok) từ GitHub Issues và [Project #5](https://github.com/users/nigPeter2503/projects/5). Các ticket dưới đây đã tạo, đã assign cho `nigPeter2503`, ở **Todo (Chưa làm)** tại thời điểm 04/11; SP-009 có cập nhật ngày 09/11 bên dưới. [Bản tổng hợp Tuần 1](week-1-taskbrief.md).
 
 - **Trách nhiệm:** F1/F5, OAuth/backend, hợp đồng social và điều phối tích hợp.
-- **Task chính:** [SP-009](https://github.com/nigPeter2503/Social_Pilot/issues/11), [SP-010](https://github.com/nigPeter2503/Social_Pilot/issues/12), [SP-011](https://github.com/nigPeter2503/Social_Pilot/issues/13).
+- **Task chính:** [SP-009](https://github.com/nigPeter2503/Social_Pilot/issues/11), [SP-010](https://github.com/nigPeter2503/Social_Pilot/issues/12), [SP-065](https://github.com/nigPeter2503/Social_Pilot/issues/90).
 - **Công sức tham khảo:** 22 giờ owner + 4,5 giờ review + 2 giờ phối hợp = **28,5 giờ**. Các phần tích hợp, kiểm thử và tài liệu nằm trong giờ owner.
 - **Cách làm đã chốt:** giữ đầu ra và mốc bàn giao; mỗi thành viên tự phân bổ thời gian. Giờ ước lượng không phải giới hạn và không chờ xác nhận lịch bận/giờ tăng.
 - **Lịch:** dùng ngày làm việc tương đối trong Tuần 1 theo issue, không tính lại từ ngày nhận task; xem [mốc và rủi ro](week-1-taskbrief.md#11-đánh-giá-và-rủi-ro-còn-lại). Nhận đầu vào sớm, hoàn tất review và tích hợp trước demo cuối tuần.
@@ -127,11 +127,11 @@ Không có app/quyền sau bước kiểm kê: ghi blocker ngay, tiếp tục te
 
 Khi bàn giao ghi phần đã làm, kiểm thử đã chạy, phần còn thiếu, contract revision, người nhận và giờ còn lại. Nếu có nguy cơ trễ mốc, cập nhật việc còn lại và phụ thuộc trên issue; chỉ tạo task mới khi đầu ra độc lập, không đánh dấu tiêu chí chưa đạt thành đạt.
 
-<a id="sp-011"></a>
+<a id="sp-065"></a>
 
-## SP-011 — Kiểm chứng Instagram OAuth, quyền đăng và refresh
+## SP-065 — Kiểm chứng Instagram OAuth, quyền đăng và refresh
 
-- **Issue:** [SP-011](https://github.com/nigPeter2503/Social_Pilot/issues/13) — #13.
+- **Issue:** [SP-065](https://github.com/nigPeter2503/Social_Pilot/issues/90) — #90.
 - **Issue cha:** [SP-002](https://github.com/nigPeter2503/Social_Pilot/issues/4).
 - **Project:** [Social Pilot - Development Board 2024_31_MD_2](https://github.com/users/nigPeter2503/projects/5).
 - **Trạng thái đã kiểm chứng:** Issue OPEN; Project **Todo (Chưa làm)**; đã assign cho `nigPeter2503`.
@@ -141,7 +141,7 @@ Khi bàn giao ghi phần đã làm, kiểm thử đã chạy, phần còn thiế
 - **Ưu tiên:** Cao, ghi trong issue; board hiện không có field Priority riêng.
 - **Mốc bàn giao:** Hết ngày làm việc 4, tính từ đầu Tuần 1.
 - **Ước lượng owner:** 8 giờ gồm thiết kế/triển khai, tích hợp, kiểm thử và tài liệu. Review thêm 0,75 giờ/người/PR, tính riêng.
-- **Branch dự kiến:** `feat/sp-011-instagram-oauth-spike` (chưa tạo), base `main`.
+- **Branch dự kiến:** `feat/sp-065-instagram-oauth-spike` (chưa tạo), base `main`.
 - **PR:** chưa tạo; liên kết issue ở trên và yêu cầu hai reviewer đã ghi.
 
 ### Mục tiêu, phạm vi và khu vực
@@ -154,7 +154,7 @@ Các đường dẫn package Android rút gọn tính từ `android/app/src/main
 
 ### Đầu vào, phụ thuộc và điều kiện mở chặn
 
-[SP-009](https://github.com/nigPeter2503/Social_Pilot/issues/11); phần callback chung đã kiểm thử của [SP-010](https://github.com/nigPeter2503/Social_Pilot/issues/12), cần Meta app, Instagram Professional liên kết Page và quyền thực cấp; token thử sẵn có có thể mở chặn [SP-019](https://github.com/nigPeter2503/Social_Pilot/issues/21) sớm.
+[SP-009](https://github.com/nigPeter2503/Social_Pilot/issues/11); phần callback chung đã kiểm thử của [SP-010](https://github.com/nigPeter2503/Social_Pilot/issues/12), cần Meta app, Instagram Professional liên kết Page và quyền thực cấp; token thử sẵn có có thể mở chặn [SP-066](https://github.com/nigPeter2503/Social_Pilot/issues/91) sớm.
 
 ### Đầu ra và tiêu chí đạt
 

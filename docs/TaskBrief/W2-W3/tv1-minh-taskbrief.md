@@ -42,7 +42,7 @@ Các issue bên dưới có thật; người chịu trách nhiệm theo brief đ
 - **Hai reviewer dự kiến:** Nguyễn Đức Đạt (@dat532006), Tô Lãng Nghị (@bob35306).
 - **Nhánh đề xuất, chưa tạo:** `feat/sp-022-oauth-token-lifecycle`. **Nguồn:** [Proposal F1, §3.3 và §5.1/F1](../../SocialPilot_Proposal_Java.md), [social contract §§3/6](../../social-contract.md), [Room contract §4](../../room-schema-contract.md).
 
-**Đầu vào/phụ thuộc:** SP-009/SP-010 cung cấp hợp đồng và callback. SP-011 cần xác minh handoff Instagram trên thiết bị; SP-027 bàn giao API kho bí mật, namespace và lỗi đọc/ghi. Nhận danh tính, loại tài khoản, token reference, thời hạn thực được provider trả và capability gắn đúng connection revision; không yêu cầu token thật trong repo/chat.
+**Đầu vào/phụ thuộc:** SP-009/SP-010 cung cấp hợp đồng và callback. SP-065 cần xác minh handoff Instagram trên thiết bị; SP-027 bàn giao API kho bí mật, namespace và lỗi đọc/ghi. Nhận danh tính, loại tài khoản, token reference, thời hạn thực được provider trả và capability gắn đúng connection revision; không yêu cầu token thật trong repo/chat.
 
 **Thực hiện:**
 
@@ -70,7 +70,7 @@ Các issue bên dưới có thật; người chịu trách nhiệm theo brief đ
 - **Issue:** [#55](https://github.com/nigPeter2503/Social_Pilot/issues/55). **Yêu cầu:** INFRA, DOCS. **Ưu tiên:** High theo brief chung.
 - **Công sức/mốc:** 6h thiết lập bàn giao 16/11; 2h kiểm chứng/runbook bàn giao 21/11; tổng 8h. Phần đầu chưa đóng toàn issue.
 - **Hai reviewer dự kiến:** Nguyễn Đức Đạt (@dat532006), Đỗ Phước Thiện (@PhuocThien06). **Nhánh đề xuất:** `chore/sp-053-https-oauth-deployment`.
-- **Nguồn/phụ thuộc:** [Proposal §3.3, §4.4, §5.4](../../SocialPilot_Proposal_Java.md), [development](../../development.md); callback SP-010 và handoff Instagram cần kiểm chứng theo SP-011.
+- **Nguồn/phụ thuộc:** [Proposal §3.3, §4.4, §5.4](../../SocialPilot_Proposal_Java.md), [development](../../development.md); callback SP-010 và handoff Instagram cần kiểm chứng theo SP-065.
 
 **Thực hiện và đầu ra:** xác nhận môi trường JVM/HTTPS, biến cấu hình với giá trị mẫu, redirect đã đăng ký, health check và trình tự triển khai/khởi động lại. Đo RAM, startup, sleep/wake từ môi trường thật rồi ghi nguồn thời gian; không bịa gói hosting hay chi phí. Chốt dịch vụ/trần chi với owner trước khi phát sinh phí. Một instance có phiên tạm TTL; nếu cần nhiều instance, ghi yêu cầu kho phiên chung để quyết định trước triển khai, không tự mở rộng kiến trúc.
 

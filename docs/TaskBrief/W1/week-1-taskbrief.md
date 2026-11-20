@@ -1,6 +1,6 @@
 # Taskbrief chung — SocialPilot Tuần 1
 
-Cập nhật phạm vi ngày 20/11. SP-011 và SP-019 dưới đây là đầu ra Instagram thay thế. Các liên kết issue truy vết ticket gốc. Trạng thái, giờ và hạn tuần 1 thuộc kế hoạch ban đầu. [Quyết định đổi kênh](../../SocialPilot_Proposal_Java.md#doi-kenh)
+Cập nhật phạm vi ngày 20/11. SP-065 và SP-066 dưới đây là đầu ra Instagram thay thế. Các ticket gốc là [SP-011 / #13](https://github.com/nigPeter2503/Social_Pilot/issues/13) và [SP-019 / #21](https://github.com/nigPeter2503/Social_Pilot/issues/21). Mốc bàn giao hiện tại theo #90 và #91. Trạng thái, giờ và hạn tuần 1 thuộc kế hoạch ban đầu. [Quyết định đổi kênh](../../SocialPilot_Proposal_Java.md#doi-kenh)
 
 Đồng bộ ngày **04/11/2026**, múi giờ Asia/Bangkok, từ GitHub Issues và Project. Bản này dùng mã SP và URL ticket thật cho toàn bộ công việc Tuần 1.
 
@@ -15,10 +15,10 @@ Cập nhật phạm vi ngày 20/11. SP-011 và SP-019 dưới đây là đầu r
 
 | Thành viên | GitHub đã assign | Task chính | Taskbrief |
 |---|---|---|---|
-| TV1 — Ngô Gia Minh | [nigPeter2503](https://github.com/nigPeter2503) | [SP-009](https://github.com/nigPeter2503/Social_Pilot/issues/11), [SP-010](https://github.com/nigPeter2503/Social_Pilot/issues/12), [SP-011](https://github.com/nigPeter2503/Social_Pilot/issues/13) | [Chi tiết](tv1-minh-taskbrief.md) |
+| TV1 — Ngô Gia Minh | [nigPeter2503](https://github.com/nigPeter2503) | [SP-009](https://github.com/nigPeter2503/Social_Pilot/issues/11), [SP-010](https://github.com/nigPeter2503/Social_Pilot/issues/12), [SP-065](https://github.com/nigPeter2503/Social_Pilot/issues/90) | [Chi tiết](tv1-minh-taskbrief.md) |
 | TV2 — Nguyễn Đức Đạt | [dat532006](https://github.com/dat532006) | [SP-012](https://github.com/nigPeter2503/Social_Pilot/issues/14), [SP-013](https://github.com/nigPeter2503/Social_Pilot/issues/15), [SP-014](https://github.com/nigPeter2503/Social_Pilot/issues/16) | [Chi tiết](tv2-dat-taskbrief.md) |
 | TV3 — Đỗ Phước Thiện | [PhuocThien06](https://github.com/PhuocThien06) | [SP-015](https://github.com/nigPeter2503/Social_Pilot/issues/17), [SP-016](https://github.com/nigPeter2503/Social_Pilot/issues/18), [SP-017](https://github.com/nigPeter2503/Social_Pilot/issues/19) | [Chi tiết](tv3-thien-taskbrief.md) |
-| TV4 — Tô Lãng Nghị | [bob35306](https://github.com/bob35306) | [SP-018](https://github.com/nigPeter2503/Social_Pilot/issues/20), [SP-019](https://github.com/nigPeter2503/Social_Pilot/issues/21), [SP-020](https://github.com/nigPeter2503/Social_Pilot/issues/22) | [Chi tiết](tv4-nghi-taskbrief.md) |
+| TV4 — Tô Lãng Nghị | [bob35306](https://github.com/bob35306) | [SP-018](https://github.com/nigPeter2503/Social_Pilot/issues/20), [SP-066](https://github.com/nigPeter2503/Social_Pilot/issues/91), [SP-020](https://github.com/nigPeter2503/Social_Pilot/issues/22) | [Chi tiết](tv4-nghi-taskbrief.md) |
 
 Minh là owner [SP-021](https://github.com/nigPeter2503/Social_Pilot/issues/23); cả bốn thành viên tham gia phối hợp/demo. Hai reviewer ghi trong issue là người review dự kiến khi có PR, chưa phải approval đã có.
 
@@ -39,7 +39,7 @@ Baseline đã có topic → ViewModel → Repository → Room, resource VI/EN v�
 |---|---|---|---|---:|---|---|
 | [SP-009](https://github.com/nigPeter2503/Social_Pilot/issues/11) — #11 | Minh (`nigPeter2503`) | Đạt, Nghị | Chốt hợp đồng OAuth, capability và kết quả đăng | 6 | Hết ngày làm việc 2 | [Chi tiết](tv1-minh-taskbrief.md#sp-009) |
 | [SP-010](https://github.com/nigPeter2503/Social_Pilot/issues/12) — #12 | Minh (`nigPeter2503`) | Đạt, Thiện | Kiểm chứng Facebook OAuth callback và một bài đăng thật | 8 | Hết ngày làm việc 3 | [Chi tiết](tv1-minh-taskbrief.md#sp-010) |
-| [SP-011](https://github.com/nigPeter2503/Social_Pilot/issues/13) — #13 | Minh (`nigPeter2503`) | Đạt, Nghị | Kiểm chứng Instagram OAuth, quyền đăng và refresh | 8 | Hết ngày làm việc 4 | [Chi tiết](tv1-minh-taskbrief.md#sp-011) |
+| [SP-065](https://github.com/nigPeter2503/Social_Pilot/issues/90) — #90 | Minh (`nigPeter2503`) | Đạt, Nghị | Kiểm chứng Instagram OAuth, quyền đăng và refresh | 8 | Hết ngày làm việc 4 | [Chi tiết](tv1-minh-taskbrief.md#sp-065) |
 | [SP-012](https://github.com/nigPeter2503/Social_Pilot/issues/14) — #14 | Đạt (`dat532006`) | Minh, Thiện | Chốt quy ước Room, quyền sở hữu dữ liệu và thứ tự migration | 5 | Hết ngày làm việc 2 | [Chi tiết](tv2-dat-taskbrief.md#sp-012) |
 | [SP-013](https://github.com/nigPeter2503/Social_Pilot/issues/15) — #15 | Đạt (`dat532006`) | Minh, Nghị | Chốt hợp đồng AI và đo tác vụ thật trên hai provider | 7 | Hết ngày làm việc 3 | [Chi tiết](tv2-dat-taskbrief.md#sp-013) |
 | [SP-014](https://github.com/nigPeter2503/Social_Pilot/issues/16) — #16 | Đạt (`dat532006`) | Thiện, Nghị | Kiểm chứng hai nhánh stream và hủy độc lập trên Java | 8 | Hết ngày làm việc 4 | [Chi tiết](tv2-dat-taskbrief.md#sp-014) |
@@ -47,7 +47,7 @@ Baseline đã có topic → ViewModel → Repository → Room, resource VI/EN v�
 | [SP-016](https://github.com/nigPeter2503/Social_Pilot/issues/18) — #18 | Thiện (`PhuocThien06`) | Minh, Đạt | Chốt wireframe và hợp đồng brief, phiên bản, duyệt | 6 | Hết ngày làm việc 3 | [Chi tiết](tv3-thien-taskbrief.md#sp-016) |
 | [SP-017](https://github.com/nigPeter2503/Social_Pilot/issues/19) — #19 | Thiện (`PhuocThien06`) | Đạt, Nghị | Nối bản mẫu UI, Room và WorkManager có kiểm thử vòng đời | 8 | Trước demo cuối Tuần 1 | [Chi tiết](tv3-thien-taskbrief.md#sp-017) |
 | [SP-018](https://github.com/nigPeter2503/Social_Pilot/issues/20) — #20 | Nghị (`bob35306`) | Minh, Thiện | Kiểm chứng Facebook comment, reply và số liệu thật | 6 | Hết ngày làm việc 3 | [Chi tiết](tv4-nghi-taskbrief.md#sp-018) |
-| [SP-019](https://github.com/nigPeter2503/Social_Pilot/issues/21) — #21 | Nghị (`bob35306`) | Đạt, Thiện | Kiểm chứng Instagram comment, reply, follower và số liệu | 6 | Hết ngày làm việc 4 | [Chi tiết](tv4-nghi-taskbrief.md#sp-019) |
+| [SP-066](https://github.com/nigPeter2503/Social_Pilot/issues/91) — #91 | Nghị (`bob35306`) | Đạt, Thiện | Kiểm chứng Instagram comment, reply, follower và số liệu | 6 | Hết ngày làm việc 4 | [Chi tiết](tv4-nghi-taskbrief.md#sp-066) |
 | [SP-020](https://github.com/nigPeter2503/Social_Pilot/issues/22) — #22 | Nghị (`bob35306`) | Minh, Thiện | Chốt hợp đồng comment, snapshot, công thức và dashboard | 6 | Hết ngày làm việc 3 | [Chi tiết](tv4-nghi-taskbrief.md#sp-020) |
 | [SP-021](https://github.com/nigPeter2503/Social_Pilot/issues/23) — #23 | Minh (`nigPeter2503`) | Đạt, Nghị | Demo Tuần 1, xử lý blocker và chốt ước lượng còn lại | 2 | Cuối Tuần 1 | [Chi tiết](#sp-021) |
 
@@ -59,8 +59,8 @@ Riêng [SP-021](https://github.com/nigPeter2503/Social_Pilot/issues/23): 2 giờ
 |---|---|---|
 | Baseline Java/XML + Spring Boot, CI và thiết bị | [SP-015](https://github.com/nigPeter2503/Social_Pilot/issues/17) | Wrapper build/test/lint đúng revision, APK cài và thao tác được trên emulator/thiết bị, phiên bản khóa |
 | Hợp đồng và wireframe | [SP-009](https://github.com/nigPeter2503/Social_Pilot/issues/11), [SP-012](https://github.com/nigPeter2503/Social_Pilot/issues/14), [SP-013](https://github.com/nigPeter2503/Social_Pilot/issues/15), [SP-016](https://github.com/nigPeter2503/Social_Pilot/issues/18), [SP-020](https://github.com/nigPeter2503/Social_Pilot/issues/22) | DTO, lỗi/hủy, ID/ownership/schema/migration, brief/version/approval và mẫu dữ liệu; bên cung cấp/tiêu thụ xác nhận |
-| OAuth và đăng hai nền tảng | [SP-010](https://github.com/nigPeter2503/Social_Pilot/issues/12), [SP-011](https://github.com/nigPeter2503/Social_Pilot/issues/13) | App/account/Page/scope/API version/callback/refresh và post ID/URL thật; quyền thiếu ghi blocker riêng |
-| Comment/reply, follower và metrics | [SP-018](https://github.com/nigPeter2503/Social_Pilot/issues/20), [SP-019](https://github.com/nigPeter2503/Social_Pilot/issues/21) | Endpoint/quyền, phản hồi thật đã che bí mật và đối chiếu nền tảng; đối chiếu tổng follower theo đúng kênh |
+| OAuth và đăng hai nền tảng | [SP-010](https://github.com/nigPeter2503/Social_Pilot/issues/12), [SP-065](https://github.com/nigPeter2503/Social_Pilot/issues/90) | App/account/Page/scope/API version/callback/refresh và post ID/URL thật; quyền thiếu ghi blocker riêng |
+| Comment/reply, follower và metrics | [SP-018](https://github.com/nigPeter2503/Social_Pilot/issues/20), [SP-066](https://github.com/nigPeter2503/Social_Pilot/issues/91) | Endpoint/quyền, phản hồi thật đã che bí mật và đối chiếu nền tảng; đối chiếu tổng follower theo đúng kênh |
 | Hai provider AI và chi phí mẫu | [SP-013](https://github.com/nigPeter2503/Social_Pilot/issues/15) | Tác vụ thật OpenAI/Gemini, usage/ước tính có nhãn, hạn mức thử |
 | Stream, hủy, Room, lifecycle và Worker | [SP-014](https://github.com/nigPeter2503/Social_Pilot/issues/16), [SP-017](https://github.com/nigPeter2503/Social_Pilot/issues/19) | Hai nhánh đồng thời, hủy Future+HTTP Call, chặn callback muộn, xoay không tạo lệnh mới, restart giữ dữ liệu, job theo ràng buộc mạng |
 | Demo và kế hoạch tiếp | [SP-021](https://github.com/nigPeter2503/Social_Pilot/issues/23) | Revision/video, kết quả từng phép thử, blocker có người xử lý và ước lượng còn lại |
@@ -73,7 +73,7 @@ Giữ 44 yêu cầu cam kết, gồm 33 B và 11 N đã chọn; chỉ F3.N2 và 
 |---|---|---|
 | [SP-009](https://github.com/nigPeter2503/Social_Pilot/issues/11) | Nhu cầu social/version sơ bộ từ Nghị/Thiện | Chốt DTO/callback/capability với bên dùng; không cần token/API thật để thiết kế |
 | [SP-010](https://github.com/nigPeter2503/Social_Pilot/issues/12) | SP-009; Meta app/Page/HTTPS/quyền thử | Callback contract đã review để triển khai; token và quyền hợp lệ cho phép thử OAuth/đăng thật |
-| [SP-011](https://github.com/nigPeter2503/Social_Pilot/issues/13) | SP-009; callback chung SP-010; Page liên kết Instagram Professional và quyền Meta | Tái dùng callback đã kiểm tra; xác minh quyền trên đúng Page và Instagram user ID |
+| [SP-065](https://github.com/nigPeter2503/Social_Pilot/issues/90) | SP-009; callback chung SP-010; Page liên kết Instagram Professional và quyền Meta | Tái dùng callback đã kiểm tra; xác minh quyền trên đúng Page và Instagram user ID |
 | [SP-012](https://github.com/nigPeter2503/Social_Pilot/issues/14) | Nhu cầu dữ liệu sơ bộ từ module owner | Chốt ID/ownership/quy ước nền trước DTO chi tiết; không chờ SP-016/SP-020 hoàn tất |
 | [SP-013](https://github.com/nigPeter2503/Social_Pilot/issues/15) | SP-012; key/quota và hạn mức thử | Contract event dùng được để mock; tác vụ thật mỗi provider cần key/quota tương ứng |
 | [SP-014](https://github.com/nigPeter2503/Social_Pilot/issues/16) | Contract event/cancel SP-013 | Chữ ký đã review và fake/MockWebServer đủ cho ca stream/hủy; không chờ hai provider thật |
@@ -81,13 +81,13 @@ Giữ 44 yêu cầu cam kết, gồm 33 B và 11 N đã chọn; chỉ F3.N2 và 
 | [SP-016](https://github.com/nigPeter2503/Social_Pilot/issues/18) | SP-009, SP-012 | ID/version đã chốt để đóng contract; wireframe và payload nháp làm trước |
 | [SP-017](https://github.com/nigPeter2503/Social_Pilot/issues/19) | SP-015 baseline; SP-012 schema; SP-014 runtime; mẫu SP-016 | Room/Worker làm độc lập; nối stream sau runtime đã kiểm tra, dùng schema/mẫu đã thống nhất |
 | [SP-018](https://github.com/nigPeter2503/Social_Pilot/issues/20) | SP-009; token/Page/post từ SP-010 hoặc tài khoản thử sẵn có | Token hợp lệ và quyền từng endpoint để thử thật; parser/fixture làm trước |
-| [SP-019](https://github.com/nigPeter2503/Social_Pilot/issues/21) | SP-009; token reference, Instagram user ID và media ID từ SP-011 hoặc tài khoản thử sẵn có; ID SP-012 | Kiểm kê riêng quyền Instagram comment/metrics/follower; không suy từ quyền đăng |
-| [SP-020](https://github.com/nigPeter2503/Social_Pilot/issues/22) | SP-009, SP-012; nhu cầu UI của Thiện | Contract ID/capability nền đã chốt; fixture có nhãn, không chờ SP-018/SP-019 thử thật |
+| [SP-066](https://github.com/nigPeter2503/Social_Pilot/issues/91) | SP-009; token reference, Instagram user ID và media ID từ SP-065 hoặc tài khoản thử sẵn có; ID SP-012 | Kiểm kê riêng quyền Instagram comment/metrics/follower; không suy từ quyền đăng |
+| [SP-020](https://github.com/nigPeter2503/Social_Pilot/issues/22) | SP-009, SP-012; nhu cầu UI của Thiện | Contract ID/capability nền đã chốt; fixture có nhãn, không chờ SP-018/SP-066 thử thật |
 
 Code dùng trong bản tích hợp phải có checks và PR merge theo CONTRIBUTING. Các đầu vào sơ bộ có thể trao đổi sớm để thiết kế/test riêng; API thật chỉ là điều kiện của phép thử cần API.
 
-- [SP-018](https://github.com/nigPeter2503/Social_Pilot/issues/20) nhận token thử hợp lệ có sẵn hoặc đầu ra [SP-010](https://github.com/nigPeter2503/Social_Pilot/issues/12); [SP-019](https://github.com/nigPeter2503/Social_Pilot/issues/21) nhận token thử có sẵn hoặc [SP-011](https://github.com/nigPeter2503/Social_Pilot/issues/13).
-- [SP-011](https://github.com/nigPeter2503/Social_Pilot/issues/13) dùng khung callback từ [SP-010](https://github.com/nigPeter2503/Social_Pilot/issues/12) khi sẵn, không chờ Facebook xét quyền. [SP-020](https://github.com/nigPeter2503/Social_Pilot/issues/22) không chờ API thật để chốt contract dữ liệu.
+- [SP-018](https://github.com/nigPeter2503/Social_Pilot/issues/20) nhận token thử hợp lệ có sẵn hoặc đầu ra [SP-010](https://github.com/nigPeter2503/Social_Pilot/issues/12); [SP-066](https://github.com/nigPeter2503/Social_Pilot/issues/91) nhận token thử có sẵn hoặc [SP-065](https://github.com/nigPeter2503/Social_Pilot/issues/90).
+- [SP-065](https://github.com/nigPeter2503/Social_Pilot/issues/90) dùng khung callback từ [SP-010](https://github.com/nigPeter2503/Social_Pilot/issues/12) khi sẵn, không chờ Facebook xét quyền. [SP-020](https://github.com/nigPeter2503/Social_Pilot/issues/22) không chờ API thật để chốt contract dữ liệu.
 - Fixture/mock có nhãn. Có thể thiết kế/test phần độc lập trong khi chờ token/adapter; chỉ bước tích hợp thật bị chặn. Hết ước lượng giờ không tự làm API đạt.
 
 ## 6. Chạy song song và tích hợp
@@ -96,7 +96,7 @@ Code dùng trong bản tích hợp phải có checks và PR merge theo CONTRIBUT
 |---|---|---|---|---|
 | Đầu Tuần 1 → ngày làm việc 2 | [SP-009](https://github.com/nigPeter2503/Social_Pilot/issues/11), chuẩn bị quyền/app | [SP-012](https://github.com/nigPeter2503/Social_Pilot/issues/14), event AI sơ bộ | [SP-015](https://github.com/nigPeter2503/Social_Pilot/issues/17), nhu cầu wireframe | Chuẩn bị quyền/API, nhu cầu [SP-020](https://github.com/nigPeter2503/Social_Pilot/issues/22) |
 | Ngày làm việc 2–3 | [SP-010](https://github.com/nigPeter2503/Social_Pilot/issues/12), callback dùng chung | [SP-013](https://github.com/nigPeter2503/Social_Pilot/issues/15) | [SP-016](https://github.com/nigPeter2503/Social_Pilot/issues/18), Room/Worker độc lập | [SP-020](https://github.com/nigPeter2503/Social_Pilot/issues/22), [SP-018](https://github.com/nigPeter2503/Social_Pilot/issues/20) theo token sẵn có |
-| Ngày làm việc 3–4 | [SP-011](https://github.com/nigPeter2503/Social_Pilot/issues/13) | [SP-014](https://github.com/nigPeter2503/Social_Pilot/issues/16) | [SP-017](https://github.com/nigPeter2503/Social_Pilot/issues/19), nối runtime khi sẵn | [SP-019](https://github.com/nigPeter2503/Social_Pilot/issues/21), đối chiếu khả năng API |
+| Ngày làm việc 3–4 | [SP-065](https://github.com/nigPeter2503/Social_Pilot/issues/90) | [SP-014](https://github.com/nigPeter2503/Social_Pilot/issues/16) | [SP-017](https://github.com/nigPeter2503/Social_Pilot/issues/19), nối runtime khi sẵn | [SP-066](https://github.com/nigPeter2503/Social_Pilot/issues/91), đối chiếu khả năng API |
 | Trước demo cuối Tuần 1 | Điều phối [SP-021](https://github.com/nigPeter2503/Social_Pilot/issues/23) | Hỗ trợ runtime/schema, review | APK và thử vòng đời | Tổng hợp quyền/dữ liệu/bằng chứng |
 
 Thứ tự tích hợp: contract/ID → DTO/fixture và adapter spike → runtime/API spike → wiring UI/Room/Worker → build lại bản tích hợp và demo. Chỉ chờ tiền đề thực sự cần; mỗi người ưu tiên một task chính và chuẩn bị đầu vào sớm cho bên nhận.
@@ -175,7 +175,7 @@ Theo [CONTRIBUTING mục 2–4](../../../CONTRIBUTING.md#2-nhánh-git): branch `
 |---|---|
 | SP-009 / #11 | `feat/sp-009-social-contract` |
 | SP-010 / #12 | `feat/sp-010-facebook-oauth-spike` |
-| SP-011 / #13 | `feat/sp-011-instagram-oauth-spike` |
+| SP-065 / #90 | `feat/sp-065-instagram-oauth-spike` |
 | SP-012 / #14 | `docs/sp-012-room-schema-contract` |
 | SP-013 / #15 | `feat/sp-013-ai-provider-spike` |
 | SP-014 / #16 | `feat/sp-014-dual-stream-cancellation` |
@@ -183,7 +183,7 @@ Theo [CONTRIBUTING mục 2–4](../../../CONTRIBUTING.md#2-nhánh-git): branch `
 | SP-016 / #18 | `feat/sp-016-brief-approval-contract` |
 | SP-017 / #19 | `feat/sp-017-ui-room-worker-prototype` |
 | SP-018 / #20 | `feat/sp-018-facebook-comments-metrics-spike` |
-| SP-019 / #21 | `feat/sp-019-instagram-comments-metrics-spike` |
+| SP-066 / #91 | `feat/sp-066-instagram-comments-insights` |
 | SP-020 / #22 | `feat/sp-020-analytics-data-contract` |
 | SP-021 / #23 | `docs/sp-021-week-1-demo-report`, chỉ khi có thay đổi repo |
 
@@ -201,12 +201,12 @@ Board hiện thiếu cột Review/Kiểm thử so với CONTRIBUTING; đây là 
 |---|---|---|
 | Ngày làm việc 2/3/4 chưa có lịch ngày cụ thể trong issue | Không tự dịch lại mốc từ ngày nhận việc. Hôm nay đã là 04/11; mỗi owner ghi ngay tiến độ thực tế, mốc đã lỡ nếu có và giờ còn lại. Lịch hiện chỉ đủ làm mốc thứ tự, chưa chứng minh kế hoạch ngày khả thi. | Minh tổng hợp, từng owner cập nhật khi nhận task và trước demo 08/11 |
 | 104h so với 96h danh nghĩa; việc tài liệu và review lại chưa cộng đủ | Giữ phạm vi theo quyết định trong issue; công bố giờ còn lại và cửa sổ review, không coi tự tăng giờ là hết rủi ro. Minh/Đạt đang có tải cao nhất. | Mỗi owner tại hai buổi họp; Minh theo dõi đường tích hợp |
-| SP-010 → SP-018, SP-011 → SP-019 có cùng mốc kết thúc | Bàn giao token/ID hợp lệ sớm hoặc dùng tài khoản thử sẵn có. Nếu chờ đến cuối mốc mới giao thì bên nhận không còn đủ cửa sổ kiểm chứng. | Minh + Nghị kiểm kê quyền ngay; cập nhật blocker trước mốc bên nhận |
+| SP-010 → SP-018, SP-065 → SP-066 có cùng mốc kết thúc | Bàn giao token/ID hợp lệ sớm hoặc dùng tài khoản thử sẵn có. Nếu chờ đến cuối mốc mới giao thì bên nhận không còn đủ cửa sổ kiểm chứng. | Minh + Nghị kiểm kê quyền ngay; cập nhật blocker trước mốc bên nhận |
 | SP-013 → SP-014 → SP-017 sát cuối tuần | Gửi chữ ký event ngày 2 và runtime sớm ngày 3; Room/Worker làm độc lập. Bản demo tích hợp vẫn cần code đã merge và đủ review/checks. | Đạt + Thiện, rà trước cuối ngày làm việc 4 |
 | Quyền API, refresh, key/quota và thiết bị chưa có evidence mới | Brief giao phép thử, không xác nhận nền tảng đã cấp quyền. Bị chặn phải ghi endpoint/quyền thiếu, người xử lý và thử nghiệm còn thiếu. | Minh/Nghị social; Đạt AI; Thiện thiết bị, trước phép thử tương ứng |
 | Nhiều task sửa docs/architecture.md hoặc wiring chung | Các owner chuẩn bị phần riêng, chốt thứ tự merge với người điều phối ở mục 6; đồng bộ main rồi kiểm tra lại bản tích hợp. | Minh/Đạt/Thiện/Nghị theo phần sở hữu, trước khi sửa/merge |
 
-Các tiêu chí trong brief bổ sung cách thực hiện cho issue, không thay thế hoặc hạ tiêu chí gốc. Có hồ sơ lỗi/blocker không đủ để đóng SP-015 nếu checks còn lỗi, hoặc đóng phép thử API thật của SP-010/SP-011/SP-018/SP-019 khi còn thiếu quyền. SP-020 thiết kế quy tắc snapshot; lịch sử thật được thu từ W2–3 theo SP-045.
+Các tiêu chí trong brief bổ sung cách thực hiện cho issue, không thay thế hoặc hạ tiêu chí gốc. Có hồ sơ lỗi/blocker không đủ để đóng SP-015 nếu checks còn lỗi, hoặc đóng phép thử API thật của SP-010/SP-065/SP-018/SP-066 khi còn thiếu quyền. SP-020 thiết kế quy tắc snapshot; lịch sử thật được thu từ W2–3 theo SP-045.
 
 **Kết luận:** nội dung đủ để dùng làm hồ sơ giao việc; chưa có cơ sở cam kết chắc chắn tất cả đầu ra W1 đúng hạn. Tiến độ, blocker và bằng chứng triển khai tiếp tục được cập nhật trên từng issue và Project.
 
