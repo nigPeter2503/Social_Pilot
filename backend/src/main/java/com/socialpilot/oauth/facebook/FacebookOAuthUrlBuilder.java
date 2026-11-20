@@ -46,4 +46,17 @@ public final class FacebookOAuthUrlBuilder {
                         "code", code))
                 .toUri();
     }
+
+    public static URI longLivedUserTokenUri(FacebookOAuthProperties properties, String userToken) {
+        return UriComponentsBuilder.fromUriString("https://graph.facebook.com")
+                .pathSegment(properties.getGraphApiVersion(), "oauth", "access_token")
+                .queryParam("grant_type", "fb_exchange_token")
+                .queryParam("client_id", "{clientId}")
+                .queryParam("client_secret", "{clientSecret}")
+                .queryParam("fb_exchange_token", "{userToken}")
+                .encode()
+                .buildAndExpand(Map.of("clientId", properties.getAppId(),
+                        "clientSecret", properties.getAppSecret(), "userToken", userToken))
+                .toUri();
+    }
 }

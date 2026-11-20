@@ -61,6 +61,18 @@ public final class FacebookGraphClient {
                     .retrieve().toEntity(byte[].class);
             JsonNode tokenJson = parseGraphJson(tokenResponse, stage);
             String userToken = text(tokenJson, "access_token");
+            long originalUserLifetime = 0;
+            long longLivedUserLifetime = 0;
+            if (instagram) {
+                stage = "instagram_token_exchange";
+                ResponseEntity<byte[]> longLivedResponse = graph.get()
+                        .uri(FacebookOAuthUrlBuilder.longLivedUserTokenUri(properties, userToken))
+                        .retrieve().toEntity(byte[].class);
+                JsonNode longLived = parseGraphJson(longLivedResponse, stage);
+                userToken = text(longLived, "access_token");
+                originalUserLifetime = tokenJson.path("expires_in").asLong(0);
+                longLivedUserLifetime = longLived.path("expires_in").asLong(0);
+            }
 
             stage = "page_list";
             JsonNode page = findTargetPage(userToken, instagram);
@@ -85,6 +97,10 @@ public final class FacebookGraphClient {
                 }
                 if (!scopes.containsAll(List.of("instagram_basic", "instagram_content_publish",
                         "pages_read_engagement"))) throw OAuthFlowException.accessDenied();
+                LOGGER.info("Instagram token exchange verified: originalUserExpiresInSeconds={} "
+                                + "longLivedUserExpiresInSeconds={} pageExpiresAtEpoch={} pageDataAccessExpiresAtEpoch={}",
+                        originalUserLifetime, longLivedUserLifetime, metadata.path("expires_at").asLong(0),
+                        metadata.path("data_access_expires_at").asLong(0));
                 return new PageIdentity(properties.getTargetPageId(), pageName, pageToken, instagramId,
                         username, scopes, instagramExpiry(metadata));
             }
@@ -107,8 +123,9 @@ public final class FacebookGraphClient {
                     exception.stage, exception.httpStatus, exception.contentType, exception.bodyLength);
             throw OAuthFlowException.providerError();
         } catch (RestClientResponseException exception) {
-            if ("instagram_token".equals(stage)) {
-                LOGGER.warn("Instagram token inspection failed with HTTP {}", exception.getStatusCode().value());
+            if ("instagram_token".equals(stage) || "instagram_token_exchange".equals(stage)) {
+                LOGGER.warn("Instagram token request failed at stage={} httpStatus={}",
+                        stage, exception.getStatusCode().value());
                 throw OAuthFlowException.providerError();
             }
             byte[] body = exception.getResponseBodyAsByteArray();

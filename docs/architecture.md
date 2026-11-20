@@ -14,6 +14,7 @@ Kho phiên OAuth một instance dùng chung khóa cho các index, cleanup và co
 Android lưu `connected_v2` (toàn bộ Page/credential/metadata) và `pending_v2` (session/verifier) thành hai payload AES-GCM riêng, có version và AAD theo tên record. Mỗi payload được mã hóa trước rồi ghi một commit. Lỗi ghi hoặc giải mã làm record không khả dụng, không hiển thị metadata kết nối thiếu token. Dữ liệu OAuth v1 từng trường bị loại bỏ và yêu cầu kết nối lại vì không thể xác minh chúng chưa bị ghi dở; không đổi hay xóa Room/bản nháp.
 
 SP-065 dùng cùng callback Facebook Login cho Instagram. Phiên backend xác định provider,
+backend đổi User Access Token sang dài hạn trước khi lấy Page token cho Instagram.
 Android lưu kết nối Instagram trong record AES-GCM riêng theo kênh. Spike đăng từ một phiên bản
 đã duyệt, lưu container ID trước khi gọi xuất bản, rồi giữ media ID và permalink. Khi kết quả
 chưa rõ, phép đối soát chỉ đọc trạng thái hoặc đọc lại permalink. Hàng đợi production vẫn thuộc

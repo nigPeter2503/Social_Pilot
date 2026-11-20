@@ -90,3 +90,13 @@ phỏng và không gửi bài mới. Kết quả `OK (3 tests)`:
 
 Mốc hết hạn hiển thị trong ca Meta thật được cung cấp từ metadata. Ca thu hồi thật
 và cơ chế đổi sang token dài hạn chưa chạy trong các phép thử trên.
+
+## Kiểm chứng đổi User Access Token dài hạn
+
+Khi bắt đầu kết nối Instagram, backend dùng access token nhận từ authorization code
+để gọi `fb_exchange_token` trên Graph API. Backend dùng User Access Token dài hạn lấy
+Page Access Token và kiểm tra hiệu lực, scope và metadata hạn của Page token.
+Log bằng chứng chỉ ghi thời hạn, không ghi token. Page token dài hạn vẫn cần tuân thủ
+ngày hết quyền truy cập dữ liệu nếu Meta cung cấp. App tiếp tục yêu cầu kết nối lại
+khi credential đã hết hiệu lực hoặc bị thu hồi.
+[Hướng dẫn token dài hạn của Meta](https://developers.facebook.com/documentation/facebook-login/guides/access-tokens/get-long-lived)

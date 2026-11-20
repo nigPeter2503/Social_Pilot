@@ -82,10 +82,21 @@ class FacebookOAuthSessionServiceTest {
 
     @Test void instagramHandoffKeepsPageAndProfessionalIdentitySeparate() throws Exception {
         server.expect(requestTo(startsWith("https://graph.facebook.com/v27.0/oauth/access_token?")))
-                .andRespond(withSuccess("{\"access_token\":\"test-user-token\"}", MediaType.APPLICATION_JSON));
+                .andRespond(withSuccess("{\"access_token\":\"test-user-token\",\"expires_in\":3600}",
+                        MediaType.APPLICATION_JSON));
+        server.expect(requestTo(startsWith("https://graph.facebook.com/v27.0/oauth/access_token?")))
+                .andExpect(request -> {
+                    String query = request.getURI().getQuery();
+                    assertTrue(query.contains("grant_type=fb_exchange_token"));
+                    assertTrue(query.contains("fb_exchange_token=test-user-token"));
+                })
+                .andRespond(withSuccess("{\"access_token\":\"test-long-lived-user-token\",\"expires_in\":5184000}",
+                        MediaType.APPLICATION_JSON));
         server.expect(requestTo(startsWith("https://graph.facebook.com/v27.0/me/accounts?")))
-                .andExpect(request -> assertTrue(request.getURI().getQuery()
-                        .contains("instagram_business_account{id,username}")))
+                .andExpect(request -> {
+                    assertTrue(request.getURI().getQuery().contains("instagram_business_account{id,username}"));
+                    assertEquals("Bearer test-long-lived-user-token", request.getHeaders().getFirst("Authorization"));
+                })
                 .andRespond(withSuccess("""
                         {"data":[{"id":"1234567890","name":"Test Page","access_token":"test-page-token",
                         "tasks":["PROFILE_PLUS_CREATE_CONTENT"],
@@ -110,6 +121,17 @@ class FacebookOAuthSessionServiceTest {
         assertEquals("17841459976957663", exchange.externalAccountId);
         assertEquals("2033-05-18T03:33:20Z", exchange.expiresAt);
         assertTrue(exchange.grantedScopes.contains("instagram_content_publish"));
+        server.verify();
+    }
+
+    @Test void deniedInstagramCallbackDoesNotContactGraphOrIssueHandoff() throws Exception {
+        OAuthStartResponse start = service.start(startRequest("INSTAGRAM"));
+        String state = parameter(start.authorizationUrl, "state");
+        URI callback = service.completeCallback(null, state, "access_denied");
+        assertEquals(start.sessionId, parameter(callback.toString(), "sessionId"));
+        assertEquals("ACCESS_DENIED", parameter(callback.toString(), "error"));
+        assertNull(parameter(callback.toString(), "handoffCode"));
+        assertCode("INVALID_STATE", () -> service.completeCallback("not-used", state, null));
         server.verify();
     }
 
