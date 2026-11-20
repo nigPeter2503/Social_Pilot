@@ -92,8 +92,8 @@ phỏng và không gửi bài mới. Kết quả `OK (4 tests)`:
 
 [Kết quả AndroidJUnitRunner](evidence/sp-065-controlled-device-tests-2026-11-20.txt)
 
-Mốc hết hạn hiển thị trong ca Meta thật được cung cấp từ metadata. Ca thu hồi thật
-và cơ chế đổi sang token dài hạn chưa chạy trong các phép thử trên.
+Mốc hết hạn hiển thị trong ca Meta thật được cung cấp từ metadata. Phản hồi thu
+hồi trong nhóm ca này là mô phỏng theo quyết định giữ grant Meta của người dùng.
 
 ## Kiểm chứng đổi User Access Token dài hạn
 
@@ -104,3 +104,16 @@ Log bằng chứng chỉ ghi thời hạn, không ghi token. Page token dài h�
 ngày hết quyền truy cập dữ liệu nếu Meta cung cấp. App tiếp tục yêu cầu kết nối lại
 khi credential đã hết hiệu lực hoặc bị thu hồi.
 [Hướng dẫn token dài hạn của Meta](https://developers.facebook.com/documentation/facebook-login/guides/access-tokens/get-long-lived)
+
+Ngày 20/11/2026 khoảng 21:52 (UTC+07:00), backend revision `7154ffb` đã đổi
+User Access Token với Meta, dùng kết quả đó để lấy Page token và xác minh Page token
+hợp lệ. Android nhận phiên mới cho `@gm_md253`. Nút **Check connection and post
+status** gọi Graph thành công bằng kết nối mới và khôi phục đúng media ID
+`18439504675178856` từ lần đăng thật trước đó.
+
+Log ghi `0` cho cả hai trường `expires_in` của User token, vì backend dùng `0`
+khi không đọc được thời hạn dương từ phản hồi. Vì vậy, phép thử xác nhận lệnh đổi
+thành công nhưng chưa xác định được tuổi thọ thực tế trước và sau khi đổi. Metadata
+Page token có `pageExpiresAtEpoch=0` và hạn quyền truy cập dữ liệu
+`2027-02-18T14:52:23Z`, khớp thời hạn hiển thị trên thiết bị.
+[Log chỉ chứa metadata](evidence/sp-065-instagram-token-exchange-2026-11-20.txt) · [App sau khi kết nối lại và đối soát](evidence/sp-065-instagram-token-exchanged-2026-11-20.png)
