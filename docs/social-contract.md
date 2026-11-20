@@ -224,7 +224,7 @@ Các endpoint/path chưa được định nghĩa ở task này để tránh gi�
 - Token provider tạm thời chỉ sống tới khi đổi mã/hết hạn; backend không lưu token dài hạn.
 - Restart làm mất phiên bộ nhớ thì yêu cầu kết nối lại. Nhiều instance cần kho phiên dùng chung.
 - Validation DTO chỉ kiểm tra hình dạng; session store, hash, state, replay và TTL enforcement
-  phải được triển khai/kiểm thử trong SP-010 rồi tái dùng ở SP-011.
+  thuộc SP-010 cho Facebook Login. SP-065 tái dùng callback và kiểm chứng handoff trên đúng tài khoản Instagram Professional liên kết Page.
 
 OAuthFailure phân biệt INVALID_STATE, INVALID_SESSION, INVALID_REDIRECT, HANDOFF_EXPIRED,
 HANDOFF_ALREADY_USED, ACCESS_DENIED, AUTH_REQUIRED, PROVIDER_ERROR.

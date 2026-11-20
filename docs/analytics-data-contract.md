@@ -26,8 +26,7 @@ Reviewer: Minh và Thiện; Đạt xác nhận thiết kế lưu trữ trước 
 
 ## 2. Mapping yêu cầu → dữ liệu → nguồn → người dùng
 
-Nguồn dưới đây là nhu cầu logic; endpoint, metric provider, version, scope và khả năng
-thực tế **chưa kiểm chứng**. SP-018/#20 và SP-019/#21 phải bổ sung bằng chứng trước adapter.
+Đối chiếu từng phép đo với tài khoản, quyền, phiên bản API và thời điểm thử. Nguồn kiểm chứng cho adapter Facebook Page là [SP-018](https://github.com/nigPeter2503/Social_Pilot/issues/20), cho Instagram Professional là [SP-066](https://github.com/nigPeter2503/Social_Pilot/issues/91).
 
 | Yêu cầu | Dữ liệu cần | Nguồn dự kiến / giới hạn | Người dùng |
 |---|---|---|---|
@@ -356,7 +355,7 @@ actualStart/end. Muốn FULL tuần cần provider cho số theo đúng kỳ ho�
 Minh/Thiện chốt trước triển khai; chưa giả định mọi tuần sẽ có FULL coverage.
 
 Trước lần thu đầu: Minh xác nhận kênh/account/product/scope và từng capability;
-SP-018/019 chốt metric provider/version/definition. Thu follower kênh và bộ đếm từng bài
+SP-018 và SP-066 chốt metric provider/version/definition. Thu follower kênh và bộ đếm từng bài
 được phép đọc, cùng collectionId; metric thiếu ghi reason. Không có quyền không chạy
 thay bằng connections hoặc scrape. Thất bại giữ lastSuccess, ghi attempt/gap và next action;
 ngắt kênh dừng job. Hai snapshot thật khác thời điểm mới mở so sánh; W1 không yêu cầu sẵn lịch sử.
@@ -374,6 +373,6 @@ theo lịch thu thực, chọn cặp mốc chung và coverage, alignment measure
 query/grouping/tie-break và lịch thu W2–3. Chữ ký Java cụ thể chốt khi tích hợp.
 
 SP-020 W1 bàn giao contract/fixture có nhãn: không đòi token hoặc snapshot thật sẵn có.
-SP-018/019 kiểm chứng API, SP-045 thu lịch sử; chúng bổ sung mapping qua revision sau.
+SP-018 và SP-066 kiểm chứng API, SP-045 thu lịch sử; chúng bổ sung mapping qua revision sau.
 Thiện đã xác nhận tài liệu và fixture đủ cho UI W1. Minh còn cần xác nhận phần tiêu thụ
 hợp đồng ở adapter và repository.
