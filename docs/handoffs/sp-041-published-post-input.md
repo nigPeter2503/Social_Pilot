@@ -1,6 +1,56 @@
-# SP-041.01 — PublishedPost handoff v0.1.0 (local draft)
+# SP-041.07 · Mở inbox, lọc cache và chọn comment để reply
 
-**Bổ sung Instagram ngày 21/11/2026.** Scope nhận `INSTAGRAM/PROFESSIONAL`, IG user ID và media ID. SP-042 tạo `CommentPageRequest` với account `INSTAGRAM_PROFESSIONAL`, query `IG_COMMENTS` và binding xác minh media/parent. Target POST đọc comments, target COMMENT đọc replies. SP-043 dùng scope, postId, commentId và parentCommentId cùng capability REPLY_COMMENT của revision đang chọn. Cursor chỉ resume trong cùng fingerprint. Lỗi trang giữ cache/checkpoint lần thành công. Đối chiếu fixture bằng `CommentAdapterTest.instagramPagingReplyAndScope`. ACK consumer, Room và manifest provider còn chờ.
+Nghị bàn giao API cho SP-042/043 và Thiện/SP-051. Các chữ ký và ca kiểm bên dưới áp dụng cho mã `a192d58003b2f7f6886587ac2adcfd7c133e24d1` của PR #87. JVM và thiết bị dùng store giao dịch **trong RAM** (`MO_PHONG`). Ứng dụng còn chờ Channel/DAO, Room và manifest provider của .06 để nghiệm thu dữ liệu thật. [Evidence Worker/cache](../sp-041-worker-cache-ig-fb.md)
+
+## Chọn bài và tạo query
+
+Lấy platform, loại account, channelId nội bộ, externalAccountId và connectionRevision dương từ Channel hiện hành. Tra `PublishedPostRepository.lookupByLocalId(scope, localPostId)` hoặc `lookupByExternalId(scope, externalPostId)` và dùng `LookupResult.post.externalPostId` khi `FOUND`. Adapter cần `CommentAdapter.Binding` xác minh ownership của bài và quan hệ với target trong cùng scope. Lấy pageSize trong giới hạn của binding, version từ cấu hình đã kiểm.
+
+| Nguồn | Account và query | Post và target |
+|---|---|---|
+| Instagram Professional | `Account.INSTAGRAM_PROFESSIONAL`, `Query.IG_COMMENTS` | externalAccountId là IG user ID, postId là media ID. Với `Target.POST`, targetId bằng media ID. Với `Target.COMMENT`, giữ media ID ở postId và truyền ID comment cha vào targetId để đọc replies. |
+| Facebook Page | `Account.FACEBOOK_PAGE`, `Query.FB_TOPLEVEL` hoặc `Query.FB_STREAM` theo filter provider | externalAccountId là Page ID, postId là ID bài Facebook. Target POST dùng lại ID bài, target COMMENT dùng ID comment đã bind. |
+
+Facebook và Instagram truyền threadId = null, apiVersion dạng `vN.N`. Nhánh LinkedIn trong code dùng `LINKEDIN_MEMBER`/`LINKEDIN_ORGANIZATION`, `LI_COMMENTS`, post URN, thread URN đã xác minh, comment URN đầy đủ nếu đọc replies và version YYYYMM. `historyFrom` là mốc bao gồm, epoch ms hoặc null. Pull luôn truyền cursor null. Coordinator khôi phục cursor từ checkpoint của queryFingerprint, trong đó có cả target, filter provider, pageSize, historyFrom và revision. Bộ lọc handled dưới đây chỉ dùng khi đọc cache. [CommentPageRequest](../../android/app/src/main/java/com/socialpilot/app/data/remote/social/CommentPageRequest.java)
+
+## Mở inbox → đọc cache → kéo làm mới → đọc lại
+
+Ví dụ IG dùng `channel` kiểu `ChannelInfo`, `post` kiểu `PublishedPost` đã tra đúng scope và `repo` kiểu `CommentRepository` dùng chung với Worker. Ví dụ dùng version và pageSize của fixture. `showIfCurrent` là hàm của màn hình, chuyển sang main thread và kiểm phiên màn hình/query trước khi vẽ. Các lần đọc cache chạy trên IO.
+
+```java
+CommentPageRequest q = new CommentPageRequest(
+        CommentPageRequest.Account.INSTAGRAM_PROFESSIONAL, channel.channelId,
+        channel.connectionRevision, channel.externalAccountId, post.externalPostId,
+        CommentPageRequest.Target.POST, post.externalPostId, null,
+        CommentPageRequest.Query.IG_COMMENTS, 2, null, "v27.0", null);
+CommentStore.Handled filter = CommentStore.Handled.ALL;
+CommentRepository.View first = repo.loadCached(q, filter);
+showIfCurrent(q, first);
+
+// Khi người dùng kéo làm mới, giữ handle theo vòng đời của màn hình.
+Cancelable pull = repo.refresh(q, (CommentSyncCoordinator.Result result) -> {
+    CommentRepository.View updated = repo.loadCached(q, filter);
+    showIfCurrent(q, updated);
+});
+// Khi đóng/đổi query, vô hiệu phiên hiển thị cũ rồi gọi:
+pull.cancel();
+```
+
+`loadCached(CommentPageRequest, CommentStore.Handled)` trả một `View` đồng bộ. Đổi giữa `ALL`, `HANDLED`, `UNHANDLED` bằng cách đọc lại. `refresh(CommentPageRequest, CommentSyncCoordinator.Callback)` trả `Cancelable`. Callback nền `complete(Result)` trả kết quả lượt pull với `state()/reason()/error()/retryAt()`. Dữ liệu hiển thị nằm trong `View.rows()`. Hủy handle gỡ listener đó, listener khác cùng query vẫn có thể nhận kết quả. Khi cần vẽ spinner, đọc lại trong lúc pull đang chạy. Consumer tự kích hoạt đọc lại sau pull, đổi filter hoặc khi biết Worker đã chạy. Repository hiện chưa cung cấp observer cache, API đánh dấu handled hay cờ handled cho từng row của danh sách ALL. [Repository](../../android/app/src/main/java/com/socialpilot/app/data/repository/comment/CommentRepository.java) · [Coordinator](../../android/app/src/main/java/com/socialpilot/app/data/repository/comment/CommentSyncCoordinator.java) · [Cache](../../android/app/src/main/java/com/socialpilot/app/data/local/comment/CommentCache.java)
+
+| SP-042/Thiện-SP-051 đọc từ View | Cách hiển thị |
+|---|---|
+| `LOADING` | Hiện tiến trình cùng các rows đang có. |
+| `EMPTY` | Đã hoàn tất sync, online và bộ lọc hiện tại rỗng. `NO_CACHE` là chưa có checkpoint. `PARTIAL` là có checkpoint chưa hoàn tất, xem thêm paging/paginationReason. |
+| `OFFLINE_CACHED` / `OFFLINE_NO_CACHE` | Báo offline. Trường hợp đầu giữ danh sách hoặc kết quả rỗng đã biết. Cache vẫn có thể tồn tại khi bộ lọc hiện tại trả 0 hàng. |
+| Lỗi trang sau | Khi online, `ERROR` có thể đi cùng rows trang trước và `paging() == MORE`. Khi offline trạng thái ưu tiên offline. Giữ rows, đọc `failure()/error()/retryAt()` để hiện lỗi và thời điểm thử lại. `lastAttemptAt()` ghi lần thử, `lastCompleteSyncAt()` và `freshness()` theo lần hoàn tất. |
+| Cần kết nối lại | Kiểm `connection() == REAUTH_REQUIRED` hoặc `error() != null` và `error().nextAction == RECONNECT` kể cả lúc offline. Truy cập revision đã nghỉ có thể trả `ERROR` với rows rỗng. Thiếu quyền có action `RESOLVE_PERMISSION` riêng. |
+
+**SP-042** hiển thị `StoredComment.authorDisplayName`, `message/contentState` (AVAILABLE, OMITTED, DELETED), `createdAt/timeMissingReason`, `parentState/parentCommentId` và `needsRefresh`. Các field trên row giữ metadata đã biết khi provider trả sparse. Cache sắp theo createdAt giảm dần, ngày thiếu xuống cuối, rồi commentId. **SP-043** lấy FK `row.localPostId`, ID bài/media và comment phía provider từ `row.observation.postId/commentId`, parent từ `row.parentCommentId` khi `parentState == KNOWN`. UNKNOWN giữ nguyên quan hệ chưa rõ. Lưu selection cùng `row.observation.scope` (platform/channelId/connectionRevision). Quyền tại lúc đọc nằm ở `row.observation.replyCapability` (operation, availability, reasonCode, verifiedAt). Trước gửi, SP-043 phải đối chiếu lại Channel đang kết nối, revision và capability `REPLY_COMMENT/AVAILABLE` từ binding hiện hành, cùng nội dung đã duyệt. API inbox cung cấp selection và quyền đã quan sát. API gửi reply và đối soát sau mất phản hồi thuộc SP-043.
+
+**Ca đối chiếu tại mã bàn giao.** Trong `CommentSyncTest`, `instagramWorkerResumesEachQueryAndDeduplicatesOverlappingPages` dựng lại coordinator, resume bốn query và dedup. `instagramPageTwoNetworkLossKeepsFirstPageThroughWorkerRetry` và `nextPage429PreservesCacheAndHonorsDeadlineAcrossRestart` kiểm giữ dữ liệu, chờ hạn và resume đúng cursor. `lateInstagramPageCannotAdvanceCheckpointAndFacebookJobSurvivesCleanup` kiểm response IG đến muộn và job Facebook vẫn chạy. 239/239 JVM tại `a192d58`. Instrumentation 3/3 trên Pixel 9 API 37 x86_64 dùng mã ứng dụng và harness của `c1f197d`. [Test JVM](../../android/app/src/test/java/com/socialpilot/app/data/remote/social/CommentSyncTest.java) · [Evidence thiết bị](../sp-041-worker-cache-ig-fb.md)
+
+## SP-041.01 · Hồ sơ PublishedPost v0.1.0
 
 Owner: Tô Lãng Nghị / TV4. **MO_PHONG harness; chưa tích hợp Room/Channel production.**
 Không thay Social v1, Analytics draft-4 hoặc Room contract đã có. Chữ ký dưới đây
