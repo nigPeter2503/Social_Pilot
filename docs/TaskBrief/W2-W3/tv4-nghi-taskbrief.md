@@ -6,7 +6,7 @@
 
 Nghị sở hữu F6, API comment/reply/metrics/follower của cả hai nền tảng và tầng dữ liệu F7: snapshot, công thức, repository, goal/progress và báo cáo AI F7.N2 cùng UI báo cáo. Thiện làm XML/ViewModel dashboard/biểu đồ/phân nhóm/mục tiêu, không tính lại số liệu. Minh cung cấp OAuth/token/capability; Đạt cung cấp AI service/budget và điều phối schema, không làm thay adapter/dữ liệu của Nghị.
 
-Theo giả định mới nhất, tuần 1 và bảy PR #69/#70/#73/#74/#75/#76/#77 đã xong. Dùng trực tiếp ma trận quyền/fixture/bằng chứng SP-018/SP-019, contract SP-020 và root/ID SP-012; không giao lại khảo sát API hoặc coi chờ approve PR là blocker. **SP-021 đã hoàn tất**, 2h tham chiếu trong baseline không phải task mới. Mức quyền vẫn áp dụng đúng account/product/scope/revision đã kiểm chứng, không suy mọi API từ OAuth.
+Ước lượng ngày 15/11 giả định tuần 1 hoàn tất. Từ 20/11, dùng Facebook Page và Instagram Professional; Minh và Nghị cần đối chiếu lại phần công tích hợp Instagram. Dùng bằng chứng Page từ SP-018, kết quả Instagram ngày 20/11, contract SP-020 và root/ID SP-012. Kiểm tra các quyền còn thiếu trên đúng tài khoản. **SP-021 đã hoàn tất**, 2h tham chiếu trong baseline không phải task mới. Mức quyền vẫn áp dụng đúng account/product/scope/revision đã kiểm chứng, không suy mọi API từ OAuth.
 
 Các issue triển khai đọc ngày 15/11 còn chưa có assignee. Brief giao Nghị theo phân công đã duyệt, không tự thay assignment/status trên GitHub; nhãn In Progress trong report là kịch bản báo cáo, không phải evidence nhận việc. Phê duyệt tài liệu không tự biến fixture thành nghiệm thu API/app.
 
@@ -38,7 +38,7 @@ Giờ owner đã gồm API/domain/UI của module, lưu offline, VI/EN, test/mig
 - **Issue:** [#47](https://github.com/nigPeter2503/Social_Pilot/issues/47). **Yêu cầu:** F7.B1/B2/B3. **Ưu tiên:** High.
 - **Công sức/mốc:** 10h collection/storage và bắt đầu lịch sử hạn 16/11; 2h đối chiếu nhiều mốc/recovery hạn 21/11; tổng 12h.
 - **Hai reviewer dự kiến:** Nguyễn Đức Đạt (@dat532006), Đỗ Phước Thiện (@PhuocThien06), theo CONTRIBUTING §6 vì PR có migration và Thiện dùng dữ liệu dashboard. Cặp này thay Minh–Thiện của issue #47 trong kế hoạch routing; tracker chưa được đổi bởi brief. **Nhánh đề xuất, chưa tạo:** `feat/sp-045-real-metric-snapshots`.
-- **Nguồn/phụ thuộc:** [Proposal F7/§5.1](../../SocialPilot_Proposal_Java.md), [analytics contract §§3/5/8/9](../../analytics-data-contract.md), [Room contract §§3/5/6](../../room-schema-contract.md); SP-022, SP-018/SP-019/SP-020 đã có.
+- **Nguồn/phụ thuộc:** [Proposal F7/§5.1](../../SocialPilot_Proposal_Java.md), [analytics contract §§3/5/8/9](../../analytics-data-contract.md), [Room contract §§3/5/6](../../room-schema-contract.md); SP-022 cung cấp kết nối. Dùng SP-018 cho Page, kết quả Explorer ngày 20/11 cho Instagram và SP-020 cho hợp đồng.
 
 **Handoff có thứ tự:** trước lần thu 16/11, Đạt/SP-027 giao secret boundary → Minh/SP-022 upsert Channel và giao lookup/revision → Nghị/SP-041 upsert PublishedPost của bài có sẵn, độc lập PublishJob/SP-025 → Nghị/SP-045 dùng chung root để lưu metric bài. Đạt cấp slot schema nối tiếp, owner từng module viết migration/test. Follower được thu sau Channel/quyền hợp lệ, không cần PublishedPost; post-level/comment phải chờ root bài. Thiếu root/quyền thì tiếp tục parser/fixture có nhãn và ghi mốc thật bị lỡ.
 
@@ -72,7 +72,7 @@ Giờ owner đã gồm API/domain/UI của module, lưu offline, VI/EN, test/mig
 - **Issue:** [#43](https://github.com/nigPeter2503/Social_Pilot/issues/43). **Yêu cầu:** F6.B2. **Ưu tiên:** High.
 - **Công sức/mốc:** 6h adapter/persistence hạn 16/11; 6h background/error/disconnect integration hạn 21/11; tổng 12h.
 - **Hai reviewer dự kiến:** Ngô Gia Minh (@nigPeter2503), Nguyễn Đức Đạt (@dat532006). **Nhánh đề xuất:** `feat/sp-041-incremental-comment-sync`.
-- **Nguồn/phụ thuộc:** [Proposal F6](../../SocialPilot_Proposal_Java.md), [analytics contract §§3–4/8](../../analytics-data-contract.md), [Room contract](../../room-schema-contract.md); SP-022, SP-018/SP-019/SP-020 đã có.
+- **Nguồn/phụ thuộc:** [Proposal F6](../../SocialPilot_Proposal_Java.md), [analytics contract §§3–4/8](../../analytics-data-contract.md), [Room contract](../../room-schema-contract.md); SP-022 cung cấp kết nối. Dùng SP-018 cho Page, kết quả Explorer ngày 20/11 cho Instagram và SP-020 cho hợp đồng.
 
 **Thực hiện theo phần:**
 
@@ -85,7 +85,7 @@ Giờ owner đã gồm API/domain/UI của module, lưu offline, VI/EN, test/mig
 - [ ] Response cũ/khác revision không ghi đè mới; payload cùng timestamp nhưng xung đột được giữ/phản ánh nhu cầu refresh theo contract.
 - [ ] Empty success khác thiếu quyền hoặc lỗi mạng; không trả danh sách rỗng thành công để che lỗi.
 - [ ] User thấy history range và lần sync thành công; offline giữ cache/freshness, không hứa toàn bộ comment lịch sử hoặc cập nhật tức thời.
-- [ ] Hai nền tảng dùng production API và đúng capability, hoặc ghi blocker cụ thể cho operation chưa được quyền; không lấy Facebook thành công thay LinkedIn.
+- [ ] Hai nền tảng dùng production API và đúng capability, hoặc ghi blocker cụ thể cho operation chưa được quyền; không lấy Facebook thành công thay Instagram.
 - [ ] Hủy HTTP/Worker và revision guard ngăn late callback ghi lại comment sau ngắt kênh; không ảnh hưởng kênh khác.
 
 **Kiểm thử/handoff:** fixture parser cho parent unknown, deleted/omitted content, native ID conflict; MockWebServer pagination/overlap/out-of-order, HTTP lỗi/429/timeout/cancel; Room migration và transaction rollback; Worker offline/restart. Đối chiếu comment thật đúng post/thread khi có quyền. SP-042 nhận cache query/filter/state; Minh nhận capability/error mapping cập nhật đúng revision, Đạt nhận đề xuất schema trước khi đổi version.
