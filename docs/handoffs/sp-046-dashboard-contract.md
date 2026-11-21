@@ -1,5 +1,7 @@
 # SP-046.01 — Chữ ký Java và fixture dashboard cho SP-047
 
+**Bổ sung Instagram ngày 21/11/2026, chờ Thiện ACK.** Query chọn ChannelScope với platform INSTAGRAM và revision hiện hành. Adapter DAO tương lai ánh xạ `REACH_COUNT` của SP-045 thành Key.REACH và giữ definitionId của sample nguồn. DTO hiển thị reach lifetime theo media trong PostMetrics.readings. Repository loại metric này khỏi phép cộng reach theo nhóm và khỏi mẫu số ER. Khi IG thiếu impression, số impression từ Facebook bị loại theo scope. Ca `AnalyticsProjectorRegressionTest.instagramZeroAndReachStayScopedAndDoNotSupplyImpressions` kiểm projection từ dữ liệu MO_PHONG. Phần đối soát production cần sourceSnapshotIds của T1/T2.
+
 **Draft 0.1.0 · 19/11/2026 · Người giao Tô Lãng Nghị · Người xác nhận Đỗ Phước Thiện qua HO-DTO**
 
 | Mốc | Revision |

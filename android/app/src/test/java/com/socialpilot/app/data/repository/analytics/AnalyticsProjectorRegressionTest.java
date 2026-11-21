@@ -18,6 +18,47 @@ public final class AnalyticsProjectorRegressionTest {
     private DashboardData project(DashboardQuery q, Batch b) {
         return new AnalyticsProjector(STALE_POLICY).project(q, b, EvidenceSource.MO_PHONG, END + 10);
     }
+    @Test public void instagramZeroAndReachStayScopedAndDoNotSupplyImpressions() {
+        ChannelScope ig = new ChannelScope(Platform.INSTAGRAM, "channel-ig", 2);
+        Definition reach = def("ig-media-reach-lifetime-v27", Key.REACH, Kind.CUMULATIVE, Subject.POST);
+        List<Definition> definitions = new ArrayList<>(DEFINITIONS);
+        definitions.add(reach);
+        List<Sample> raw = new ArrayList<>();
+        raw.add(sample(FOLLOWER, ig.channelId(), END, 0L, ig, EvidenceSource.MO_PHONG, null,
+                null, null, ObservedAtBasis.COLLECTION));
+        for (long at : new long[]{START, END}) {
+            for (Definition d : List.of(REACTION, COMMENT, SHARE, reach)) {
+                raw.add(sample(d, "post", at, 0L, ig, EvidenceSource.MO_PHONG, "aligned",
+                        null, null, ObservedAtBasis.COLLECTION));
+            }
+            raw.add(sample(IMPRESSION, "post", at, 400L, SCOPE, EvidenceSource.MO_PHONG, "aligned",
+                    null, null, ObservedAtBasis.COLLECTION));
+        }
+        Batch data = new Batch(true, EvidenceSource.MO_PHONG, definitions,
+                List.of(new Channel(ig, "IG", FOLLOWER.id())),
+                List.of(new PostMetadata(ig, "post", null, START, null, null)), raw,
+                new Attempt(END, END, SyncState.IDLE, false, List.of()));
+        DashboardQuery query = new DashboardQuery(List.of(ig), RATE.id(), START, END, "UTC",
+                new Cohort(List.of("post")), Grouping.TOPIC, 1);
+        DashboardData dashboard = project(query, data);
+        assertEquals(Long.valueOf(0), dashboard.channelCards().get(0).follower().value());
+        PostMetrics post = dashboard.postMetrics().get(0);
+        MetricReading reachReading = post.readings().stream()
+                .filter(reading -> reach.id().equals(reading.definitionId())).findFirst().get();
+        assertEquals(Long.valueOf(0), reachReading.value());
+        assertEquals(ig, reachReading.provenance().get(0).scope());
+        assertFalse(post.readings().stream().anyMatch(reading -> IMPRESSION.id().equals(reading.definitionId())));
+        CalculatedValue er = post.calculated().stream()
+                .filter(value -> RATE.id().equals(value.definitionId())).findFirst().get();
+        assertNull(er.value());
+        assertTrue(dashboard.topPosts().isEmpty());
+        DashboardQuery byReach = new DashboardQuery(List.of(ig), reach.id(), START, END, "UTC",
+                query.cohort(), Grouping.TOPIC, 1);
+        DashboardData rawReach = project(byReach, data);
+        assertTrue(rawReach.topPosts().isEmpty());
+        assertNull(rawReach.groupedMetrics().get(0).metric().value());
+    }
+
     @Test public void shuffledOutOfWindowSamplesCannotChangeExactBoundaryDelta() {
         List<Sample> raw = pair("p", 12, 3, 5, 400);
         raw.addAll(counters("p", START - 1, 999, 999, 999, 999));

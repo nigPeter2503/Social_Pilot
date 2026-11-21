@@ -10,7 +10,7 @@ import java.util.Objects;
 
 /** SP-046.02 local projection port, not a Room DAO or a provider adapter. */
 public interface AnalyticsSource {
-    enum Key { FOLLOWER, REACTION, COMMENT, SHARE, IMPRESSION, ENGAGEMENT, ENGAGEMENT_RATE }
+    enum Key { FOLLOWER, REACTION, COMMENT, SHARE, IMPRESSION, REACH, ENGAGEMENT, ENGAGEMENT_RATE }
     enum Kind { GAUGE, CUMULATIVE, PERIOD, UNVERIFIED }
     enum Subject { CHANNEL, POST }
 

@@ -186,7 +186,8 @@ public final class AnalyticsProjector {
                 return new Evaluation(r, empty, null, null);
             }
             // PERIOD values require a direct period query policy, not cumulative subtraction.
-            if (d.kind() == Kind.PERIOD || d.kind() == Kind.UNVERIFIED)
+            // Lifetime unique reach is available as a raw per-media reading only.
+            if (d.key() == Key.REACH || d.kind() == Kind.PERIOD || d.kind() == Kind.UNVERIFIED)
                 return failed(CalculationReason.INCOMPATIBLE_PERIOD, h, empty);
             Result r = AnalyticsCalculator.delta(first, last, false);
             Bounds bounds = first == null || last == null || first.provenance().observedAt() >= last.provenance().observedAt()
