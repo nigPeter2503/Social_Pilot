@@ -47,7 +47,7 @@ public class PostMetricAdapterTest {
     }
     private PostMetricAdapter makeAdapter(PostMetricAdapter.ConnectionSource source, PostMetricAdapter.CredentialSource credentials) {
         return new PostMetricAdapter(client, source, credentials, () -> NOW, server.url("/"), server.url("/rest/"),
-                FollowerResult.Source.MO_PHONG, "sp045-02-MO_PHONG");
+                FollowerResult.Source.MO_PHONG, "sp045-MO_PHONG");
     }
     @After public void tearDown() throws Exception {
         server.shutdown(); client.connectionPool().evictAll(); client.dispatcher().executorService().shutdownNow();
@@ -210,7 +210,7 @@ public class PostMetricAdapterTest {
         assertEquals(r.postId, s.entityId); assertEquals(r.externalAccountId, s.externalAccountId);
         assertEquals(r.channelId, s.scope.channelId); assertEquals(r.platform, s.scope.platform);
         assertEquals(7, s.scope.connectionRevision); assertEquals(r.collectionId, s.collectionId);
-        assertEquals(FollowerResult.Source.MO_PHONG, s.source); assertEquals("sp045-02-MO_PHONG", s.sourceRef);
+        assertEquals(FollowerResult.Source.MO_PHONG, s.source); assertEquals("sp045-MO_PHONG", s.sourceRef);
         assertEquals("202610", s.providerApiVersion); assertEquals(NOW, s.observedAt); assertEquals(NOW, s.collectedAt);
         assertEquals(TimeBasis.COLLECTION, s.observedAtBasis); assertNull(s.providerPeriodStart);
         assertEquals(Unit.COUNT, result.definitions.get(0).unit); assertEquals(MeasurementKind.CUMULATIVE, result.definitions.get(0).measurementKind);
