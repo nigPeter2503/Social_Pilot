@@ -34,7 +34,7 @@ public class SnapshotStorageTest {
                 channel, "urn:li:person:" + channel, revision);
     }
     private void bind(Snapshot.Scope scope, ConnectionStatus status) {
-        dao.bind(new ChannelInfo(scope.channelId(), scope.platform(), scope.externalAccountId(), AccountType.PERSON,
+        dao.bind(new ChannelInfo(scope.channelId(), scope.platform(), scope.externalAccountId(), scope.account().type,
                 "MO_PHONG", status, scope.connectionRevision(), status == ConnectionStatus.DISCONNECTED ? null : "mock-ref"));
     }
     @Before public void roots() {
@@ -45,7 +45,7 @@ public class SnapshotStorageTest {
 
     private FollowerRequest followerRequest(Snapshot.Scope scope, String collection) {
         return new FollowerRequest(scope.account(), scope.channelId(), scope.connectionRevision(),
-                scope.externalAccountId(), "202610", collection);
+                scope.externalAccountId(), scope.platform() == Platform.LINKEDIN ? "202610" : "v27.0", collection);
     }
     private SnapshotReading follower(Snapshot.Scope scope, String collection, Long value, boolean failed, long at) {
         FollowerRequest request = followerRequest(scope, collection);
@@ -177,6 +177,28 @@ public class SnapshotStorageTest {
         bind(otherIdentity, ConnectionStatus.CONNECTED);
         assertThrows(IllegalStateException.class, () -> save("2", START, pending));
         assertTrue(history(otherIdentity).attempts().isEmpty());
+    }
+
+    @Test public void retiredInstagramCallbackCannotOverwriteNewRevisionOrFacebook() {
+        String id = "shared-test-external-id";
+        Snapshot.Scope ig = new Snapshot.Scope(Platform.INSTAGRAM, FollowerRequest.Account.INSTAGRAM_PROFESSIONAL,
+                "ig", id, 1);
+        Snapshot.Scope fb = new Snapshot.Scope(Platform.FACEBOOK, FollowerRequest.Account.FACEBOOK_PAGE,
+                "fb", id, 1);
+        bind(ig, ConnectionStatus.CONNECTED);
+        bind(fb, ConnectionStatus.CONNECTED);
+        save("fb-start", START, follower(fb, COLLECTION, 3L, false, START));
+        var facebook = history(fb);
+        var late = follower(ig, COLLECTION, 9L, false, START);
+        Snapshot.Scope retired = new Snapshot.Scope(ig.platform(), ig.account(), ig.channelId(), id, 2);
+        bind(retired, ConnectionStatus.DISCONNECTED);
+        assertThrows(IllegalStateException.class, () -> save("ig-late", START, late));
+        Snapshot.Scope fresh = new Snapshot.Scope(ig.platform(), ig.account(), ig.channelId(), id, 3);
+        bind(fresh, ConnectionStatus.CONNECTED);
+        save("ig-reconnected", START + 1, follower(fresh, COLLECTION, 0L, false, START + 1));
+        assertThrows(IllegalStateException.class, () -> save("ig-replay", START + 2, late));
+        assertEquals(Long.valueOf(0), history(fresh).lastGood().get(0).sample().value());
+        assertEquals(facebook, history(fb));
     }
 
     @Test public void rollbackAfterWritingRegistryAndSnapshotThenRetry() {

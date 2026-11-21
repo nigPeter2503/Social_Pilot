@@ -50,6 +50,8 @@ public class FollowerMetricAdapterTest {
     }
 
     private FollowerRequest request(FollowerRequest.Account account) {
+        if (account == INSTAGRAM_PROFESSIONAL)
+            return new FollowerRequest(account, "channel-ig", 7, "ig-user", "v27.0", "synthetic-collection");
         return new FollowerRequest(account, "channel-a", 7,
                 account == FACEBOOK_PAGE ? "synthetic-page" : account == LINKEDIN_MEMBER
                         ? "urn:li:person:synthetic-member" : "urn:li:organization:9000000000000000010",
@@ -58,8 +60,7 @@ public class FollowerMetricAdapterTest {
 
     private ChannelInfo channel(FollowerRequest r) {
         return new ChannelInfo(r.channelId, r.platform, r.externalAccountId,
-                r.account == FACEBOOK_PAGE ? AccountType.PAGE : r.account == LINKEDIN_MEMBER
-                        ? AccountType.PERSON : AccountType.ORGANIZATION,
+                r.account.type,
                 "Fixture channel", ConnectionStatus.CONNECTED, r.connectionRevision, "synthetic-secret-ref");
     }
 
@@ -155,7 +156,7 @@ public class FollowerMetricAdapterTest {
     @Test public void zeroIsValidForAllAccounts() throws Exception {
         for (FollowerRequest.Account account : FollowerRequest.Account.values()) {
             FollowerRequest r = request(account); bind(r);
-            String body = account == FACEBOOK_PAGE ? "{\"id\":\"synthetic-page\",\"followers_count\":0}"
+            String body = account.platform != Platform.LINKEDIN ? "{\"id\":\"" + r.externalAccountId + "\",\"followers_count\":0}"
                     : account == LINKEDIN_MEMBER ? "{\"elements\":[{\"memberFollowersCount\":0}]}" : "{\"firstDegreeSize\":0}";
             FollowerResult result = response(r, 200, body);
             assertEquals(Long.valueOf(0), result.sample.value);
@@ -166,7 +167,7 @@ public class FollowerMetricAdapterTest {
     @Test public void missingFieldNeverFallsBackToOtherCounts() throws Exception {
         for (FollowerRequest.Account account : FollowerRequest.Account.values()) {
             FollowerRequest r = request(account); bind(r);
-            String body = account == FACEBOOK_PAGE ? "{\"id\":\"synthetic-page\",\"fan_count\":42}"
+            String body = account.platform != Platform.LINKEDIN ? "{\"id\":\"" + r.externalAccountId + "\",\"fan_count\":42}"
                     : account == LINKEDIN_MEMBER ? "{\"elements\":[{\"connections\":42}]}" : "{\"connections\":42}";
             FollowerResult result = response(r, 200, body);
             assertEquals(Status.SUCCESS, result.status);

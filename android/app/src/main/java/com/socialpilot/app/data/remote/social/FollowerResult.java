@@ -47,6 +47,7 @@ public final class FollowerResult {
         MetricDefinition(FollowerRequest request) {
             String name;
             switch (request.account) {
+                case INSTAGRAM_PROFESSIONAL:
                 case FACEBOOK_PAGE: name = "followers_count"; break;
                 case LINKEDIN_MEMBER: name = "memberFollowersCount"; break;
                 default: name = "networkSizes.firstDegreeSize:COMPANY_FOLLOWED_BY_MEMBER";

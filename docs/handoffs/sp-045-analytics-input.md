@@ -1,5 +1,7 @@
 # SP-045.05 — Đầu vào analytics cho SP-046 và SP-047
 
+**Bổ sung Instagram ngày 21/11/2026, chờ ACK của Đạt và Thiện.** Follower adapter nhận account `INSTAGRAM_PROFESSIONAL`, ID tài khoản IG và wire `PROFESSIONAL`. Post adapter nhận `IG_REACH` theo media ID và quyền metric. Sample lưu khóa `REACH_COUNT`, providerMetricName `reach`, COUNT, CUMULATIVE, DISTINCT_TOTAL và window LIFETIME. Consumer đọc reach theo từng media. Giá trị 0 được lưu nguyên. Khi thiếu mapping cho IG_LIKES/IG_COMMENTS/IG_SHARES/IG_IMPRESSIONS, adapter trả lý do thiếu tại local. Định danh collection, nguồn và revision theo schema bên dưới. Kiểm fixture collector bằng `MetricCollectionTest.instagramFollowerAndMediaReachPersistAsSeparateSubjectsOnReplay`. Nguồn T1/T2 production vẫn chờ Room và grant.
+
 **Version 0.1.0 · 18/11/2026 · Bàn giao sớm để triển khai từ fixture**
 
 **Người nhận:** Tô Lãng Nghị (SP-046.01/.02/.03) và Đỗ Phước Thiện (SP-047, khung dashboard). Thiện xác nhận chữ ký qua HO-DTO và SP-046.01.

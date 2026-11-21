@@ -157,7 +157,7 @@ public final class FollowerMetricAdapter {
     }
 
     private HttpUrl url(FollowerRequest r) {
-        if (r.account == FollowerRequest.Account.FACEBOOK_PAGE) {
+        if (r.platform != Platform.LINKEDIN) {
             return facebook.newBuilder().addPathSegment(r.apiVersion).addPathSegment(r.externalAccountId)
                     .addQueryParameter("fields", "id,followers_count").build();
         }
@@ -212,7 +212,7 @@ public final class FollowerMetricAdapter {
         if (body != null) {
             providerFailure = body.has("error") || body.has("serviceErrorCode");
             try {
-                if (r.platform == Platform.FACEBOOK && body.has("error")) {
+                if (r.platform != Platform.LINKEDIN && body.has("error")) {
                     code = body.getAsJsonObject("error").get("code").getAsInt();
                 } else if (body.has("status") && body.get("status").getAsInt() >= 400) {
                     providerFailure = true;
@@ -222,10 +222,10 @@ public final class FollowerMetricAdapter {
         if (status < 200 || status >= 300 || providerFailure) {
             MissingReason reason = MissingReason.UNVERIFIED;
             SocialError social = null;
-            if (status == 401 || r.platform == Platform.FACEBOOK && code == 190) {
+            if (status == 401 || r.platform != Platform.LINKEDIN && code == 190) {
                 reason = MissingReason.AUTH_REQUIRED;
                 social = error(SocialError.Code.AUTH_REQUIRED, SocialError.NextAction.RECONNECT);
-            } else if (status == 429 || r.platform == Platform.FACEBOOK
+            } else if (status == 429 || r.platform != Platform.LINKEDIN
                     && (code == 4 || code == 17 || code == 32 || code == 613)) {
                 reason = MissingReason.RATE_LIMITED;
                 social = error(SocialError.Code.RATE_LIMITED, SocialError.NextAction.WAIT);
@@ -240,6 +240,7 @@ public final class FollowerMetricAdapter {
             if (body == null) throw new IllegalArgumentException();
             JsonElement value;
             switch (r.account) {
+                case INSTAGRAM_PROFESSIONAL:
                 case FACEBOOK_PAGE:
                     if (!body.has("id") || !body.get("id").isJsonPrimitive()
                             || !body.get("id").getAsJsonPrimitive().isString()

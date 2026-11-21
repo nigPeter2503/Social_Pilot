@@ -18,7 +18,7 @@ import static org.junit.Assert.*;
 public class MetricCollectionTest {
     private static final long START = 1_795_060_800_000L;
     private final AtomicLong clock = new AtomicLong(START);
-    private final Snapshot.Scope scope = new Snapshot.Scope(Platform.FACEBOOK, FollowerRequest.Account.FACEBOOK_PAGE,
+    private Snapshot.Scope scope = new Snapshot.Scope(Platform.FACEBOOK, FollowerRequest.Account.FACEBOOK_PAGE,
             "MO_PHONG-channel", "MO_PHONG-page", 7);
     private final SimulatedSnapshotDao dao = new SimulatedSnapshotDao();
     private final OkHttpClient client = new OkHttpClient();
@@ -34,6 +34,10 @@ public class MetricCollectionTest {
 
     @Before public void setup() throws Exception {
         server.start();
+        configureCollection();
+    }
+
+    private void configureCollection() {
         channel = channel(7);
         dao.bind(channel);
         dao.own(scope, "post", "local-post");
@@ -56,7 +60,7 @@ public class MetricCollectionTest {
         client.connectionPool().evictAll();
     }
     private ChannelInfo channel(long revision) {
-        return new ChannelInfo(scope.channelId(), scope.platform(), scope.externalAccountId(), AccountType.PAGE,
+        return new ChannelInfo(scope.channelId(), scope.platform(), scope.externalAccountId(), scope.account().type,
                 "MO_PHONG", ConnectionStatus.CONNECTED, revision, "mock-ref");
     }
     private ChannelCapability capability(SocialOperation op) {
@@ -77,6 +81,32 @@ public class MetricCollectionTest {
     }
     private SnapshotDao.History history() { return dao.read(scope, FollowerResult.Source.MO_PHONG, START, clock.get()); }
     private void good() { server.enqueue(new MockResponse().setBody("{\"id\":\"MO_PHONG-page\",\"followers_count\":0}")); }
+
+    @Test public void instagramFollowerAndMediaReachPersistAsSeparateSubjectsOnReplay() {
+        Snapshot.Scope page = scope;
+        scope = new Snapshot.Scope(Platform.INSTAGRAM, FollowerRequest.Account.INSTAGRAM_PROFESSIONAL,
+                "MO_PHONG-ig-channel", "MO_PHONG-ig-user", 7);
+        configureCollection();
+        MetricJob job = job(true, new MetricJob.PostTarget("post", PostRequest.Query.IG_REACH, null));
+        server.enqueue(new MockResponse().setBody("{'id':'MO_PHONG-ig-user','followers_count':0}"));
+        server.enqueue(new MockResponse().setBody("{'data':[{'id':'post/insights/reach/lifetime',"
+                + "'name':'reach','period':'lifetime','values':[{'value':0}]}]}"));
+        assertEquals(COMPLETE, run(job, 0).state());
+        assertEquals(COMPLETE, run(job, 1).state());
+        assertEquals(2, server.getRequestCount());
+        assertEquals(2, history().snapshots().size());
+        Set<String> keys = new HashSet<>();
+        for (Snapshot snapshot : history().snapshots()) {
+            assertEquals(scope, snapshot.scope());
+            assertEquals(FollowerResult.Source.MO_PHONG, snapshot.source());
+            var sample = snapshot.samples().get(0);
+            assertEquals(Long.valueOf(0), sample.value());
+            assertNull(sample.missingReason());
+            keys.add(sample.definition().metricKey());
+        }
+        assertEquals(new HashSet<>(Arrays.asList("FOLLOWER_COUNT", "REACH_COUNT")), keys);
+        assertTrue(dao.read(page, FollowerResult.Source.MO_PHONG, START, clock.get()).snapshots().isEmpty());
+    }
 
     @Test public void newManualCollectionsEvenAtSameInstantAndReplayUsesNoHttp() {
         MetricJob a = job(true), b = job(true);

@@ -17,12 +17,8 @@ public record Snapshot(String snapshotId, Key key, Scope scope, Source source, l
     public record Scope(Platform platform, FollowerRequest.Account account, String channelId,
             String externalAccountId, long connectionRevision) {
         public boolean matches(ChannelInfo channel) {
-            AccountType expected = switch (account) {
-                case FACEBOOK_PAGE -> AccountType.PAGE;
-                case LINKEDIN_MEMBER -> AccountType.PERSON;
-                case LINKEDIN_ORGANIZATION -> AccountType.ORGANIZATION;
-            };
-            return channel != null && platform == channel.platform && expected == channel.accountType
+            AccountType expected = account.type;
+            return channel != null && account.platform == platform && platform == channel.platform && expected == channel.accountType
                     && channelId.equals(channel.channelId) && externalAccountId.equals(channel.externalAccountId)
                     && connectionRevision == channel.connectionRevision;
         }

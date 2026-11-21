@@ -7,7 +7,18 @@ import java.util.Objects;
 
 /** Adapter-local request; does not extend the pending shared analytics contract. */
 public final class FollowerRequest {
-    public enum Account { FACEBOOK_PAGE, LINKEDIN_MEMBER, LINKEDIN_ORGANIZATION }
+    public enum Account { FACEBOOK_PAGE(Platform.FACEBOOK, AccountType.PAGE),
+        LINKEDIN_MEMBER(Platform.LINKEDIN, AccountType.PERSON),
+        LINKEDIN_ORGANIZATION(Platform.LINKEDIN, AccountType.ORGANIZATION),
+        INSTAGRAM_PROFESSIONAL(Platform.INSTAGRAM, AccountType.PROFESSIONAL);
+
+        public final Platform platform;
+        public final AccountType type;
+        Account(Platform platform, AccountType type) {
+            this.platform = platform;
+            this.type = type;
+        }
+    }
 
     public final Account account;
     public final Platform platform;
@@ -20,15 +31,15 @@ public final class FollowerRequest {
     public FollowerRequest(Account account, String channelId, long connectionRevision,
             String externalAccountId, String apiVersion, String collectionId) {
         this.account = Objects.requireNonNull(account, "account");
-        this.platform = account == Account.FACEBOOK_PAGE ? Platform.FACEBOOK : Platform.LINKEDIN;
+        this.platform = account.platform;
         this.channelId = text(channelId);
         if (connectionRevision <= 0) throw new IllegalArgumentException("connectionRevision");
         this.connectionRevision = connectionRevision;
         this.externalAccountId = text(externalAccountId);
         this.apiVersion = text(apiVersion);
         this.collectionId = text(collectionId);
-        if (account == Account.FACEBOOK_PAGE && !apiVersion.matches("v[0-9]+\\.[0-9]+")
-                || account != Account.FACEBOOK_PAGE && !apiVersion.matches("[0-9]{4}(0[1-9]|1[0-2])")) {
+        if (platform != Platform.LINKEDIN && !apiVersion.matches("v[0-9]+\\.[0-9]+")
+                || platform == Platform.LINKEDIN && !apiVersion.matches("[0-9]{4}(0[1-9]|1[0-2])")) {
             throw new IllegalArgumentException("apiVersion");
         }
         if (account == Account.LINKEDIN_MEMBER && !externalAccountId.matches("urn:li:person:[A-Za-z0-9_-]+")
@@ -38,8 +49,7 @@ public final class FollowerRequest {
     }
 
     public boolean matches(ChannelInfo channel) {
-        AccountType expected = account == Account.FACEBOOK_PAGE ? AccountType.PAGE
-                : account == Account.LINKEDIN_MEMBER ? AccountType.PERSON : AccountType.ORGANIZATION;
+        AccountType expected = account.type;
         return channel != null && channelId.equals(channel.channelId) && platform == channel.platform
                 && connectionRevision == channel.connectionRevision && expected == channel.accountType
                 && externalAccountId.equals(channel.externalAccountId);

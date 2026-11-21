@@ -66,8 +66,7 @@ public class PostMetricAdapterTest {
         return new PostRequest.Period("2026-11-01", "2026-11-08", "UTC", "MO_PHONG-date-zone-evidence");
     }
     private ChannelInfo channel(PostRequest r) {
-        return new ChannelInfo(r.channelId, r.platform, r.externalAccountId, r.account == FollowerRequest.Account.FACEBOOK_PAGE
-                ? AccountType.PAGE : r.account == FollowerRequest.Account.LINKEDIN_MEMBER ? AccountType.PERSON : AccountType.ORGANIZATION,
+        return new ChannelInfo(r.channelId, r.platform, r.externalAccountId, r.account.type,
                 "MO_PHONG", ConnectionStatus.CONNECTED, r.connectionRevision, "MO_PHONG-secret-ref");
     }
     private ChannelCapability capability(SocialOperation operation, CapabilityAvailability availability) {
@@ -113,6 +112,29 @@ public class PostMetricAdapterTest {
     }
     private void rejected(PostResult result) {
         assertEquals(Status.REJECTED, result.status); assertEquals(Failure.SCOPE_MISMATCH, result.failure); assertTrue(result.samples.isEmpty());
+    }
+
+    @Test public void instagramReachKeepsMediaLifetimeAndZero() throws Exception {
+        PostRequest r = new PostRequest(FollowerRequest.Account.INSTAGRAM_PROFESSIONAL, "ch-ig", 7,
+                "ig-user", "ig-media", "v27.0", "collection", IG_REACH, null);
+        bind(r);
+        String body = "{'data':[{'id':'ig-media/insights/reach/lifetime','period':'lifetime',"
+                + "'name':'reach','values':[{'value':0}]}]}";
+        PostResult result = response(r, 200, body);
+        assertEquals(Long.valueOf(0), sample(result, Metric.REACH_COUNT).value);
+        assertEquals("/v27.0/ig-media/insights?metric=reach", server.takeRequest().getPath());
+        assertEquals("reach", result.definitions.get(0).providerMetricName);
+        rejected(response(r, 200, body.replace("ig-media", "other-media")));
+        missing(response(r, 200, "{'data':[]}"), Metric.REACH_COUNT, MissingReason.PROVIDER_OMITTED);
+        assertNotEquals(Status.SUCCESS, response(r, 200, body.replace("lifetime", "day")).status);
+    }
+
+    @Test public void instagramImpressionStaysUnverifiedWithoutProviderMapping() throws Exception {
+        PostRequest r = new PostRequest(FollowerRequest.Account.INSTAGRAM_PROFESSIONAL, "ch-ig", 7,
+                "ig-user", "ig-media", "v27.0", "collection", IG_IMPRESSIONS, null);
+        bind(r);
+        missing(read(r), Metric.IMPRESSION_COUNT, MissingReason.UNVERIFIED);
+        assertEquals(0, server.getRequestCount());
     }
 
     @Test public void existingFacebookFixtureUsesSummaryNotArrayLength() throws Exception {

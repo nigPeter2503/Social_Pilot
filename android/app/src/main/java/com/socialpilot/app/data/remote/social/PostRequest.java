@@ -15,7 +15,7 @@ public final class PostRequest {
         FB_REACTIONS, FB_LIKES, FB_COMMENTS_TOPLEVEL, FB_COMMENTS_STREAM, FB_SHARES,
         FB_MEDIA_VIEWS, FB_UNIQUE_VIEWERS, FB_IMPRESSIONS,
         MEMBER_IMPRESSION, MEMBER_REACTION, MEMBER_COMMENT, MEMBER_RESHARE, MEMBER_REACHED,
-        ORGANIZATION_ORGANIC
+        ORGANIZATION_ORGANIC, IG_REACH, IG_LIKES, IG_COMMENTS, IG_SHARES, IG_IMPRESSIONS
     }
 
     /** Date-only provider bounds require an explicitly verified zone; never assume UTC.
@@ -90,10 +90,11 @@ public final class PostRequest {
         boolean facebook = query.name().startsWith("FB_");
         boolean member = query.name().startsWith("MEMBER_");
         if (facebook != (account == FollowerRequest.Account.FACEBOOK_PAGE)
+                || query.name().startsWith("IG_") != (platform == Platform.INSTAGRAM)
                 || member != (account == FollowerRequest.Account.LINKEDIN_MEMBER)) {
             throw new IllegalArgumentException("query/account");
         }
-        if (!facebook && !postId.matches("urn:li:(share|ugcPost):[0-9]+")) {
+        if (platform == Platform.LINKEDIN && !postId.matches("urn:li:(share|ugcPost):[0-9]+")) {
             throw new IllegalArgumentException("post URN");
         }
         if (period != null && !member) throw new IllegalArgumentException("single org post has no period API");

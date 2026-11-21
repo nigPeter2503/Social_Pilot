@@ -31,6 +31,11 @@ final class PostMetricMapping {
         String filter;
         String window = "CUMULATIVE_COUNTER";
         switch (r.query) {
+            case IG_REACH: m = Metric.REACH_COUNT; field = "reach"; filter = "period=lifetime"; window = "LIFETIME"; break;
+            case IG_LIKES: m = Metric.LIKE_COUNT; field = null; filter = "unverified"; window = "UNVERIFIED"; break;
+            case IG_COMMENTS: m = Metric.COMMENT_COUNT; field = null; filter = "unverified"; window = "UNVERIFIED"; break;
+            case IG_SHARES: m = Metric.SHARE_COUNT; field = null; filter = "unverified"; window = "UNVERIFIED"; break;
+            case IG_IMPRESSIONS: m = Metric.IMPRESSION_COUNT; field = null; filter = "unverified"; window = "UNVERIFIED"; break;
             case FB_REACTIONS: m = Metric.REACTION_COUNT; field = "reactions.summary.total_count"; filter = "all"; break;
             case FB_LIKES: m = Metric.LIKE_COUNT; field = "reactions.summary.total_count"; filter = "type=LIKE"; break;
             case FB_COMMENTS_TOPLEVEL: m = Metric.COMMENT_COUNT; field = "comments.summary.total_count"; filter = "filter=toplevel"; break;
@@ -48,10 +53,10 @@ final class PostMetricMapping {
                 filter = "queryType=" + memberMetric(r) + ";aggregation=TOTAL";
                 window = r.period == null ? "LIFETIME" : "VERIFIED_DATE_RANGE";
         }
-        MeasurementKind kind = r.query == PostRequest.Query.FB_IMPRESSIONS ? MeasurementKind.UNVERIFIED
+        MeasurementKind kind = field == null ? MeasurementKind.UNVERIFIED
                 : r.period == null ? MeasurementKind.CUMULATIVE : MeasurementKind.PERIOD;
-        Aggregation aggregation = r.query == PostRequest.Query.FB_IMPRESSIONS ? Aggregation.UNVERIFIED
-                : m == Metric.UNIQUE_MEDIA_VIEWER_COUNT || m == Metric.MEMBERS_REACHED_COUNT
+        Aggregation aggregation = field == null ? Aggregation.UNVERIFIED
+                : m == Metric.REACH_COUNT || m == Metric.UNIQUE_MEDIA_VIEWER_COUNT || m == Metric.MEMBERS_REACHED_COUNT
                 ? Aggregation.DISTINCT_TOTAL : Aggregation.TOTAL;
         return Collections.singletonList(new MetricDefinition(r, m, field, filter, window, kind, aggregation, false));
     }
@@ -77,6 +82,12 @@ final class PostMetricMapping {
             if (!optionalText(body, "postId", r.postId) || !optionalText(body, "account", r.externalAccountId)
                     || !optionalText(body, "author", r.externalAccountId)) { parsed.rejected = true; return parsed; }
             switch (r.account) {
+                case INSTAGRAM_PROFESSIONAL:
+                    if (!optionalText(body, "media_id", r.postId)
+                            || !optionalText(body, "id", r.postId)) { parsed.rejected = true; return parsed; }
+                    if (body.has("dateRange") || body.has("timeRange")) throw new IllegalArgumentException();
+                    row = body;
+                    break;
                 case FACEBOOK_PAGE:
                     if (body.has("dateRange") || body.has("timeRange")) throw new IllegalArgumentException("unexpected period");
                     if (r.query == PostRequest.Query.FB_SHARES) {
@@ -155,12 +166,12 @@ final class PostMetricMapping {
             case FB_REACTIONS: case FB_LIKES: case FB_COMMENTS_TOPLEVEL: case FB_COMMENTS_STREAM:
                 return path(row, "summary", "total_count");
             case FB_SHARES: return path(row, "shares", "count");
-            case FB_MEDIA_VIEWS: case FB_UNIQUE_VIEWERS:
+            case IG_REACH: case FB_MEDIA_VIEWS: case FB_UNIQUE_VIEWERS:
                 JsonObject insight = singleData(row);
                 if (insight == null) return null;
                 if (!textEquals(insight.get("name"), d.providerMetricName)
                         || !textEquals(insight.get("period"), "lifetime")) throw new IllegalArgumentException();
-                if (insight.has("id") && !textEquals(insight.get("id"), r.postId + "/insights/"
+                if ((r.query == PostRequest.Query.IG_REACH || insight.has("id")) && !textEquals(insight.get("id"), r.postId + "/insights/"
                         + d.providerMetricName + "/lifetime")) throw new WrongSubject();
                 JsonArray values = array(insight.get("values"));
                 if (values.size() > 1) throw new IllegalArgumentException();

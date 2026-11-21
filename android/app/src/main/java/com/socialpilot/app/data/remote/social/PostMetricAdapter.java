@@ -183,6 +183,11 @@ public final class PostMetricAdapter {
     }
 
     private HttpUrl url(PostRequest r) {
+        if (r.platform == Platform.INSTAGRAM) {
+            if (r.query != PostRequest.Query.IG_REACH) throw new IllegalArgumentException("Unverified Instagram query");
+            return facebook.newBuilder().addPathSegment(r.apiVersion).addPathSegment(r.postId)
+                    .addPathSegment("insights").addQueryParameter("metric", "reach").build();
+        }
         if (r.platform == Platform.FACEBOOK) {
             HttpUrl.Builder url = facebook.newBuilder().addPathSegment(r.apiVersion).addPathSegment(r.postId);
             switch (r.query) {
@@ -264,7 +269,7 @@ public final class PostMetricAdapter {
         if (body != null) {
             providerFailure = body.has("error") || body.has("serviceErrorCode");
             try {
-                if (r.platform == Platform.FACEBOOK && body.has("error")) {
+                if (r.platform != Platform.LINKEDIN && body.has("error")) {
                     JsonElement wireCode = body.getAsJsonObject("error").get("code");
                     if (wireCode.isJsonPrimitive() && wireCode.getAsJsonPrimitive().isNumber()) {
                         code = new BigDecimal(wireCode.getAsString()).intValueExact();
@@ -277,10 +282,10 @@ public final class PostMetricAdapter {
         if (status < 200 || status >= 300 || providerFailure) {
             MissingReason reason = MissingReason.UNVERIFIED;
             SocialError social = null;
-            if (status == 401 || r.platform == Platform.FACEBOOK && code == 190) {
+            if (status == 401 || r.platform != Platform.LINKEDIN && code == 190) {
                 reason = MissingReason.AUTH_REQUIRED;
                 social = error(SocialError.Code.AUTH_REQUIRED, SocialError.NextAction.RECONNECT);
-            } else if (status == 429 || r.platform == Platform.FACEBOOK
+            } else if (status == 429 || r.platform != Platform.LINKEDIN
                     && (code == 4 || code == 17 || code == 32 || code == 613)) {
                 reason = MissingReason.RATE_LIMITED;
                 social = error(SocialError.Code.RATE_LIMITED, SocialError.NextAction.WAIT);
