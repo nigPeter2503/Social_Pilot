@@ -191,7 +191,7 @@ public final class AnalyticsProjectorTest {
         try (var reader = new InputStreamReader(getClass().getResourceAsStream("/analytics/mo-phong.json"), StandardCharsets.UTF_8)) {
             var fixture = JsonParser.parseReader(reader).getAsJsonObject();
             assertEquals("MO_PHONG", fixture.get("source").getAsString());
-            assertEquals("sp-046.02-input-v1", fixture.get("revision").getAsString());
+            assertEquals("sp-046-input-v1", fixture.get("revision").getAsString());
             for (var element : fixture.getAsJsonArray("posts")) {
                 var p = element.getAsJsonObject();
                 String id = p.get("localPostId").getAsString();

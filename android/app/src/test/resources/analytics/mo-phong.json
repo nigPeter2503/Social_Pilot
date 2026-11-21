@@ -1,6 +1,6 @@
 {
   "source": "MO_PHONG",
-  "revision": "sp-046.02-input-v1",
+  "revision": "sp-046-input-v1",
   "notice": "Synthetic normalized counts only; not Room, provider, device or historical evidence.",
   "posts": [
     { "localPostId": "local:00A", "before": [0, 0, 0, 0], "after": [12, 3, 5, 400] },
