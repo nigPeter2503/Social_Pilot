@@ -1,6 +1,6 @@
-# SP-041.07 · Mở inbox, lọc cache và chọn comment để reply
+# SP-041 · Mở inbox, lọc cache và chọn comment để reply
 
-Nghị bàn giao API cho SP-042/043 và Thiện/SP-051. Các chữ ký và ca kiểm bên dưới áp dụng cho mã `a192d58003b2f7f6886587ac2adcfd7c133e24d1` của PR #87. JVM và thiết bị dùng store giao dịch **trong RAM** (`MO_PHONG`). Ứng dụng còn chờ Channel/DAO, Room và manifest provider của .06 để nghiệm thu dữ liệu thật. [Evidence Worker/cache](../sp-041-worker-cache-ig-fb.md)
+Nghị bàn giao API cho SP-042/043 và Thiện/SP-051. Các chữ ký và ca kiểm bên dưới áp dụng cho mã `a192d58003b2f7f6886587ac2adcfd7c133e24d1` của PR #87. JVM và thiết bị dùng store giao dịch **trong RAM** (`MO_PHONG`). Ứng dụng còn chờ Channel/DAO, Room và manifest đối chiếu provider thật để nghiệm thu dữ liệu. [Evidence Worker/cache](../sp-041-worker-cache-ig-fb.md)
 
 ## Chọn bài và tạo query
 
@@ -50,7 +50,7 @@ pull.cancel();
 
 **Ca đối chiếu tại mã bàn giao.** Trong `CommentSyncTest`, `instagramWorkerResumesEachQueryAndDeduplicatesOverlappingPages` dựng lại coordinator, resume bốn query và dedup. `instagramPageTwoNetworkLossKeepsFirstPageThroughWorkerRetry` và `nextPage429PreservesCacheAndHonorsDeadlineAcrossRestart` kiểm giữ dữ liệu, chờ hạn và resume đúng cursor. `lateInstagramPageCannotAdvanceCheckpointAndFacebookJobSurvivesCleanup` kiểm response IG đến muộn và job Facebook vẫn chạy. 239/239 JVM tại `a192d58`. Instrumentation 3/3 trên Pixel 9 API 37 x86_64 dùng mã ứng dụng và harness của `c1f197d`. [Test JVM](../../android/app/src/test/java/com/socialpilot/app/data/remote/social/CommentSyncTest.java) · [Evidence thiết bị](../sp-041-worker-cache-ig-fb.md)
 
-## SP-041.01 · Hồ sơ PublishedPost v0.1.0
+## SP-041 · Hồ sơ PublishedPost v0.1.0
 
 Owner: Tô Lãng Nghị / TV4. **MO_PHONG harness; chưa tích hợp Room/Channel production.**
 Không thay Social v1, Analytics draft-4 hoặc Room contract đã có. Chữ ký dưới đây
@@ -165,13 +165,13 @@ restart/reconnect và device API 23/36. Không destructive fallback.
 
 ## Consumer
 
-- **SP-041.03:** lookup native post ID bằng scope; dùng post.id làm FK, giữ native
+- **SP-041 (lưu comment/checkpoint):** lookup native post ID bằng scope; dùng post.id làm FK, giữ native
   ID cho CommentPageRequest.postId/CommentRecord.postId. Comment DTO hiện hữu chỉ có
   platform/channel/revision; bổ sung account/identity từ binding Channel tin cậy,
-  không đoán từ ID. Không sửa SP-041.02; post↔thread LinkedIn vẫn cần evidence riêng.
+  không đoán từ ID. Adapter comment đã bàn giao giữ nguyên; post↔thread LinkedIn vẫn cần evidence riêng.
   Khi lưu page/checkpoint, lookup và write phải trong cùng transaction hoặc store
   adapter dùng chung Transaction, không gọi lookup public rồi ghi transaction khác.
-- **SP-045.07:** resolve row cùng scope trước gắn snapshot POST. Không lấy external
+- **SP-045 (lượt metric bài T1):** resolve row cùng scope trước gắn snapshot POST. Không lấy external
   ID từ kênh khác làm local FK. Fixture không được nhập lịch sử production.
 - **Minh/SP-025:** dùng cùng `(channelId,externalPostId)` để upsert/reconcile bài
   đã đăng; giữ local ID. PublishJob association nếu cần thuộc slot/task khác.
