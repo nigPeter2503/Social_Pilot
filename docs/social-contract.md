@@ -50,14 +50,16 @@ Tại baseline SP-009 endpoint OAuth trả 501 OAUTH_NOT_CONFIGURED. Nhánh SP-0
 
 ## 3. Kênh và capability
 
+Phạm vi đích từ 20/11. SP-022 đồng bộ giá trị nền tảng giữa Android và backend trước khi bật Instagram. Với dữ liệu đã lưu cho kênh cũ, giữ bản nháp và yêu cầu chọn đích, duyệt lại trước khi đăng. Mỗi kênh giữ quyền riêng khi dùng chung Facebook Login. Khi ngắt một kênh, duy trì quyền truy cập và dữ liệu còn dùng của kênh kia theo F1.B4.
+
 ChannelInfo:
 
 | Trường | Ý nghĩa |
 |---|---|
 | channelId | ID nội bộ SocialPilot |
-| platform | FACEBOOK / LINKEDIN |
-| externalAccountId | ID Page, cá nhân hoặc tổ chức trên provider |
-| accountType | PAGE / PERSON / ORGANIZATION; adapter kiểm chứng tổ hợp thực tế |
+| platform | FACEBOOK / INSTAGRAM |
+| externalAccountId | Page ID hoặc Instagram user ID của tài khoản Professional liên kết |
+| accountType | PAGE cho Facebook; kiểu wire của Instagram Professional cần chốt ở SP-022 |
 | displayName | Tên hiển thị, không dùng làm khóa |
 | connectionStatus | CONNECTED / REAUTH_REQUIRED / DISCONNECTED |
 | connectionRevision | Revision kết nối; thay khi ngắt hoặc thay kết nối |
@@ -71,7 +73,7 @@ ChannelCapability gồm operation, availability, reasonCode và verifiedAt.
 
 | operation | Ý nghĩa |
 |---|---|
-| PUBLISH_TEXT / PUBLISH_IMAGE | Đăng chữ / ảnh |
+| PUBLISH_TEXT / PUBLISH_IMAGE | Đăng chữ / ảnh. Bài feed Instagram dùng ảnh và caption |
 | SET_ALT_TEXT | Truyền alt text lên nền tảng |
 | READ_COMMENTS / REPLY_COMMENT | Đọc / trả lời bình luận |
 | READ_POST_METRICS / READ_FOLLOWER_COUNT | Đọc số liệu bài / follower |
@@ -165,7 +167,7 @@ phải lưu transaction trước khi trả về; lỗi lưu/validation phải b�
 Lặp cùng requestId/payload là idempotent; cùng ID khác payload phải từ chối.
 Khóa channelId + approvedVersionId ngăn request ID mới lách chống đăng trùng khi đã có
 yêu cầu đang hoạt động hoặc đã đăng. Cơ chế khóa/Room chưa được triển khai ở SP-009.
-requestId không mặc định là idempotency key của Facebook/LinkedIn.
+requestId không mặc định là idempotency key của Facebook/Instagram.
 
 cancelForConnection(channelId, revision) chỉ hủy revision được chỉ định; không ảnh hưởng kết nối mới.
 Hủy phải truyền đến HTTP Call và chặn callback muộn. Hủy không có nghĩa provider đã rollback.
@@ -197,7 +199,7 @@ Android lưu token vào kho bí mật, tạo tokenReference cho ChannelInfo
 | OAuthExchangeResponse | sessionId, provider, externalAccountId, accountType, displayName, accessToken, refreshToken, tokenType, expiresAt |
 | OAuthFailure | code |
 
-provider dùng FACEBOOK/LINKEDIN. redirectId tra cấu hình cho phép ở backend, không phải URL tùy ý.
+SP-022 cần thống nhất giá trị provider cho handoff Instagram qua Facebook Login và kiểm thử hai phía. redirectId tra cấu hình cho phép ở backend, không phải URL tùy ý.
 authorizationUrl phải HTTPS; adapter phải thêm kiểm tra host provider được cấu hình.
 expiresAt bắt buộc ở phiên; ở token có thể null khi provider không cung cấp. Không coi null là không hết hạn.
 refreshToken có thể null: không được cấp refresh không đồng nghĩa kết nối lại là refresh thành công.
@@ -222,7 +224,7 @@ Các endpoint/path chưa được định nghĩa ở task này để tránh gi�
 - Token provider tạm thời chỉ sống tới khi đổi mã/hết hạn; backend không lưu token dài hạn.
 - Restart làm mất phiên bộ nhớ thì yêu cầu kết nối lại. Nhiều instance cần kho phiên dùng chung.
 - Validation DTO chỉ kiểm tra hình dạng; session store, hash, state, replay và TTL enforcement
-  phải được triển khai/kiểm thử trong SP-010 rồi tái dùng ở SP-011.
+  thuộc SP-010 cho Facebook Login. SP-065 tái dùng callback và kiểm chứng handoff trên đúng tài khoản Instagram Professional liên kết Page.
 
 OAuthFailure phân biệt INVALID_STATE, INVALID_SESSION, INVALID_REDIRECT, HANDOFF_EXPIRED,
 HANDOFF_ALREADY_USED, ACCESS_DENIED, AUTH_REQUIRED, PROVIDER_ERROR.
