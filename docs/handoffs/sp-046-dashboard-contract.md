@@ -1,6 +1,52 @@
-# SP-046.01 — Chữ ký Java và fixture dashboard cho SP-047
+# SP-046.01–.03 · Query và DTO dashboard cho Thiện/SP-047
 
-**Bổ sung Instagram ngày 21/11/2026, chờ Thiện ACK.** Query chọn ChannelScope với platform INSTAGRAM và revision hiện hành. Adapter DAO tương lai ánh xạ `REACH_COUNT` của SP-045 thành Key.REACH và giữ definitionId của sample nguồn. DTO hiển thị reach lifetime theo media trong PostMetrics.readings. Repository loại metric này khỏi phép cộng reach theo nhóm và khỏi mẫu số ER. Khi IG thiếu impression, số impression từ Facebook bị loại theo scope. Ca `AnalyticsProjectorRegressionTest.instagramZeroAndReachStayScopedAndDoNotSupplyImpressions` kiểm projection từ dữ liệu MO_PHONG. Phần đối soát production cần sourceSnapshotIds của T1/T2.
+**Mã bàn giao** `c2da6480f151b1799bd461b311adbbe53774a382`, 148/148 unit test tại revision này. ViewModel nhận `AnalyticsRepository`. Implementation là `DefaultAnalyticsRepository`, đọc và refresh projection qua `AnalyticsSource`. Fixture `SimulatedAnalyticsSource` nằm trong src/test và dùng bộ nhớ. Chưa có nguồn DAO SP-045 hoặc binding AppContainer cho dashboard thật. [PR #89](https://github.com/nigPeter2503/Social_Pilot/pull/89) · [Source port](sp-046-source-query-proposal.md) · [Implementation](../../android/app/src/main/java/com/socialpilot/app/data/repository/analytics/DefaultAnalyticsRepository.java)
+
+## Dùng query trong ViewModel
+
+Ví dụ tái lập scope, kỳ, cohort và definition của ca IG trong `AnalyticsProjectorRegressionTest`. `post` là ID PublishedPost **nội bộ**. Trên ứng dụng lấy channelId/revision từ Channel hiện hành, lấy definitionId từ registry và cố định cohort theo bộ lọc người dùng. Khoảng sự kiện là [start, end) theo zone đã chọn. Mẫu tại end vẫn có thể làm mốc cuối tính delta. Mỗi channel có một scope, revision > 0, start < end, zone hợp lệ và topLimit > 0. Cohort rỗng chọn 0 bài.
+
+```java
+DashboardQuery.ChannelScope ig =
+        new DashboardQuery.ChannelScope(Platform.INSTAGRAM, "channel-ig", 2);
+DashboardQuery q = new DashboardQuery(List.of(ig), "rate-v1",
+        Instant.parse("2026-11-01T17:00:00Z").toEpochMilli(),
+        Instant.parse("2026-11-08T17:00:00Z").toEpochMilli(), "UTC",
+        new DashboardQuery.Cohort(List.of("post")), DashboardQuery.Grouping.TOPIC, 1);
+
+Cancelable observation = repo.observeCachedDashboard(q, (DashboardData data) -> {
+    boolean fixture = data.source() == AnalyticsTypes.EvidenceSource.MO_PHONG;
+    for (DashboardData.ChannelCard card : data.channelCards()) {
+        AnalyticsTypes.MetricReading follower = card.follower();
+        String label = follower.value() == null
+                ? follower.missingReason().name() : follower.value().toString();
+        showCardIfCurrent(q, card.scope(), label, fixture, follower.freshness());
+    }
+});
+// Khi kéo làm mới
+Cancelable refresh = repo.refresh(q, (AnalyticsRepository.RefreshResult r) ->
+        showOutcomeIfCurrent(q, r.outcome(), r.errors()));
+// Khi bỏ query hoặc đóng ViewModel
+observation.cancel();
+refresh.cancel();
+```
+
+Các hàm `show…IfCurrent` do UI triển khai, chuyển việc vẽ sang main thread và kiểm generation của query tại thời điểm vẽ. `observeCachedDashboard(DashboardQuery, DashboardObserver)` trả `Cancelable`, phát `DashboardData` qua `onChanged` trên callback worker. Đăng ký lại chỉ đọc cache. `refresh(DashboardQuery, RefreshCallback)` trả handle riêng, `onComplete(RefreshResult)` nhận tối đa một terminal (SUCCESS, PARTIAL hoặc FAILED). Giữ handle khi refresh còn thuộc ViewModel, hủy observer khi tháo view và vô hiệu generation trước khi hủy/đổi query. Cache và dữ liệu hiển thị đến từ observer. [Interface](../../android/app/src/main/java/com/socialpilot/app/domain/contract/analytics/AnalyticsRepository.java) · [DTO](../../android/app/src/main/java/com/socialpilot/app/domain/contract/analytics/DashboardData.java)
+
+| Ca fixture | SP-047 đọc và hiển thị |
+|---|---|
+| Follower IG 0, reach lifetime của media 0 | Hiện cả hai số 0. Chọn reading trong `postMetrics().readings()` của từng bài theo definitionId `ig-media-reach-lifetime-v27`. Provenance thuộc scope IG. Mẫu impression Facebook 400 không đi vào scope IG. ER của bài null, danh sách top rỗng. Query theo reach cũng cho top rỗng và giá trị nhóm null. |
+| Thiếu quyền và thiếu mẫu số | Reading null có `missingReason() == PERMISSION_REQUIRED` ở fixture thiếu quyền, lỗi kèm action RESOLVE_PERMISSION. Ở calculator, nếu cả share và impression bị omitted, ER null với `reason() == MISSING_COMPONENT` và `missingDetails()` ghi PROVIDER_OMITTED cho cả hai. Mẫu số quan sát được bằng 0 cho ZERO_DENOMINATOR khi các thành phần còn lại hợp lệ. |
+| Cache cũ khi refresh lỗi | Ca stale/offline giữ số 100 cùng timestamp thành công cũ, lần thử sau 73 giờ ghi NETWORK_ERROR. Đọc `offline()/syncState()/errors()` cùng `freshness().isStale()/lastSuccessAt()` của từng metric và `lastAttemptAt()` của dashboard. 48h là ngưỡng fixture. |
+| Coverage thiếu | Subtotal tuần giữ giá trị 20 của bài đủ mẫu và PARTIAL_COVERAGE, `coverage().excludedReasons()` chứa bài bị loại. Đọc `includedCount()/totalCount()`, `temporal()/cohort()`, `bounds().actualStart()/actualEnd()` và `sourceSnapshotIds()` của giá trị. Hai trục cho phép đủ số bài nhưng chỉ có mốc bên trong kỳ. |
+
+Bảng dùng dữ liệu MO_PHONG. Với từng metric, `provenance()` xác định source, scope, snapshot và thời điểm. Nghị sẽ nối DAO và đối soát T1/T2 khi có cặp snapshot thật tương thích. [Regression IG và coverage](../../android/app/src/test/java/com/socialpilot/app/data/repository/analytics/AnalyticsProjectorRegressionTest.java) · [Regression mẫu số](../../android/app/src/test/java/com/socialpilot/app/domain/analytics/AnalyticsCalculatorRegressionTest.java) · [Consumer fixture](../../android/app/src/test/java/com/socialpilot/app/domain/contract/analytics/AnalyticsConsumerContractTest.java) · [Regression vòng đời và cache](../../android/app/src/test/java/com/socialpilot/app/data/repository/analytics/AnalyticsRepositoryRegressionTest.java)
+
+**HO-DTO — chờ Thiện xác nhận.** ACK có nội dung của Thiện trên #67 áp dụng cho SP-020 draft-2, `bf89da1`, tài liệu và fixture W1. Thiện cũng approve #67 tại `cdc633a`. Cả hai thuộc SP-020. Khi rà #48, #49 và #89 ngày 21/11, chưa thấy ACK cho Java query/DTO ở `c2da648`. [ACK draft-2](https://github.com/nigPeter2503/Social_Pilot/pull/67#pullrequestreview-5847811439) · [Approval tiếp theo trên #67](https://github.com/nigPeter2503/Social_Pilot/pull/67#pullrequestreview-5862180313)
+
+## Hồ sơ thiết kế và kiểm chứng draft 0.1.0
+
+Các mốc base, blob, kết quả chạy và trạng thái local bên dưới thuộc hồ sơ ngày 19/11. Phần trên ghi revision hiện hành cho SP-047.
 
 **Draft 0.1.0 · 19/11/2026 · Người giao Tô Lãng Nghị · Người xác nhận Đỗ Phước Thiện qua HO-DTO**
 
