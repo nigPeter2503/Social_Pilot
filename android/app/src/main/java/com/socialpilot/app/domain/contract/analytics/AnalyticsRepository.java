@@ -6,7 +6,7 @@ import java.util.List;
 
 import static com.socialpilot.app.domain.contract.analytics.AnalyticsTypes.immutable;
 
-/** SP-046.01 draft 0.1.0. Lifecycle and delivery semantics are pinned in the HO-DTO handoff. */
+/** SP-046 draft 0.1.0. Lifecycle and delivery semantics are pinned in the HO-DTO handoff. */
 public interface AnalyticsRepository {
     /**
      * Subscribe to the exact query's local projection. Emit initial state and subsequent changes

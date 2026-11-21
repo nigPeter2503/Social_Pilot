@@ -8,7 +8,7 @@ import com.socialpilot.app.domain.contract.analytics.DashboardQuery.ChannelScope
 import java.util.List;
 import java.util.Objects;
 
-/** SP-046.02 local projection port, not a Room DAO or a provider adapter. */
+/** SP-046 local projection port, not a Room DAO or a provider adapter. */
 public interface AnalyticsSource {
     enum Key { FOLLOWER, REACTION, COMMENT, SHARE, IMPRESSION, REACH, ENGAGEMENT, ENGAGEMENT_RATE }
     enum Kind { GAUGE, CUMULATIVE, PERIOD, UNVERIFIED }

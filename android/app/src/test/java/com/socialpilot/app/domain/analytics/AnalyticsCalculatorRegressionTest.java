@@ -7,7 +7,7 @@ import org.junit.Test;
 import static com.socialpilot.app.data.repository.analytics.AnalyticsFixture.*;
 import static org.junit.Assert.*;
 
-/** SP-046.03: raw-input gaps beyond the pinned SP-046.02 suite. */
+/** SP-046: raw-input gaps beyond the pinned SP-046 suite. */
 public final class AnalyticsCalculatorRegressionTest {
     private Sample version(Sample s, String api) {
         MetricSource p = s.provenance();

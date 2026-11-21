@@ -47,7 +47,7 @@ public final class AnalyticsConsumerContractTest {
         String handoff = readFixture(root.resolve("docs/handoffs/sp-045-analytics-input.md"));
         String marker = "~~~json";
         int start = handoff.indexOf(marker);
-        assertTrue("Missing SP-045.05 dashboard payload", start >= 0);
+        assertTrue("Missing SP-045 dashboard payload", start >= 0);
         int end = handoff.indexOf("~~~", start + marker.length());
         JsonObject payload = JsonParser.parseString(handoff.substring(start + marker.length(), end))
                 .getAsJsonObject();
@@ -442,7 +442,7 @@ public final class AnalyticsConsumerContractTest {
                 return item.getAsJsonObject();
             }
         }
-        throw new AssertionError("Missing SP-045.05 fixture " + group + "/" + id);
+        throw new AssertionError("Missing SP-045 fixture " + group + "/" + id);
     }
 
     private static JsonObject view(String id) {

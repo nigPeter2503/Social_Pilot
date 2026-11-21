@@ -9,7 +9,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 
-/** Shared value types for the SP-046.01 dashboard draft. Timestamps use UTC epoch milliseconds. */
+/** Shared value types for the SP-046 dashboard draft. Timestamps use UTC epoch milliseconds. */
 public final class AnalyticsTypes {
     private AnalyticsTypes() {}
 
