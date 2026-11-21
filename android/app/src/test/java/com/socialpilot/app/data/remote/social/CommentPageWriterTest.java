@@ -18,7 +18,7 @@ import static com.socialpilot.app.data.remote.social.CommentPageRequest.*;
 import static com.socialpilot.app.data.remote.social.CommentRecord.*;
 import static org.junit.Assert.*;
 
-/** MO_PHONG. Tests use the actual SP-041.01 rows and SP-041.02 records/codec. */
+/** MO_PHONG. Tests use PublishedPost rows and comment records/codec from SP-041. */
 public class CommentPageWriterTest {
     private final SimulatedCommentStore store = new SimulatedCommentStore();
     private final CommentCursorCodec codec = new CommentCursorCodec(new SecretKeySpec(new byte[32], "AES"));

@@ -31,7 +31,7 @@ public interface CommentStore {
         // Persist only the cursor-free definition for WorkManager recovery. Clean with the channel.
         void remember(CommentPageRequest query);
         CommentPageRequest query(String fingerprint);
-        // Work scheduled by .04 already has a unique name derived from each fingerprint.
+        // Scheduled work already has a unique name derived from each fingerprint.
         List<String> workFingerprints(String channelId, long retiredRevision);
         // Delete only this revision's comment payload, membership, progress, attempt,
         // query definition and comment-local handled state. Never delete a parent.

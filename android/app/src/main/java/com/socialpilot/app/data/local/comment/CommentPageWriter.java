@@ -9,7 +9,7 @@ import com.socialpilot.app.domain.contract.social.ConnectionStatus;
 import java.util.Objects;
 import static com.socialpilot.app.data.local.comment.CommentCheckpoint.State;
 
-/** Synchronous IO port for SP-041.04. Pass the attempt captured by this request's callback. */
+/** Synchronous IO port for SP-041. Pass the attempt captured by this request's callback. */
 public final class CommentPageWriter {
     public enum Failure { SCOPE, RETIRED_REVISION, REVISION_NOT_RETIRED, DISCONNECTED, AUTH_REQUIRED, MISSING_POST, POST_CONFLICT,
         SOURCE, INVALID_PAGE, INVALID_CURSOR, SUPERSEDED, STORAGE }

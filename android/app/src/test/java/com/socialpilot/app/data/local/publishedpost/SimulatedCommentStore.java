@@ -6,7 +6,7 @@ import com.socialpilot.app.domain.contract.social.ConnectionStatus;
 import com.socialpilot.app.domain.contract.social.Platform;
 import java.util.*;
 
-/** MO_PHONG. Copy-on-write comment tables inside the SP-041.01 fixture transaction. */
+/** MO_PHONG. Copy-on-write comment tables inside the SP-041 fixture transaction. */
 public final class SimulatedCommentStore implements CommentStore {
     private final SimulatedPublishedPostStore posts = new SimulatedPublishedPostStore();
     private Map<List<Object>, StoredComment> rows = new HashMap<>();

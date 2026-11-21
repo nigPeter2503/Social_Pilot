@@ -29,7 +29,7 @@ public final class CommentSyncWorker extends Worker {
         return WorkManager.getInstance(context).enqueueUniqueWork(uniqueName(key.fingerprint()), ExistingWorkPolicy.KEEP, work);
     }
 
-    /** Serialize the .04 admission/enqueue pair with cancellation in this process.
+    /** Serialize Worker admission and enqueue with cancellation in this process.
      * After process death the Worker revalidates the stored revision on every start. */
     public static synchronized void afterInvalidation(Context context, CommentRepository repository,
             String channelId, long oldRevision) throws InterruptedException, java.util.concurrent.ExecutionException {
