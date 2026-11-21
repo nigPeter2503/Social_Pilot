@@ -71,6 +71,12 @@ public final class EncryptedOAuthStore {
         return record == null ? null : record.connection.displayName + " (" + record.connection.externalAccountId + ")";
     }
 
+    public synchronized PageMetadata pageMetadata() {
+        ConnectedRecord record = connected();
+        if (unavailable.contains(CONNECTED)) throw storageUnavailable();
+        return record == null ? null : new PageMetadata(record.connection);
+    }
+
     /** Token access is kept out of Room and should only be consumed by a provider adapter. */
     public synchronized String accessToken() {
         ConnectedRecord record = connected();
@@ -203,6 +209,18 @@ public final class EncryptedOAuthStore {
             if (version != 2 || connection == null) throw storageUnavailable();
             connection.validate();
             if (!"FACEBOOK".equals(connection.provider) || !"PAGE".equals(connection.accountType)) throw storageUnavailable();
+        }
+    }
+
+    public static final class PageMetadata {
+        public final String displayName;
+        public final String externalAccountId;
+        public final String expiresAt;
+
+        private PageMetadata(OAuthExchangeResponse connection) {
+            displayName = connection.displayName;
+            externalAccountId = connection.externalAccountId;
+            expiresAt = connection.expiresAt;
         }
     }
 

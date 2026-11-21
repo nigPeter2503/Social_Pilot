@@ -117,6 +117,10 @@ public final class FacebookOAuthCoordinator {
 
     public String connectedPageSummary() { return store.pageSummary(); }
 
+    public EncryptedOAuthStore.PageMetadata savedPageMetadata() {
+        return store.pageMetadata();
+    }
+
     private String randomVerifier() {
         byte[] bytes = new byte[32]; random.nextBytes(bytes);
         return Base64.encodeToString(bytes, Base64.URL_SAFE | Base64.NO_PADDING | Base64.NO_WRAP);
