@@ -1,0 +1,11 @@
+{
+  "source": "MO_PHONG",
+  "sourceRef": "sp04101-fixture-v1",
+  "description": "Synthetic subject/post mappings only; no API history or live ownership proof.",
+  "cases": [
+    { "channelId": "mock-fb-a", "platform": "FACEBOOK", "accountType": "PAGE", "externalAccountId": "000MockPage", "connectionRevision": 1, "externalPostId": "000AbC_00001" },
+    { "channelId": "mock-fb-b", "platform": "FACEBOOK", "accountType": "PAGE", "externalAccountId": "OtherMockPage", "connectionRevision": 3, "externalPostId": "000AbC_00001" },
+    { "channelId": "mock-li-person", "platform": "LINKEDIN", "accountType": "PERSON", "externalAccountId": "urn:li:person:MockAbC", "connectionRevision": 2, "externalPostId": "urn:li:ugcPost:00090071992547409931234567890123456789012345678901234567890" },
+    { "channelId": "mock-li-org", "platform": "LINKEDIN", "accountType": "ORGANIZATION", "externalAccountId": "urn:li:organization:000123", "connectionRevision": 4, "externalPostId": "urn:li:share:00090071992547409931234567890" }
+  ]
+}

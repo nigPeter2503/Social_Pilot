@@ -1,0 +1,204 @@
+{
+  "completedAt": "2026-11-19 22:56:39 Asia/Saigon",
+  "head": "230c2a6ebcd8785288e57764c4ebb5fb6bbd4afa",
+  "source": "MO_PHONG",
+  "fixtures": [
+    {
+      "commit": "230c2a6ebcd8785288e57764c4ebb5fb6bbd4afa",
+      "pins": [
+        {
+          "path": "docs/contracts/analytics-examples.json",
+          "blob": "559b2f380045c293e69ffb162ddcadbea86fedf1"
+        },
+        {
+          "path": "docs/contracts/verify-analytics-examples.cjs",
+          "blob": "4ebe81872768011e1e8cfcab4ec7af64d9379fef"
+        }
+      ],
+      "command": "node docs/contracts/verify-analytics-examples.cjs",
+      "summary": "RESULT: 75 fixture checks passed; MO_PHONG only; no production or API tests.",
+      "exit": 0
+    },
+    {
+      "commit": "230c2a6ebcd8785288e57764c4ebb5fb6bbd4afa",
+      "pins": [
+        {
+          "path": "docs/api-verification/facebook/fixtures.json",
+          "blob": "3cf24f0530000fdd3bf2b0b289de02aff72256d2"
+        },
+        {
+          "path": "docs/api-verification/facebook/response-prototype.cjs",
+          "blob": "c2d451e2ebb2fc1aed9b3ccdbf75a501c2150ffb"
+        },
+        {
+          "path": "docs/api-verification/facebook/verify-fixtures.cjs",
+          "blob": "61169a2dfad816ff7973a40f854a13bfe865f629"
+        }
+      ],
+      "command": "node docs/api-verification/facebook/verify-fixtures.cjs",
+      "summary": "55 checks PASS; MO_PHONG only; 0 live API calls.",
+      "exit": 0
+    },
+    {
+      "commit": "306a1da996b67ed47189373fe91efb7027b7750e",
+      "pins": [
+        {
+          "path": "docs/api-verification/linkedin/fixtures.json",
+          "blob": "2ba97703ee9f0abf600d26f8d3a34effab505c37"
+        },
+        {
+          "path": "docs/api-verification/linkedin/response-prototype.cjs",
+          "blob": "df42f4c957ead3f20662da11534eca3b113c931f"
+        },
+        {
+          "path": "docs/api-verification/linkedin/verify-fixtures.cjs",
+          "blob": "948ad26f3a06292de2e1818ffe718a1528b5bb5d"
+        }
+      ],
+      "command": "node docs/api-verification/linkedin/verify-fixtures.cjs",
+      "summary": "128 checks PASS; source=MO_PHONG; API_THAT=0",
+      "exit": 0
+    }
+  ],
+  "suites": [
+    {
+      "name": "com.socialpilot.app.data.ai.AiProvidersTest",
+      "tests": 19,
+      "skipped": 0,
+      "failures": 0,
+      "errors": 0,
+      "sha256": "4c5b0fa744aef1518c01deab2c28791cf5e927fcdcb83b8461ab6e98a156056a"
+    },
+    {
+      "name": "com.socialpilot.app.data.local.publishedpost.PublishedPostRepositoryTest",
+      "tests": 57,
+      "skipped": 0,
+      "failures": 0,
+      "errors": 0,
+      "sha256": "05f68b5a9121af3a4f9c48a5dae2a48d81d6bdb66a6383b639db223a0435c150"
+    },
+    {
+      "name": "com.socialpilot.app.data.remote.social.CommentAdapterTest",
+      "tests": 77,
+      "skipped": 0,
+      "failures": 0,
+      "errors": 0,
+      "sha256": "1215b4a56d2d358b5fb8221d65108c64eb1956606311230a019e408432965d8b"
+    },
+    {
+      "name": "com.socialpilot.app.data.remote.social.CommentPageWriterTest",
+      "tests": 20,
+      "skipped": 0,
+      "failures": 0,
+      "errors": 0,
+      "sha256": "9b2368d6f1ecaa01cb2c1c171cfaa608fb970ea0b5c0fce6319a246b9d3f1705"
+    },
+    {
+      "name": "com.socialpilot.app.data.security.EncryptedOAuthStoreTest",
+      "tests": 10,
+      "skipped": 0,
+      "failures": 0,
+      "errors": 0,
+      "sha256": "4a16695d0cc3d88461dd7fe06b36fd0c39d887936a613e33717cae3424c2af83"
+    },
+    {
+      "name": "com.socialpilot.app.domain.contract.ai.BudgetContractTest",
+      "tests": 4,
+      "skipped": 0,
+      "failures": 0,
+      "errors": 0,
+      "sha256": "68f3f9f3bca46eafaa95a18f103484a9390193d3e96392661e9716c4cabb771a"
+    },
+    {
+      "name": "com.socialpilot.app.domain.contract.oauth.OAuthContractTest",
+      "tests": 4,
+      "skipped": 0,
+      "failures": 0,
+      "errors": 0,
+      "sha256": "485137b85086b1f00d56920870c955be4c71f2bd2913b352dae7af2431e41dd5"
+    },
+    {
+      "name": "com.socialpilot.app.domain.contract.social.ChannelCapabilityTest",
+      "tests": 3,
+      "skipped": 0,
+      "failures": 0,
+      "errors": 0,
+      "sha256": "5fc73fba23d28e59a573d672887ab3aeebaa92a431e2149cae8ccbf290567b28"
+    },
+    {
+      "name": "com.socialpilot.app.domain.contract.social.PublishContractTest",
+      "tests": 7,
+      "skipped": 0,
+      "failures": 0,
+      "errors": 0,
+      "sha256": "b8a1b19d80c47db2614147e8ae62cf2daea83a91f890fb8b2c47f6a0ea0b9236"
+    },
+    {
+      "name": "com.socialpilot.app.domain.DraftValidatorTest",
+      "tests": 3,
+      "skipped": 0,
+      "failures": 0,
+      "errors": 0,
+      "sha256": "a21a88516188d400c4162323736318c3a8a6e3a1ba5688fe37fd7fab09bfad68"
+    },
+    {
+      "name": "com.socialpilot.app.domain.editor.BriefTest",
+      "tests": 2,
+      "skipped": 0,
+      "failures": 0,
+      "errors": 0,
+      "sha256": "be2019da5a12b30431a35cf9c4e93b32df1f42666d9c1bb5c31f270e9e821829"
+    },
+    {
+      "name": "com.socialpilot.app.domain.editor.VersionApprovalStateTest",
+      "tests": 8,
+      "skipped": 0,
+      "failures": 0,
+      "errors": 0,
+      "sha256": "ea36f7000620872190982dd2dec444bbd7ef812bec1904605f7fb33c78f954ee"
+    }
+  ],
+  "unit": {
+    "tests": 214,
+    "skipped": 0,
+    "failures": 0,
+    "errors": 0
+  },
+  "lint": "0 errors, 14 warnings",
+  "apkSHA256": "b6e10d699c163478b39503c155dcc6f3059ce7f6d9a3b8cdcfdda73afb45ee74",
+  "node": "v24.19.0",
+  "implementation": [
+    {
+      "path": "android/app/src/main/java/com/socialpilot/app/data/local/comment/CommentCheckpoint.java",
+      "blob": "ea9cc48123c352c361a17ac04a0ef9f66bffd8d8"
+    },
+    {
+      "path": "android/app/src/main/java/com/socialpilot/app/data/local/comment/CommentPageWriter.java",
+      "blob": "9c64706e35f136b489a6dc0a3bc6fe691c8c6a61"
+    },
+    {
+      "path": "android/app/src/main/java/com/socialpilot/app/data/local/comment/CommentStore.java",
+      "blob": "60688c05782082ca7bd9bc7b0a2799bb9b75c7e6"
+    },
+    {
+      "path": "android/app/src/main/java/com/socialpilot/app/data/local/comment/StoredComment.java",
+      "blob": "1c2a226504324e7ab5e04d1b17cc8bdbb31bca07"
+    },
+    {
+      "path": "android/app/src/main/java/com/socialpilot/app/data/remote/social/CommentContinuation.java",
+      "blob": "d56baf9bf691ec70f81c5cc585163c8e7cf49b85"
+    },
+    {
+      "path": "android/app/src/main/java/com/socialpilot/app/data/remote/social/CommentPageReceipt.java",
+      "blob": "710942d2fdd5234c2e3d6a7ec1721b3bf646fff6"
+    },
+    {
+      "path": "android/app/src/test/java/com/socialpilot/app/data/local/publishedpost/SimulatedCommentStore.java",
+      "blob": "71fb9064394df5080f86a1094068955a1af6d2cf"
+    },
+    {
+      "path": "android/app/src/test/java/com/socialpilot/app/data/remote/social/CommentPageWriterTest.java",
+      "blob": "ad9dfe58ea3de2872da40c4d3df84403d2336d26"
+    }
+  ]
+}
