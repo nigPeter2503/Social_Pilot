@@ -6,7 +6,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/** Storage port for SP-045.04 and SP-046. Room binding awaits Channel, PublishedPost and schema slots. */
+/** Storage port for SP-045 and SP-046. Room binding awaits Channel, PublishedPost and schema slots. */
 public interface SnapshotDao {
     interface Work<T> { T run(Transaction tx); }
 

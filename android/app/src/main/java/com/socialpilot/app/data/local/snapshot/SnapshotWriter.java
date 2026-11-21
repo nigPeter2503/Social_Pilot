@@ -11,7 +11,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Blocking IO. SP-045.04 supplies the durable collection ID, its start and a per-execution attempt ID. */
+/** Blocking IO. SP-045 supplies the durable collection ID, its start and a per-execution attempt ID. */
 public final class SnapshotWriter {
     private final SnapshotDao dao;
     private final Source namespace;
