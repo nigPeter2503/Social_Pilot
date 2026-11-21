@@ -10,8 +10,20 @@ import okio.ByteString;
 
 /** Adapter-local query. IDs are opaque; account/ownership come from the binding. */
 public final class CommentPageRequest {
-    public enum Account { FACEBOOK_PAGE, LINKEDIN_MEMBER, LINKEDIN_ORGANIZATION }
-    public enum Query { FB_TOPLEVEL, FB_STREAM, LI_COMMENTS }
+    public enum Account { FACEBOOK_PAGE(Platform.FACEBOOK, AccountType.PAGE),
+        LINKEDIN_MEMBER(Platform.LINKEDIN, AccountType.PERSON),
+        LINKEDIN_ORGANIZATION(Platform.LINKEDIN, AccountType.ORGANIZATION),
+        INSTAGRAM_PROFESSIONAL(Platform.INSTAGRAM, AccountType.PROFESSIONAL);
+
+        public final Platform platform;
+        public final AccountType type;
+
+        Account(Platform platform, AccountType type) {
+            this.platform = platform;
+            this.type = type;
+        }
+    }
+    public enum Query { FB_TOPLEVEL, FB_STREAM, LI_COMMENTS, IG_COMMENTS }
     public enum Target { POST, COMMENT }
 
     public final Account account;
@@ -37,7 +49,7 @@ public final class CommentPageRequest {
             String threadId, Query query, int pageSize, Long historyFrom,
             String apiVersion, String cursor) {
         this.account = Objects.requireNonNull(account, "account");
-        platform = account == Account.FACEBOOK_PAGE ? Platform.FACEBOOK : Platform.LINKEDIN;
+        platform = account.platform;
         this.channelId = text(channelId);
         if (revision < 1 || pageSize < 1 || historyFrom != null && historyFrom < 0) invalid();
         connectionRevision = revision;
@@ -51,8 +63,10 @@ public final class CommentPageRequest {
         this.pageSize = pageSize;
         this.historyFrom = historyFrom;
         this.apiVersion = text(apiVersion);
-        if (platform == Platform.FACEBOOK) {
-            if (query == Query.LI_COMMENTS || threadId != null || !apiVersion.matches("v[0-9]+\\.[0-9]+")) invalid();
+        if (platform != Platform.LINKEDIN) {
+            boolean validQuery = platform == Platform.INSTAGRAM ? query == Query.IG_COMMENTS
+                    : query == Query.FB_TOPLEVEL || query == Query.FB_STREAM;
+            if (!validQuery || threadId != null || !apiVersion.matches("v[0-9]+\\.[0-9]+")) invalid();
         } else {
             if (query != Query.LI_COMMENTS || !apiVersion.matches("[0-9]{4}(0[1-9]|1[0-2])")
                     || !postId.matches("urn:li:(share|ugcPost):[0-9]+")
@@ -77,8 +91,7 @@ public final class CommentPageRequest {
     }
 
     boolean matches(ChannelInfo c) {
-        AccountType type = account == Account.FACEBOOK_PAGE ? AccountType.PAGE
-                : account == Account.LINKEDIN_MEMBER ? AccountType.PERSON : AccountType.ORGANIZATION;
+        AccountType type = account.type;
         return c != null && c.platform == platform && c.accountType == type
                 && channelId.equals(c.channelId) && connectionRevision == c.connectionRevision
                 && externalAccountId.equals(c.externalAccountId);

@@ -1,6 +1,9 @@
 package com.socialpilot.app.data.remote.social;
 
 import com.google.gson.*;
+import com.socialpilot.app.data.local.comment.CommentPageWriter;
+import com.socialpilot.app.data.local.publishedpost.PublishedPostScope;
+import com.socialpilot.app.data.local.publishedpost.SimulatedCommentStore;
 import com.socialpilot.app.domain.contract.Cancelable;
 import com.socialpilot.app.domain.contract.social.*;
 import java.io.InputStreamReader;
@@ -19,6 +22,8 @@ import static com.socialpilot.app.data.remote.social.CommentRecord.*;
 
 /** MO_PHONG only. JSON fixtures copied byte-for-byte from SP-018/SP-019; mutations are synthetic. */
 public class CommentAdapterTest {
+    private static final List<Account> LEGACY_FIXTURE_ACCOUNTS =
+            Arrays.asList(Account.FACEBOOK_PAGE, Account.LINKEDIN_MEMBER, Account.LINKEDIN_ORGANIZATION);
     private static final long NOW = 1795075200000L;
     private static final String TOKEN = "synthetic-comment-secret-DO-NOT-EXPOSE";
     private static final String THREAD = "urn:li:activity:9000000000000000002";
@@ -45,6 +50,9 @@ public class CommentAdapterTest {
     }
 
     private CommentPageRequest request(Account account) {
+        if (account == Account.INSTAGRAM_PROFESSIONAL)
+            return new CommentPageRequest(account, "channel-ig", 1, "ig-user", "media", Target.POST,
+                    "media", null, Query.IG_COMMENTS, 2, 1000L, "v27.0", null);
         boolean fb = account == Account.FACEBOOK_PAGE;
         String post = fb ? "000Post_Aa" : "urn:li:share:9000000000000000001";
         return new CommentPageRequest(account, "channel-000A", 1,
@@ -59,8 +67,7 @@ public class CommentAdapterTest {
     private CommentAdapter.Binding makeBinding(CommentPageRequest r, CapabilityAvailability read,
             CapabilityAvailability reply, ConnectionStatus status, String tokenRef, String generation,
             String mapping, Map<String, CommentAdapter.ItemEvidence> facts) {
-        AccountType type = r.account == Account.FACEBOOK_PAGE ? AccountType.PAGE
-                : r.account == Account.LINKEDIN_MEMBER ? AccountType.PERSON : AccountType.ORGANIZATION;
+        AccountType type = r.account.type;
         ChannelInfo c = new ChannelInfo(r.channelId, r.platform, r.externalAccountId, type, "Synthetic account",
                 status, r.connectionRevision, status == ConnectionStatus.DISCONNECTED ? null : tokenRef);
         return new CommentAdapter.Binding(c, r, capability(SocialOperation.READ_COMMENTS, read),
@@ -78,6 +85,9 @@ public class CommentAdapterTest {
         return createAdapter(r, clock, credentials);
     }
     private CommentAdapter createAdapter(CommentPageRequest r, CommentAdapter.Clock clock, CommentAdapter.CredentialSource creds) {
+        if (r.platform == Platform.INSTAGRAM)
+            return new InstagramCommentAdapter(client, ignored -> binding.get(), creds, clock, executor, codec,
+                    server.url("/"), Source.MO_PHONG, "synthetic-comments");
         return r.platform == Platform.FACEBOOK
                 ? new FacebookCommentAdapter(client, ignored -> binding.get(), creds, clock, executor, codec,
                         server.url("/"), Source.MO_PHONG, "synthetic-comments")
@@ -124,6 +134,59 @@ public class CommentAdapterTest {
         assertEquals(a.page.items.get(0).commentId, b.page.items.get(0).commentId);
         assertEquals(2, b.page.items.size()); // Adapter keeps overlapping identity, no dedup.
         assertEquals(r.externalAccountId, credentialSubject.get().externalAccountId);
+    }
+
+    @Test public void instagramPagingReplyAndScope() throws Exception {
+        CommentPageRequest r = new CommentPageRequest(Account.INSTAGRAM_PROFESSIONAL, "channel-ig", 2,
+                "ig-user", "media", Target.POST, "media", null, Query.IG_COMMENTS, 2, null, "v27.0", null);
+        bind(r);
+        JsonObject first = JsonParser.parseString("{'data':[{'id':'c1','text':'hello'}],"
+                + "'paging':{'cursors':{'after':'next-page'},'next':'https://example.invalid'}}").getAsJsonObject();
+        SimulatedCommentStore store = new SimulatedCommentStore();
+        store.seed(new PublishedPostScope(r.platform, r.account.type, r.channelId, r.connectionRevision,
+                r.externalAccountId), r.postId);
+        CommentPageWriter writer = CommentPageWriter.forSimulation(store, codec);
+        CommentPageWriter.Attempt initial = writer.prepare(r);
+        CommentPageResult a = response(initial.request, first);
+        assertEquals(Status.SUCCESS, a.status);
+        assertEquals("hello", a.page.items.get(0).message);
+        assertEquals("/v27.0/media/comments", server.takeRequest().getRequestUrl().encodedPath());
+        writer.commit(initial, new CommentPageReceipt(initial.request, a));
+        CommentPageWriter.Attempt next = writer.prepare(r);
+        CommentPageResult b = response(next.request, JsonParser.parseString(
+                "{'data':[{'id':'c1'},{'id':'c2'}]}").getAsJsonObject());
+        assertEquals("next-page", server.takeRequest().getRequestUrl().queryParameter("after"));
+        assertEquals(a.page.items.get(0).commentId, b.page.items.get(0).commentId);
+        assertEquals(ContentState.OMITTED, b.page.items.get(1).contentState);
+        assertEquals(Boolean.FALSE, b.page.hasMore);
+        writer.commit(next, new CommentPageReceipt(next.request, b));
+        assertEquals(2, store.size());
+        first.addProperty("media_id", "other-media");
+        failure(response(r, first), Failure.INVALID_RESPONSE);
+        server.takeRequest();
+        CommentPageRequest replies = new CommentPageRequest(r.account, r.channelId, r.connectionRevision,
+                r.externalAccountId, r.postId, Target.COMMENT, "c1", null, r.query, 2, null, r.apiVersion, null);
+        bind(replies);
+        JsonObject body = JsonParser.parseString("{'data':[{'id':'reply'}]}").getAsJsonObject();
+        assertEquals("c1", response(replies, body).page.items.get(0).parentCommentId);
+        assertEquals("/v27.0/c1/replies", server.takeRequest().getRequestUrl().encodedPath());
+        body.getAsJsonArray("data").get(0).getAsJsonObject().addProperty("parent_id", "other");
+        failure(response(replies, body), Failure.INVALID_RESPONSE);
+    }
+
+    @Test public void instagramRequiresMappingAndClassifiesGraphFailures() throws Exception {
+        CommentPageRequest r = new CommentPageRequest(Account.INSTAGRAM_PROFESSIONAL, "ch-ig", 1, "ig-user",
+                "media", Target.POST, "media", null, Query.IG_COMMENTS, 2, null, "v27.0", null);
+        binding.set(makeBinding(r, CapabilityAvailability.AVAILABLE, CapabilityAvailability.UNVERIFIED,
+                ConnectionStatus.CONNECTED, "secret-ref", "generation", null, null));
+        rejectedWithoutCredential(r, Failure.MAPPING_UNVERIFIED);
+        bind(r);
+        server.enqueue(new MockResponse().setResponseCode(400).setBody("{'error':{'code':190}}"));
+        assertEquals(SocialError.Code.AUTH_REQUIRED, read(adapter(r), r).error.code);
+        server.enqueue(new MockResponse().setResponseCode(429).addHeader("Retry-After", "3"));
+        CommentPageResult limited = read(adapter(r), r);
+        assertEquals(SocialError.Code.RATE_LIMITED, limited.error.code);
+        assertEquals(Long.valueOf(NOW + 3000), limited.retryAfterAt);
     }
 
     private void linkedinTwoPages(Account account) throws Exception {
@@ -261,7 +324,7 @@ public class CommentAdapterTest {
     }
 
     @Test public void opaqueIdsEmptyMessageAndMissingTimeArePreserved() throws Exception {
-        for (Account account : Account.values()) {
+        for (Account account : LEGACY_FIXTURE_ACCOUNTS) {
             CommentPageRequest r = request(account); bind(r); CommentRecord item = response(r, one(r)).page.items.get(0);
             assertEquals(account == Account.FACEBOOK_PAGE ? "000Comment_Aa" : "urn:li:comment:(" + THREAD + ",00010)", item.commentId);
             assertEquals(r.postId, item.postId); assertEquals("", item.message); assertEquals(ContentState.AVAILABLE, item.contentState);
@@ -271,7 +334,7 @@ public class CommentAdapterTest {
         }
     }
     @Test public void missingMessageDoesNotBecomeDeletion() throws Exception {
-        for (Account account : Account.values()) {
+        for (Account account : LEGACY_FIXTURE_ACCOUNTS) {
             CommentPageRequest r = request(account); bind(r); JsonObject body = one(r); row(body, r).remove("message");
             CommentRecord item = response(r, body).page.items.get(0); assertEquals(ContentState.OMITTED, item.contentState); assertNull(item.message);
         }
@@ -293,7 +356,7 @@ public class CommentAdapterTest {
         failure(response(r, one(r)), Failure.INVALID_RESPONSE);
     }
     @Test public void knownParentCanBeAbsentFromPage() throws Exception {
-        for (Account account : Account.values()) {
+        for (Account account : LEGACY_FIXTURE_ACCOUNTS) {
             CommentPageRequest r = request(account); bind(r); JsonObject body = one(r);
             String parent = account == Account.FACEBOOK_PAGE ? "000Missing_Parent" : "urn:li:comment:(" + THREAD + ",00099)";
             if (account == Account.FACEBOOK_PAGE) { JsonObject p = new JsonObject(); p.addProperty("id", parent); row(body, r).add("parent", p); }
@@ -354,7 +417,7 @@ public class CommentAdapterTest {
         }
     }
     @Test public void badPostOrScopeInAnyItemFailsWholePage() throws Exception {
-        for (Account account : Account.values()) {
+        for (Account account : LEGACY_FIXTURE_ACCOUNTS) {
             CommentPageRequest r = request(account); bind(r);
             for (String field : Arrays.asList("postId", "postUrn", "channelId", "externalAccountId")) {
                 JsonObject body = page(r, 0); row(body, r).addProperty(field, "another-subject");
@@ -370,7 +433,7 @@ public class CommentAdapterTest {
         }
     }
     @Test public void malformedJsonInvalidItemAndWrongTypesNeverBecomeEmptySuccess() throws Exception {
-        for (Account account : Account.values()) {
+        for (Account account : LEGACY_FIXTURE_ACCOUNTS) {
             CommentPageRequest r = request(account); bind(r);
             for (String body : Arrays.asList("{", "[]", "{}", "null")) {
                 server.enqueue(new MockResponse().setBody(body)); failure(read(adapter(r), r), Failure.INVALID_RESPONSE);
@@ -391,7 +454,7 @@ public class CommentAdapterTest {
     }
 
     @Test public void emptySuccessDoesNotRequireAnItem() throws Exception {
-        for (Account account : Account.values()) {
+        for (Account account : LEGACY_FIXTURE_ACCOUNTS) {
             CommentPageRequest r = request(account); bind(r);
             JsonObject empty = JsonParser.parseString(account == Account.FACEBOOK_PAGE ? "{\"data\":[]}"
                     : "{\"elements\":[],\"paging\":{\"start\":0,\"count\":2,\"total\":0,\"links\":[]}}").getAsJsonObject();
@@ -400,7 +463,7 @@ public class CommentAdapterTest {
         }
     }
     @Test public void emptyPageWithContinuationIsNotCompletion() throws Exception {
-        for (Account account : Account.values()) {
+        for (Account account : LEGACY_FIXTURE_ACCOUNTS) {
             CommentPageRequest r = request(account); bind(r); JsonObject body = page(r, 0);
             body.add(account == Account.FACEBOOK_PAGE ? "data" : "elements", new JsonArray());
             CommentPageResult result = response(r, body);
@@ -440,7 +503,7 @@ public class CommentAdapterTest {
         }
     }
     @Test public void cursorCannotResumeAnotherQueryScopeOrVersion() throws Exception {
-        for (Account account : Account.values()) {
+        for (Account account : LEGACY_FIXTURE_ACCOUNTS) {
             CommentPageRequest r = request(account); bind(r);
             String cursor = response(r, page(r, 0)).page.nextCursor;
             int reads = credentialReads.get(); int requests = server.getRequestCount();
@@ -528,7 +591,7 @@ public class CommentAdapterTest {
         }
     }
     @Test public void errorInsideHttp200IsFailure() throws Exception {
-        for (Account account : Account.values()) {
+        for (Account account : LEGACY_FIXTURE_ACCOUNTS) {
             CommentPageRequest r = request(account); bind(r);
             JsonObject body = one(r);
             if (account == Account.FACEBOOK_PAGE) body.add("error", JsonParser.parseString("{\"code\":190}"));
@@ -602,7 +665,7 @@ public class CommentAdapterTest {
         assertEquals(1, calls.get()); assertNotEquals(Thread.currentThread(), callbackThread.get());
     }
     @Test public void outputsNeverContainCredentialProviderErrorTextOrPagingUrl() throws Exception {
-        for (Account account : Account.values()) {
+        for (Account account : LEGACY_FIXTURE_ACCOUNTS) {
             CommentPageRequest r = request(account); bind(r); JsonObject body = page(r, 0);
             if (account == Account.FACEBOOK_PAGE) body.getAsJsonObject("paging").addProperty("next", "https://evil.invalid/?access_token=" + TOKEN);
             else body.getAsJsonObject("paging").getAsJsonArray("links").get(0).getAsJsonObject().addProperty("href", "https://evil.invalid/?start=2&count=2&access_token=" + TOKEN);
@@ -637,7 +700,7 @@ public class CommentAdapterTest {
         failure(response(r, body), Failure.INVALID_RESPONSE);
     }
     @Test public void malformedPagingFailsInsteadOfClaimingComplete() throws Exception {
-        for (Account account : Account.values()) {
+        for (Account account : LEGACY_FIXTURE_ACCOUNTS) {
             CommentPageRequest r = request(account); bind(r);
             JsonObject body = one(r); body.addProperty("paging", "bad-shape"); failure(response(r, body), Failure.INVALID_RESPONSE);
         }

@@ -172,7 +172,13 @@ public abstract class CommentAdapter {
 
     private HttpUrl url(CommentPageRequest r, String continuation) {
         HttpUrl.Builder url = endpoint.newBuilder();
-        if (platform == Platform.FACEBOOK) {
+        if (platform == Platform.INSTAGRAM) {
+            String edge = r.target == CommentPageRequest.Target.POST ? "comments" : "replies";
+            url.addPathSegment(r.apiVersion).addPathSegment(r.targetId).addPathSegment(edge)
+                    .addQueryParameter("fields", "id,text,timestamp,username")
+                    .addQueryParameter("limit", String.valueOf(r.pageSize));
+            if (continuation != null) url.addQueryParameter("after", continuation);
+        } else if (platform == Platform.FACEBOOK) {
             url.addPathSegment(r.apiVersion).addPathSegment(r.targetId).addPathSegment("comments")
                     .addQueryParameter("fields", "id,message,created_time,from,parent")
                     .addQueryParameter("filter", r.query == CommentPageRequest.Query.FB_TOPLEVEL ? "toplevel" : "stream")
@@ -215,7 +221,7 @@ public abstract class CommentAdapter {
                     ? new SocialError(SocialError.Code.UNSUPPORTED_OPERATION, SocialError.NextAction.NONE) : null;
             return CommentPageResult.failure(Failure.CAPABILITY_BLOCKED, error, availability, null);
         }
-        if (r.platform == Platform.LINKEDIN && b.postThreadEvidenceRef == null) return fail(Failure.MAPPING_UNVERIFIED);
+        if (r.platform != Platform.FACEBOOK && b.postThreadEvidenceRef == null) return fail(Failure.MAPPING_UNVERIFIED);
         if (r.pageSize > b.maxPageSize) return fail(Failure.SCOPE_MISMATCH);
         return null;
     }

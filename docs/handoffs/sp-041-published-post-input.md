@@ -1,5 +1,7 @@
 # SP-041.01 — PublishedPost handoff v0.1.0 (local draft)
 
+**Bổ sung Instagram ngày 21/11/2026.** Scope nhận `INSTAGRAM/PROFESSIONAL`, IG user ID và media ID. SP-042 tạo `CommentPageRequest` với account `INSTAGRAM_PROFESSIONAL`, query `IG_COMMENTS` và binding xác minh media/parent. Target POST đọc comments, target COMMENT đọc replies. SP-043 dùng scope, postId, commentId và parentCommentId cùng capability REPLY_COMMENT của revision đang chọn. Cursor chỉ resume trong cùng fingerprint. Lỗi trang giữ cache/checkpoint lần thành công. Đối chiếu fixture bằng `CommentAdapterTest.instagramPagingReplyAndScope`. ACK consumer, Room và manifest provider còn chờ.
+
 Owner: Tô Lãng Nghị / TV4. **MO_PHONG harness; chưa tích hợp Room/Channel production.**
 Không thay Social v1, Analytics draft-4 hoặc Room contract đã có. Chữ ký dưới đây
 là API module đề xuất để Minh/Đạt và consumer review, chưa có ACK.

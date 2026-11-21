@@ -25,7 +25,7 @@ final class CommentResponseMapper {
         boolean providerError = body != null && (present(body, "error") || present(body, "serviceErrorCode"));
         try {
             if (body != null && present(body, "status") && number(body.get("status")) >= 400) providerError = true;
-            if (r.platform == Platform.FACEBOOK && body != null && present(body, "error")) {
+            if (r.platform != Platform.LINKEDIN && body != null && present(body, "error")) {
                 code = Math.toIntExact(number(object(body.get("error")).get("code")));
             } else if (r.platform == Platform.LINKEDIN && body != null && present(body, "serviceErrorCode")) {
                 code = Math.toIntExact(number(body.get("serviceErrorCode")));
@@ -33,9 +33,9 @@ final class CommentResponseMapper {
         } catch (RuntimeException ignored) { providerError = true; }
         if (status < 200 || status >= 300 || providerError) {
             SocialError error = null;
-            if (status == 401 || r.platform == Platform.FACEBOOK && Objects.equals(code, 190)) {
+            if (status == 401 || r.platform != Platform.LINKEDIN && Objects.equals(code, 190)) {
                 error = new SocialError(SocialError.Code.AUTH_REQUIRED, SocialError.NextAction.RECONNECT);
-            } else if (status == 429 || r.platform == Platform.FACEBOOK
+            } else if (status == 429 || r.platform != Platform.LINKEDIN
                     && Arrays.asList(4, 17, 32, 613).contains(code)) {
                 error = new SocialError(SocialError.Code.RATE_LIMITED, SocialError.NextAction.WAIT);
             } else if (binding.permissionEvidence != null && binding.permissionEvidence.matches(r, code)) {
@@ -48,18 +48,21 @@ final class CommentResponseMapper {
         try {
             if (body == null) CommentPageRequest.invalid();
             checkScope(body, r);
-            String arrayName = r.platform == Platform.FACEBOOK ? "data" : "elements";
+            String arrayName = r.platform != Platform.LINKEDIN ? "data" : "elements";
             JsonElement rows = body.get(arrayName);
             if (rows == null || !rows.isJsonArray()) CommentPageRequest.invalid();
             List<CommentRecord> items = new ArrayList<>();
             for (JsonElement row : rows.getAsJsonArray()) {
                 JsonObject item = object(row);
                 checkScope(item, r);
-                items.add(r.platform == Platform.FACEBOOK
-                        ? facebook(item, r, binding, at, source, sourceRef)
-                        : linkedin(item, r, binding, at, source, sourceRef));
+                switch (r.platform) {
+                    case INSTAGRAM: items.add(instagram(item, r, binding, at, source, sourceRef)); break;
+                    case FACEBOOK: items.add(facebook(item, r, binding, at, source, sourceRef)); break;
+                    case LINKEDIN: items.add(linkedin(item, r, binding, at, source, sourceRef)); break;
+                    default: throw new IllegalArgumentException("Unknown platform");
+                }
             }
-            Paging paging = r.platform == Platform.FACEBOOK ? facebookPaging(body, token)
+            Paging paging = r.platform != Platform.LINKEDIN ? facebookPaging(body, token)
                     : linkedinPaging(body, r, continuation);
             String next = paging.continuation == null ? null : cursors.encode(r, paging.continuation);
             return CommentPageResult.success(new CommentPage(r, items, next, paging.more,
@@ -77,6 +80,17 @@ final class CommentResponseMapper {
         Long created = timestamp(optional(raw, "created_time"));
         Long updated = timestamp(optional(raw, "updated_time"));
         return record(r, b, id, parent, message, author, created, updated, at, source, ref);
+    }
+
+    private static CommentRecord instagram(JsonObject row, CommentPageRequest r, CommentAdapter.Binding binding,
+            long at, Source source, String ref) {
+        String parent = optional(row, "parent_id");
+        if (r.target == CommentPageRequest.Target.COMMENT) {
+            if (parent != null && !parent.equals(r.targetId)) CommentPageRequest.invalid();
+            parent = r.targetId;
+        }
+        return record(r, binding, required(row, "id"), parent, optional(row, "text"),
+                optional(row, "username"), timestamp(optional(row, "timestamp")), null, at, source, ref);
     }
 
     private static CommentRecord linkedin(JsonObject raw, CommentPageRequest r, CommentAdapter.Binding b,
@@ -163,6 +177,11 @@ final class CommentResponseMapper {
 
     /** Echoes, if present, must agree; no attempt to derive ownership from ID prefixes. */
     private static void checkScope(JsonObject value, CommentPageRequest r) {
+        if (r.platform == Platform.INSTAGRAM) {
+            checkEcho(value, "media_id", r.postId);
+            if (present(value, "media") && !r.postId.equals(required(object(value.get("media")), "id")))
+                CommentPageRequest.invalid();
+        }
         checkEcho(value, "postId", r.postId); checkEcho(value, "postUrn", r.postId);
         checkEcho(value, "channelId", r.channelId); checkEcho(value, "externalAccountId", r.externalAccountId);
         if (present(value, "post")) {

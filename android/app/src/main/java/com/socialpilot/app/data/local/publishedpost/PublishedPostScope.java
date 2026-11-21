@@ -17,7 +17,8 @@ public final class PublishedPostScope {
         this.platform = Objects.requireNonNull(platform, "platform");
         this.accountType = Objects.requireNonNull(accountType, "accountType");
         if (platform == Platform.FACEBOOK && accountType != AccountType.PAGE
-                || platform == Platform.LINKEDIN && accountType == AccountType.PAGE
+                || platform == Platform.INSTAGRAM && accountType != AccountType.PROFESSIONAL
+                || platform == Platform.LINKEDIN && accountType != AccountType.PERSON && accountType != AccountType.ORGANIZATION
                 || connectionRevision < 1) throw invalid();
         this.channelId = opaque(channelId);
         this.externalAccountId = opaque(externalAccountId);

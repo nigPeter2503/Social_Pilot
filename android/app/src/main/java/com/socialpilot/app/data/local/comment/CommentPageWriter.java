@@ -5,7 +5,6 @@ import com.socialpilot.app.data.local.publishedpost.PublishedPostInput;
 import com.socialpilot.app.data.local.publishedpost.PublishedPostScope;
 import com.socialpilot.app.data.local.publishedpost.PublishedPostStore.ChannelState;
 import com.socialpilot.app.data.remote.social.*;
-import com.socialpilot.app.domain.contract.social.AccountType;
 import com.socialpilot.app.domain.contract.social.ConnectionStatus;
 import java.util.Objects;
 import static com.socialpilot.app.data.local.comment.CommentCheckpoint.State;
@@ -164,14 +163,7 @@ public final class CommentPageWriter {
         if (channel == null) throw new Rejected(Failure.SCOPE);
         if (channel.status == ConnectionStatus.DISCONNECTED) throw new Rejected(Failure.DISCONNECTED);
         if (channel.status != ConnectionStatus.CONNECTED) throw new Rejected(Failure.AUTH_REQUIRED);
-        AccountType type;
-        switch (q.account) {
-            case FACEBOOK_PAGE: type = AccountType.PAGE; break;
-            case LINKEDIN_MEMBER: type = AccountType.PERSON; break;
-            case LINKEDIN_ORGANIZATION: type = AccountType.ORGANIZATION; break;
-            default: throw new Rejected(Failure.SCOPE);
-        }
-        PublishedPostScope expected = new PublishedPostScope(q.platform, type, q.channelId,
+        PublishedPostScope expected = new PublishedPostScope(q.platform, q.account.type, q.channelId,
                 q.connectionRevision, q.externalAccountId);
         if (!expected.same(channel.scope)) throw new Rejected(Failure.SCOPE);
         PublishedPost post = tx.byExternalId(q.channelId, q.postId);
