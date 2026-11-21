@@ -376,3 +376,9 @@ SP-020 W1 bàn giao contract/fixture có nhãn: không đòi token hoặc snapsh
 SP-018 và SP-066 kiểm chứng API, SP-045 thu lịch sử; chúng bổ sung mapping qua revision sau.
 Thiện đã xác nhận tài liệu và fixture đủ cho UI W1. Minh còn cần xác nhận phần tiêu thụ
 hợp đồng ở adapter và repository.
+
+### Phụ lục SP-066 · mapping Instagram chờ nghiệm thu
+
+Đối chiếu ngày 21/11/2026 với grant Facebook Login và account type `PROFESSIONAL` của SP-065. Follower là gauge trên Channel mang IG user ID. Trường `followers_count` trả 0 cho một lần quan sát hợp lệ. Reach là số tài khoản tiếp cận trên một media, giữ tên provider `reach` và kỳ `lifetime`. SP-045 lưu metric này với khóa `REACH_COUNT`. SP-046 dùng `REACH` cho số đọc của bài. ER cần định nghĩa impression đã xác minh. Các metric like/comment/share/impression còn thiếu mapping có value=null và missingReason=UNVERIFIED. Trường số vắng trong response thành công của một query đã map dùng PROVIDER_OMITTED. [Issue SP-066](https://github.com/nigPeter2503/Social_Pilot/issues/91)
+
+Chạy `node docs/api-verification/instagram/verify-fixtures.cjs` từ repo root để kiểm [fixture MO_PHONG](api-verification/instagram/fixtures.json) cho identity, overlap/replay, parent/reply, follower và reach. Chuỗi ID, cursor và giá trị mẫu thuộc namespace mô phỏng. Hai quan sát có timestamp thật và binding Channel/revision production vẫn chờ bằng chứng.
