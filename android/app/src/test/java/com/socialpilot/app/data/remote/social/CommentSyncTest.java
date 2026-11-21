@@ -6,6 +6,7 @@ import com.socialpilot.app.data.repository.comment.*;
 import com.socialpilot.app.data.repository.comment.CommentSyncCoordinator.Result;
 import com.socialpilot.app.domain.contract.Cancelable;
 import com.socialpilot.app.domain.contract.social.*;
+import java.net.InetAddress;
 import java.util.Collections;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
@@ -39,6 +40,7 @@ public final class CommentSyncTest {
     private final CountDownLatch httpCancelled = new CountDownLatch(1);
     private final ExecutorService io = Executors.newFixedThreadPool(4);
     private final MockWebServer server = new MockWebServer();
+    private HttpUrl endpoint;
     private OkHttpClient client = new OkHttpClient.Builder().eventListener(new okhttp3.EventListener() {
         @Override public void canceled(Call call) { httpCancelled.countDown(); }
     }).build();
@@ -59,7 +61,10 @@ public final class CommentSyncTest {
                 r.channelId, r.connectionRevision, r.externalAccountId);
     }
     @Before public void setup() throws Exception {
-        server.start();
+        InetAddress loopback = InetAddress.getLoopbackAddress();
+        server.start(loopback, 0);
+        // After a cancelled call OkHttp can try another localhost address. Only this one is listening.
+        endpoint = server.url("/").newBuilder().host(loopback.getHostAddress()).build();
         store.seed(scope(q), q.postId);
         repo = repository(3);
     }
@@ -83,11 +88,11 @@ public final class CommentSyncTest {
                 null, new CommentAdapter.PermissionEvidence(r, 200, "fixture-403"));
         if (r.platform == Platform.INSTAGRAM)
             return new InstagramCommentAdapter(client, ignored -> binding, ignored -> "fixture-token",
-                    clock::get, null, adapterKey, server.url("/"), CommentRecord.Source.MO_PHONG, "fixture");
+                    clock::get, null, adapterKey, endpoint, CommentRecord.Source.MO_PHONG, "fixture");
         return r.platform == Platform.FACEBOOK ? new FacebookCommentAdapter(client, ignored -> binding, ignored -> "fixture-token",
-                clock::get, null, adapterKey, server.url("/"), CommentRecord.Source.MO_PHONG, "fixture")
+                clock::get, null, adapterKey, endpoint, CommentRecord.Source.MO_PHONG, "fixture")
                 : new LinkedInCommentAdapter(client, ignored -> binding, ignored -> "fixture-token", clock::get, null,
-                        adapterKey, server.url("/"), CommentRecord.Source.MO_PHONG, "fixture");
+                        adapterKey, endpoint, CommentRecord.Source.MO_PHONG, "fixture");
     }
 
     private Result pull(CommentPageRequest r) throws Exception {

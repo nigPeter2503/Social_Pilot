@@ -24,7 +24,9 @@ Từ `android` trên Windows với JDK 21, Android SDK và cache Gradle offline 
 
 Plan ghi 216 unit test ở base. Worktree Worker trước khi bổ sung ba ca đạt 236/236. Worktree bàn giao đạt **239/239** trong 13 suite JUnit, 0 failure/error/skip. Assemble debug đạt. Lint offline đạt, 0 lỗi và 6 cảnh báo. Có thể kiểm số đếm trong XML tại `app/build/test-results/testDebugUnitTest` và `app/build/reports/lint-results-debug.xml`.
 
-**Instrumentation riêng** đạt **3/3** trên AVD cấu hình Pixel 9, Android API 37 x86_64. Chạy từng phương thức trong process instrumentation riêng trên AVD thử nghiệm có kết nối ban đầu. Ca mất mạng tự tắt rồi khôi phục Wi-Fi/data của AVD.
+**Hồi quy CI trên Linux.** Cả hai run trên `c1f197d` hỏng cùng ba assertion. Trên Ubuntu 24.04, dùng riêng một hosts file JVM có cả `127.0.0.1 localhost` và `::1 localhost` tái hiện đủ ba lỗi. Sau cancel/timeout, hai request kế tiếp trả `WAIT` và server chỉ nhận 3/4 request ở ca backoff. MockWebServer chỉ lắng nghe trên một địa chỉ. Sửa fixture để adapter kết nối đúng địa chỉ loopback mà server đã bind. Chạy lại cùng hosts file đạt **23/23** ca `CommentSyncTest`. [Run push ban đầu](https://github.com/nigPeter2503/Social_Pilot/actions/runs/44873946119) · [Run PR ban đầu](https://github.com/nigPeter2503/Social_Pilot/actions/runs/44873950870)
+
+**Instrumentation riêng** đạt **3/3** trên AVD cấu hình Pixel 9, Android API 37 x86_64, với mã ứng dụng và harness thiết bị của `c1f197d`. Chạy từng phương thức trong process instrumentation riêng trên AVD thử nghiệm có kết nối ban đầu. Ca mất mạng tự tắt rồi khôi phục Wi-Fi/data của AVD.
 
 ```powershell
 .\gradlew.bat --offline '-PdeviceTestRunner=com.socialpilot.app.core.CommentDeviceRunner' :app:assembleDebug :app:assembleDebugAndroidTest
