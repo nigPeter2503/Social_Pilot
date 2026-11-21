@@ -1,11 +1,11 @@
-# SP-046.02 — Source port và query đề xuất
+# SP-046 — Source port và query đề xuất
 
 **Local draft 0.1.0, TV4 / Tô Lãng Nghị. Chưa ACK, chưa phải Room schema/DAO.**
 
 Triển khai độc lập dùng `domain/analytics/AnalyticsSource.java`, `AnalyticsCalculator.java`
 và `data/repository/analytics/{AnalyticsProjector,DefaultAnalyticsRepository}.java`.
 Không nối vào AppContainer. Source MO_PHONG duy nhất nằm trong `src/test`.
-DTO/AnalyticsRepository giữ nguyên byte so với SP-046.01 draft 0.1.0.
+DTO/AnalyticsRepository giữ nguyên byte so với SP-046 (hợp đồng DTO) draft 0.1.0.
 
 ## API cần nối khi mở gate
 
@@ -14,7 +14,7 @@ DTO/AnalyticsRepository giữ nguyên byte so với SP-046.01 draft 0.1.0.
   Query thành công không có hàng khác với lỗi đọc; lỗi trả `SourceFailure` có
   `DashboardError` đã chuẩn hóa. `available=false` chưa có projection dùng được.
 - `refreshProjection(query) -> Batch`: chạy trên IO executor, bàn giao cho coordinator
-  SP-045.04 tương lai; không có HTTP, lịch thu hoặc Worker trong SP-046.02.
+  collector/Worker của SP-045 khi tích hợp; không có HTTP, lịch thu hoặc Worker trong phần repository/query của SP-046.
   Coordinator chịu trách nhiệm lưu attempt/success trước trả. Partial có dữ liệu và errors.
 - `watch(invalidated) -> Cancelable`: đăng ký nhanh, không IO/refresh; báo sau commit
   thay đổi projection hoặc Channel. Repository reload đúng query đang observe.
@@ -36,7 +36,7 @@ ENGAGEMENT_RATE pin thêm impression ở vị trí thứ tư. Không dò tên g�
 collectionId không đủ. Provenance chỉ nhận nguồn đã che, không token/reference bí mật,
 body thô hoặc URL credential. Port không có trường credential.
 
-## DAO/query projection đề xuất cho SP-045.03
+## DAO/query projection đề xuất cho SP-045 (lưu snapshot)
 
 Các tên bảng dưới đây là placeholder thiết kế, **không chạy SQL**, không chọn version.
 Đạt xác nhận tên thật và slot trước khi chuyển thành `@Query`/migration. Truyền scope
@@ -88,7 +88,7 @@ WHERE post.id IN (:fixedLocalPostIds) AND post.channel_id = :channelId
 Không dùng INNER JOIN thiếu hàng để che orphan/ownership corruption: source adapter phải
 phân biệt integrity failure với query rỗng. Snapshot POST phải FK đúng PublishedPost
 cùng Channel; CHANNEL phải trỏ đúng Channel. FK, revision check, sample+attempt writes
-và rollback cần transaction thật của SP-045.03/.04, không được suy ra từ in-memory source.
+và rollback cần transaction thật của SP-045 (lưu snapshot và collector/Worker), không được suy ra từ in-memory source.
 Đối chiếu schema fresh/migrate và EXPLAIN còn **NOT_RUN**.
 
 ## Quy tắc projection đang chạy
@@ -131,10 +131,10 @@ và rollback cần transaction thật của SP-045.03/.04, không được suy r
 
 ## Artifact còn cần người xác nhận
 
-- **Thiện:** ACK SP-046.01 draft 0.1.0 đúng blob; review overflow reason, derived metric
+- **Thiện:** ACK SP-046 (hợp đồng DTO) draft 0.1.0 đúng blob; review overflow reason, derived metric
   interval/definition semantics, chart daily grid, rank per scope và stale threshold.
 - **Minh:** Channel identity/scoped lookup, revision/invalidation serialization và ownership.
-- **Nghị/SP-045.03 + Đạt:** DAO/schema thật, period keys/FK, slot/base/version/order,
+- **Nghị/SP-045 (lưu snapshot) + Đạt:** DAO/schema thật, period keys/FK, slot/base/version/order,
   consistent read/watch/attempt persistence và query-plan/migration/device tests.
 
 Các API/SQL trên là gói review local, không phải ACK hay nghiệm thu tích hợp/live.

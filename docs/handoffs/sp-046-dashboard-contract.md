@@ -1,4 +1,4 @@
-# SP-046.01–.03 · Query và DTO dashboard cho Thiện/SP-047
+# SP-046 · Query và DTO dashboard cho Thiện/SP-047
 
 **Mã bàn giao** `c2da6480f151b1799bd461b311adbbe53774a382`, 148/148 unit test tại revision này. ViewModel nhận `AnalyticsRepository`. Implementation là `DefaultAnalyticsRepository`, đọc và refresh projection qua `AnalyticsSource`. Fixture `SimulatedAnalyticsSource` nằm trong src/test và dùng bộ nhớ. Chưa có nguồn DAO SP-045 hoặc binding AppContainer cho dashboard thật. [PR #89](https://github.com/nigPeter2503/Social_Pilot/pull/89) · [Source port](sp-046-source-query-proposal.md) · [Implementation](../../android/app/src/main/java/com/socialpilot/app/data/repository/analytics/DefaultAnalyticsRepository.java)
 
@@ -54,11 +54,11 @@ Các mốc base, blob, kết quả chạy và trạng thái local bên dưới t
 |---|---|
 | Base đối chiếu | `origin/main` cục bộ và merge-base `230c2a6ebcd8785288e57764c4ebb5fb6bbd4afa` |
 | HEAD trước khi sửa | `7931f4dc5325f0550241f7d5188521bccec63b59`, nhánh `feat/sp-019-linkedin-comments-metrics-spike` |
-| Gói đầu vào | [SP-045.05 v0.1.0](sp-045-analytics-input.md), Git blob `a34ce21e3920485e1a656335c382fce0fc45601d` |
+| Gói đầu vào | [SP-045 (bàn giao analytics) v0.1.0](sp-045-analytics-input.md), Git blob `a34ce21e3920485e1a656335c382fce0fc45601d` |
 | Hợp đồng và fixture | [SP-020 draft-4 §§3, 6–7, 10](../analytics-data-contract.md), tích hợp tại `e51dfc3375e389ed39b7ae18d44a8c7525d88cc1`. [analytics-examples.json](../contracts/analytics-examples.json), Git blob `559b2f380045c293e69ffb162ddcadbea86fedf1` |
 | Đối chiếu | [SP-012 §§3, 5](../room-schema-contract.md), [brief Thiện SP-047](../TaskBrief/W2-W3/tv3-thien-taskbrief.md#sp-047), [CONTRIBUTING.md](../../CONTRIBUTING.md). Các tài liệu và fixture đối chiếu giống nhau giữa base và HEAD. |
 
-Changelog **0.1.0** gồm chữ ký Java, DTO và consumer stub cho SP-047/#49. Draft nằm trong working tree. Lúc kiểm tra ban đầu, chỉ gói SP-045.05 còn untracked. Query/DAO, công thức và đối chiếu live thuộc SP-046.02–.04.
+Changelog **0.1.0** gồm chữ ký Java, DTO và consumer stub cho SP-047/#49. Draft nằm trong working tree. Lúc kiểm tra ban đầu, chỉ gói SP-045 (bàn giao analytics) còn untracked. Query/DAO, công thức và đối chiếu live thuộc SP-046 (repository/query và đối soát live).
 
 Git blob IDs để đối chiếu bản draft khi ACK (`git hash-object <file>`):
 
@@ -72,7 +72,7 @@ Git blob IDs để đối chiếu bản draft khi ACK (`git hash-object <file>`)
 
 ## API và vòng đời
 
-[AnalyticsRepository.java](../../android/app/src/main/java/com/socialpilot/app/domain/contract/analytics/AnalyticsRepository.java) dùng lại `Cancelable` từ Android. Callback lồng trong interface theo convention `SocialConnector.Result`. Hợp đồng đề xuất cho implementation SP-046.02:
+[AnalyticsRepository.java](../../android/app/src/main/java/com/socialpilot/app/domain/contract/analytics/AnalyticsRepository.java) dùng lại `Cancelable` từ Android. Callback lồng trong interface theo convention `SocialConnector.Result`. Hợp đồng đề xuất cho implementation SP-046 (repository/query):
 
 ~~~java
 Cancelable observeCachedDashboard(DashboardQuery query, DashboardObserver observer);
@@ -89,7 +89,7 @@ Cancelable refresh(DashboardQuery query, RefreshCallback callback);
 | Chữ ký | Cách dùng trong draft 0.1.0 |
 |---|---|
 | [DashboardQuery](../../android/app/src/main/java/com/socialpilot/app/domain/contract/analytics/DashboardQuery.java) | Scope tường minh gồm `Platform`, channel ID nội bộ và connection revision dương lấy từ `ChannelInfo`. IDs opaque, phân biệt hoa/thường. Scope và cohort là danh sách bất biến, có thứ tự trong cache key. Giữ cùng thứ tự khi tái lập cùng filter. Cohort chứa ID PublishedPost nội bộ cố định, danh sách rỗng nghĩa là không có bài. Repository cần kiểm tra các bài thuộc scope. Cache key dùng mọi trường của query và tách namespace nguồn. |
-| Definition và kỳ | `metricDefinitionId` pin nghĩa và unit trong registry SP-020/SP-045.05. Đổi nghĩa hoặc measurement window thì dùng đúng definition tương ứng. Java dùng UTC epoch millisecond `long/Long`, fixture wire dùng ISO UTC hậu tố Z. Query truyền `zoneId` IANA. Đề xuất mặc định `Asia/Ho_Chi_Minh`; thứ Hai đến Chủ nhật theo zone, lọc sự kiện nửa mở [start, end). Snapshot đúng end có thể là mốc delta. Đổi zone tạo kỳ/query mới, giữ timestamp mẫu. |
+| Definition và kỳ | `metricDefinitionId` pin nghĩa và unit trong registry SP-020/SP-045 (bàn giao analytics). Đổi nghĩa hoặc measurement window thì dùng đúng definition tương ứng. Java dùng UTC epoch millisecond `long/Long`, fixture wire dùng ISO UTC hậu tố Z. Query truyền `zoneId` IANA. Đề xuất mặc định `Asia/Ho_Chi_Minh`; thứ Hai đến Chủ nhật theo zone, lọc sự kiện nửa mở [start, end). Snapshot đúng end có thể là mốc delta. Đổi zone tạo kỳ/query mới, giữ timestamp mẫu. |
 | Grouping và top | `TOPIC` theo primaryTopicId, `FORMAT` theo format, `PUBLISH_HOUR` theo zone query. Metadata thiếu vào `UNKNOWN`. `topLimit > 0`. Số hợp lệ giảm dần, rồi publishedAt giảm dần với null cuối, rồi platform/channelId/postId tăng dần theo chuỗi. Giữ số âm, loại null có lý do qua `topPostExclusions`. So sánh và nhóm theo scope khi chưa có bằng chứng tương thích giữa nền tảng/definition. |
 | [DashboardData](../../android/app/src/main/java/com/socialpilot/app/domain/contract/analytics/DashboardData.java) | Echo query, nhãn nguồn, card kênh, post metrics, chart, tương tác tuần theo scope, top, nhóm và goal read-side. Lists luôn có giá trị, có thể rỗng. `UNAVAILABLE` chưa có projection usable, `EMPTY` là lần đọc thành công không có dữ liệu và `CONTENT` có kết quả render được, kể cả card thiếu quyền. Kết hợp content state với `IDLE/LOADING/ERROR`, offline và errors. Nếu lỗi mà không có kết quả dùng được, ưu tiên hiển thị lỗi; cache có dữ liệu vẫn render cùng lỗi và timestamp cũ. |
 | [AnalyticsTypes](../../android/app/src/main/java/com/socialpilot/app/domain/contract/analytics/AnalyticsTypes.java) | `MetricReading` và `CalculatedValue` có definition riêng. Các số đếm/delta dùng `Long`, phần trăm dùng `Double` hữu hạn. Metric null luôn có `MissingReason`; số 0 có reason null. Calculation null có `CalculationReason` và các missing details theo component. Kết quả có số cho phép reason null hoặc `PARTIAL_COVERAGE` đối với subtotal thiếu bài. Thiện chỉ format số/thời gian và render theo reason. |
@@ -102,9 +102,9 @@ Trường nullable ngoài các trường trên gồm title/publishedAt/primaryTo
 
 ## Fixture cho consumer và evidence
 
-Consumer stub và fake repository nằm trong [AnalyticsConsumerContractTest.java](../../android/app/src/test/java/com/socialpilot/app/domain/contract/analytics/AnalyticsConsumerContractTest.java). Stub đọc trực tiếp JSON SP-020 và payload markdown của SP-045.05, nên hai handoff cần đi cùng checkout để chạy lại. Query fixture dùng FACEBOOK/`mock-page-a`/revision 1, definition `mock-followers-v1`, cohort rỗng, TOPIC, topLimit 5 và kỳ từ 01/11 17:00Z đến 08/11 17:00Z. Dùng class test trong Android Studio hoặc chạy task dưới đây.
+Consumer stub và fake repository nằm trong [AnalyticsConsumerContractTest.java](../../android/app/src/test/java/com/socialpilot/app/domain/contract/analytics/AnalyticsConsumerContractTest.java). Stub đọc trực tiếp JSON SP-020 và payload markdown của SP-045 (bàn giao analytics), nên hai handoff cần đi cùng checkout để chạy lại. Query fixture dùng FACEBOOK/`mock-page-a`/revision 1, definition `mock-followers-v1`, cohort rỗng, TOPIC, topLimit 5 và kỳ từ 01/11 17:00Z đến 08/11 17:00Z. Dùng class test trong Android Studio hoặc chạy task dưới đây.
 
-| Ca pin của SP-045.05 | Expected mà consumer đọc |
+| Ca pin của SP-045 (bàn giao analytics) | Expected mà consumer đọc |
 |---|---|
 | `no-history` + `dashboard-empty`; `available-zero` | EMPTY/IDLE, danh sách rỗng, hai trục NONE. Mẫu 0 đọc thành `Long(0)` với reason null. |
 | `permission`, `permission-revoked-after-verification`, `permission-error` | Null/`PERMISSION_REQUIRED`, action `RESOLVE_PERMISSION`. |
@@ -115,14 +115,14 @@ Consumer stub và fake repository nằm trong [AnalyticsConsumerContractTest.jav
 
 ### Lệnh và kết quả thực tế
 
-- Gốc repo, `node docs/contracts/verify-analytics-examples.cjs` với Node v24.19.0. Đạt **75/75** fixture SP-020. Chạy thêm khối PowerShell §3 của SP-045.05 từ gốc repo, đạt **4/4** view `dashboard-empty`, `dashboard-stale-refresh`, `growth-gap` và `follower-delta-missing-baseline`.
+- Gốc repo, `node docs/contracts/verify-analytics-examples.cjs` với Node v24.19.0. Đạt **75/75** fixture SP-020. Chạy thêm khối PowerShell §3 của SP-045 (bàn giao analytics) từ gốc repo, đạt **4/4** view `dashboard-empty`, `dashboard-stale-refresh`, `growth-gap` và `follower-delta-missing-baseline`.
 - Gốc repo, `javac --release 17 -encoding UTF-8 -cp $classPath -d $classes @sources` rồi `java -cp "$classes;$classPath" org.junit.runner.JUnitCore com.socialpilot.app.domain.contract.analytics.AnalyticsConsumerContractTest`. Temurin 21.0.13, Gson 2.11.0, JUnit 4.13.2 và Hamcrest 1.3 từ cache Gradle. Nguồn gồm bốn tệp analytics mới, `Cancelable`, `Platform`, `SocialError`, `SocialOperation` và stub. Compile đạt, JUnit **7/7**.
 - Tại `android/`, `.\gradlew.bat --offline --no-daemon --console=plain :app:assembleDebug :app:testDebugUnitTest :app:lintDebug` với Temurin 21.0.13 và Android SDK 36. **BUILD SUCCESSFUL**. APK debug đã tạo, Android UNIT **67/67** gồm stub **7/7**, lint **0 lỗi, 6 cảnh báo** ngoài tệp analytics. Lượt đầu bị chặn khóa cache Gradle trong sandbox, lượt dùng JDK 25 lỗi major version 69. Lượt đầu trên JDK 21 phát hiện `Files.readString` trong stub không có trong classpath Android. Đổi sang `Files.readAllBytes` và UTF-8 rồi chạy đạt.
 - Gốc repo, `git diff --check` và `git diff --cached --check` đạt. Kiểm thêm từng tệp draft untracked bằng `git diff --no-index --check -- /dev/null <file>`, đạt.
 
 ## HO-DTO — Chờ Thiện xác nhận đúng revision
 
-Thiện đã xác nhận draft-2 cho W1. ACK cho SP-046.01 draft 0.1.0 vẫn chờ. GitHub issue #48/#49 chưa truy cập được trong lượt kiểm tra. [SP-020 §10](../analytics-data-contract.md#10-xác-nhận-review-và-điểm-cần-chốt) · [#48](https://github.com/nigPeter2503/Social_Pilot/issues/48) · [#49](https://github.com/nigPeter2503/Social_Pilot/issues/49)
+Thiện đã xác nhận draft-2 cho W1. ACK cho SP-046 (hợp đồng DTO) draft 0.1.0 vẫn chờ. GitHub issue #48/#49 chưa truy cập được trong lượt kiểm tra. [SP-020 §10](../analytics-data-contract.md#10-xác-nhận-review-và-điểm-cần-chốt) · [#48](https://github.com/nigPeter2503/Social_Pilot/issues/48) · [#49](https://github.com/nigPeter2503/Social_Pilot/issues/49)
 
 1. **Chữ ký và vòng đời.** Chốt callback nền + hai handle với ViewModel giữ refresh qua reattach, hay đổi observe sang LiveData. Chốt nguồn trigger tải lần đầu, thread dispatch và guard khi đổi query/revision.
 2. **Query và kỳ.** Chốt scope/revision truyền tường minh, cohort ID cố định, thứ tự cache key, kỳ tuần và zone mặc định. Xác nhận grouping, topLimit và tie-break/filters mà UI cần bảo toàn.
@@ -130,4 +130,4 @@ Thiện đã xác nhận draft-2 cho W1. ACK cho SP-046.01 draft 0.1.0 vẫn ch�
 4. **Freshness và lỗi.** Chốt 48h cho fixture, ngưỡng production theo lịch thu sau này, retryAfterAt, action, lỗi theo scope/operation và cách hiển thị stale + lỗi + offline cùng cache.
 5. **Coverage và provenance.** Chốt actual bounds, hai trục coverage, excluded reasons/subtotal, evidence inline và cách trình bày metric khác scope/definition. Xác nhận nhãn `MO_PHONG`.
 
-Thiện có thể dựng SP-047 từ draft và fixture. Khi đưa bản draft vào PR, dùng nhánh `feat/sp-046-analytics-repository` từ main theo CONTRIBUTING và đưa gói đầu vào SP-045.05 đi cùng stub. Lưu ACK kèm version và commit SHA hoặc blob IDs của bản được review trong HO-DTO. SP-046.01 và HO-DTO giữ trạng thái **Chờ Thiện xác nhận** tới lúc có bằng chứng đó.
+Thiện có thể dựng SP-047 từ draft và fixture. Khi đưa bản draft vào PR, dùng nhánh `feat/sp-046-analytics-repository` từ main theo CONTRIBUTING và đưa gói đầu vào SP-045 (bàn giao analytics) đi cùng stub. Lưu ACK kèm version và commit SHA hoặc blob IDs của bản được review trong HO-DTO. SP-046 (hợp đồng DTO) và HO-DTO giữ trạng thái **Chờ Thiện xác nhận** tới lúc có bằng chứng đó.
