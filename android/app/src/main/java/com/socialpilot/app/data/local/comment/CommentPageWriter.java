@@ -11,12 +11,12 @@ import static com.socialpilot.app.data.local.comment.CommentCheckpoint.State;
 
 /** Synchronous IO port for SP-041.04. Pass the attempt captured by this request's callback. */
 public final class CommentPageWriter {
-    public enum Failure { SCOPE, DISCONNECTED, AUTH_REQUIRED, MISSING_POST, POST_CONFLICT,
+    public enum Failure { SCOPE, RETIRED_REVISION, REVISION_NOT_RETIRED, DISCONNECTED, AUTH_REQUIRED, MISSING_POST, POST_CONFLICT,
         SOURCE, INVALID_PAGE, INVALID_CURSOR, SUPERSEDED, STORAGE }
 
     public static final class Rejected extends RuntimeException {
         public final Failure reason;
-        private Rejected(Failure reason) { super(reason.name()); this.reason = reason; }
+        Rejected(Failure reason) { super(reason.name()); this.reason = reason; }
     }
 
     public static final class Attempt {
@@ -87,7 +87,7 @@ public final class CommentPageWriter {
             if (old == null || old.state != State.MORE) throw new Rejected(Failure.INVALID_CURSOR);
             CommentCheckpoint reset = new CommentCheckpoint(attempt.first, old.localPostId,
                     State.RESTART_REQUIRED, null, null, old.oldestObservedAt, old.newestObservedAt,
-                    old.lastPageAt, old.lastCompleteSyncAt);
+                    old.lastPageAt, old.lastCompleteSyncAt, old.completedChains);
             tx.putCheckpoint(reset);
             checkPost(tx, attempt);
             return new Attempt(attempt.first, old.localPostId, reset);
@@ -113,18 +113,27 @@ public final class CommentPageWriter {
             Long oldest = old == null ? null : old.oldestObservedAt;
             Long newest = old == null ? null : old.newestObservedAt;
             boolean refresh = false;
+            CommentCheckpoint.Key key = new CommentCheckpoint.Key(query);
             for (CommentRecord item : page.items) {
                 if (!matches(query, item.scope, item.postId) || item.syncedAt != page.fetchedAt)
                     throw new Rejected(Failure.INVALID_PAGE);
                 if (item.source != source) throw new Rejected(Failure.SOURCE);
                 StoredComment prior = tx.comment(query.platform, query.channelId, item.commentId);
+                // The logical key survives reconnect. A retired payload has no authority
+                // over the new revision, including its merge fields and handled state.
+                if (prior != null && prior.observation.scope.connectionRevision < query.connectionRevision)
+                    prior = null;
                 if (prior != null && (!attempt.localPostId.equals(prior.localPostId)
                         || !matches(query, prior.observation.scope, prior.observation.postId)))
                     throw new Rejected(Failure.POST_CONFLICT);
+                // Provider ordering is unverified. Skip older known items, never infer end-of-chain.
+                if (query.historyFrom != null && item.createdAt != null && item.createdAt < query.historyFrom) continue;
                 StoredComment row = prior == null
                         ? new StoredComment(attempt.localPostId, query.queryFingerprint, item, null, false)
                         : prior.merge(item, query.queryFingerprint);
                 if (row != prior) tx.putComment(row);
+                if (query.historyFrom != null && row.createdAt != null && row.createdAt < query.historyFrom) continue;
+                tx.include(key, item.commentId);
                 refresh |= row.needsRefresh;
                 if (row.createdAt != null) {
                     if (oldest == null || row.createdAt < oldest) oldest = row.createdAt;
@@ -137,14 +146,17 @@ public final class CommentPageWriter {
                 completeAt = page.fetchedAt;
             long pageAt = old == null ? page.fetchedAt : Math.max(old.lastPageAt, page.fetchedAt);
             CommentCheckpoint next = new CommentCheckpoint(query, attempt.localPostId, state, page.paginationReason,
-                    page.nextCursor, oldest, newest, pageAt, completeAt);
+                    page.nextCursor, oldest, newest, pageAt, completeAt,
+                    (old == null ? 0 : old.completedChains) + (state == State.COMPLETE ? 1 : 0));
             tx.putCheckpoint(next);
+            CommentAttempt metadata = tx.attempt(key);
+            if (metadata != null) tx.putAttempt(key, new CommentAttempt(metadata.lastAttemptAt(), null, null, null, 0));
             checkPost(tx, attempt);
             return new Commit(next, refresh);
         });
     }
 
-    private CommentCheckpoint current(CommentStore.Transaction tx, Attempt attempt) {
+    CommentCheckpoint current(CommentStore.Transaction tx, Attempt attempt) {
         checkPost(tx, attempt);
         CommentCheckpoint actual = tx.checkpoint(new CommentCheckpoint.Key(attempt.first));
         String generation = actual == null ? null : actual.generation;
@@ -159,10 +171,15 @@ public final class CommentPageWriter {
     }
 
     private PublishedPost requirePost(CommentStore.Transaction tx, CommentPageRequest q) {
+        return requirePost(tx, q, true);
+    }
+
+    PublishedPost requirePost(CommentStore.Transaction tx, CommentPageRequest q, boolean writing) {
         ChannelState channel = tx.channel(q.channelId);
         if (channel == null) throw new Rejected(Failure.SCOPE);
         if (channel.status == ConnectionStatus.DISCONNECTED) throw new Rejected(Failure.DISCONNECTED);
-        if (channel.status != ConnectionStatus.CONNECTED) throw new Rejected(Failure.AUTH_REQUIRED);
+        if (channel.scope.connectionRevision > q.connectionRevision) throw new Rejected(Failure.RETIRED_REVISION);
+        if (writing && channel.status != ConnectionStatus.CONNECTED) throw new Rejected(Failure.AUTH_REQUIRED);
         PublishedPostScope expected = new PublishedPostScope(q.platform, q.account.type, q.channelId,
                 q.connectionRevision, q.externalAccountId);
         if (!expected.same(channel.scope)) throw new Rejected(Failure.SCOPE);
@@ -179,7 +196,7 @@ public final class CommentPageWriter {
                 && q.connectionRevision == s.connectionRevision && q.postId.equals(postId);
     }
 
-    private <T> T transaction(CommentStore.Work<T> work) {
+    <T> T transaction(CommentStore.Work<T> work) {
         try {
             return store.transaction(work);
         } catch (Rejected rejection) {

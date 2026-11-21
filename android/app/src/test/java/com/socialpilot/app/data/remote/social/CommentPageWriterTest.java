@@ -230,7 +230,7 @@ public class CommentPageWriterTest {
         store.state(scope(a, 7), ConnectionStatus.REAUTH_REQUIRED);
         reject(Failure.AUTH_REQUIRED, () -> writer.prepare(a));
         store.state(scope(a, 8), ConnectionStatus.CONNECTED);
-        reject(Failure.SCOPE, () -> commitFixture(pending, page(a, 10, false)));
+        reject(Failure.RETIRED_REVISION, () -> commitFixture(pending, page(a, 10, false)));
         store.state(scope(a, 7), ConnectionStatus.CONNECTED);
         reject(Failure.SOURCE, () -> CommentPageWriter.forProduction(store, codec).prepare(a));
         CommentPage wrong = new CommentPage(a, Collections.emptyList(), null, false, null, 10, Source.API_THAT, "fixture");
@@ -241,10 +241,10 @@ public class CommentPageWriterTest {
     @Test public void invalidationBeforeCommitAndReconnectRejectOldCallback() {
         seed(a);
         Attempt old = writer.prepare(a);
-        store.invalidate(scope(a, 8));
+        store.state(scope(a, 8), ConnectionStatus.DISCONNECTED);
         reject(Failure.DISCONNECTED, () -> commitFixture(old, page(a, 20, false)));
         store.state(scope(a, 9), ConnectionStatus.CONNECTED);
-        reject(Failure.SCOPE, () -> commitFixture(old, page(a, 20, false)));
+        reject(Failure.RETIRED_REVISION, () -> commitFixture(old, page(a, 20, false)));
         assertEquals(0, store.size());
         assertEquals(0, store.checkpoints());
     }
@@ -255,7 +255,8 @@ public class CommentPageWriterTest {
         write(a, 10, item(a, "id", "A", null, 10));
         write(b, 10, item(b, "id", "B", null, 10));
         Attempt old = writer.prepare(a);
-        store.invalidate(scope(a, 8));
+        store.state(scope(a, 8), ConnectionStatus.DISCONNECTED);
+        new CommentCache(writer).cleanRetired(a.channelId, 7);
         assertNull(row(a, "id"));
         assertEquals("B", row(b, "id").message);
         assertEquals(1, store.checkpoints());
@@ -265,7 +266,7 @@ public class CommentPageWriterTest {
     @Test public void finalGuardRollsBackEvenAfterCheckpointWrite() {
         seed(a);
         store.afterCheckpoint = () -> store.state(scope(a, 8), ConnectionStatus.CONNECTED);
-        reject(Failure.SCOPE, () -> write(a, 20, item(a, "late", "", null, 20)));
+        reject(Failure.RETIRED_REVISION, () -> write(a, 20, item(a, "late", "", null, 20)));
         assertEquals(0, store.size());
         assertEquals(0, store.checkpoints());
     }

@@ -14,7 +14,7 @@ public final class CommentCheckpoint {
         public final String queryFingerprint;
         public final long revision;
 
-        Key(CommentPageRequest query) {
+        public Key(CommentPageRequest query) {
             channelId = query.channelId;
             postId = query.postId;
             queryFingerprint = query.queryFingerprint;
@@ -42,12 +42,13 @@ public final class CommentCheckpoint {
     public final Long newestObservedAt;
     public final long lastPageAt;
     public final Long lastCompleteSyncAt;
+    public final long completedChains;
     // Internal concurrency marker and encrypted continuation. Never render or log either.
     final String generation;
     final String continuation;
 
     CommentCheckpoint(CommentPageRequest query, String post, State state, String reason,
-            String continuation, Long oldest, Long newest, long pageAt, Long completeAt) {
+            String continuation, Long oldest, Long newest, long pageAt, Long completeAt, long completedChains) {
         key = new Key(query);
         localPostId = post;
         this.state = state;
@@ -58,6 +59,7 @@ public final class CommentCheckpoint {
         newestObservedAt = newest;
         lastPageAt = pageAt;
         lastCompleteSyncAt = completeAt;
+        this.completedChains = completedChains;
         generation = UUID.randomUUID().toString();
     }
 }

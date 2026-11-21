@@ -12,12 +12,15 @@ android {
         versionCode 1
         versionName '0.1.0'
         buildConfigField 'String', 'OAUTH_API_BASE_URL', '"' + escapedOauthApiBaseUrl + '"'
-        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+        testInstrumentationRunner providers.gradleProperty('deviceTestRunner').getOrElse('androidx.test.runner.AndroidJUnitRunner')
         javaCompileOptions { annotationProcessorOptions {
             arguments += ['room.schemaLocation': "$projectDir/schemas".toString()]
         } }
     }
     buildFeatures { viewBinding true; buildConfig true }
+    // Both test environments use the same transactional MO_PHONG stores.
+    sourceSets.androidTest.java.srcDir 'src/test/java/com/socialpilot/app/data/local/publishedpost'
+    sourceSets.androidTest.java.exclude '**/PublishedPostRepositoryTest.java'
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
