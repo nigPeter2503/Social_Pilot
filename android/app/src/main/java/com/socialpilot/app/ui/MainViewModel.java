@@ -11,7 +11,11 @@ import androidx.lifecycle.MutableLiveData;
 import com.socialpilot.app.SocialPilotApplication;
 import com.socialpilot.app.core.FacebookOAuthCoordinator;
 import com.socialpilot.app.data.local.DraftEntity;
+import com.socialpilot.app.data.local.BriefDao.BriefListItem;
 import com.socialpilot.app.data.repository.DraftRepository;
+import com.socialpilot.app.data.repository.BriefRepository;
+import com.socialpilot.app.domain.editor.BriefForm;
+import com.socialpilot.app.domain.editor.BriefFormValidator;
 import java.util.List;
 
 public final class MainViewModel extends AndroidViewModel {
@@ -24,6 +28,7 @@ public final class MainViewModel extends AndroidViewModel {
     }
 
     private final DraftRepository repository;
+    private final BriefRepository briefRepository;
     private final FacebookOAuthCoordinator facebookOAuth;
     private final MutableLiveData<SaveState> saveState = new MutableLiveData<>(SaveState.IDLE);
     private final MutableLiveData<OAuthUiState> oauthState = new MutableLiveData<>(new OAuthUiState(OAuthStatus.IDLE, null));
@@ -33,10 +38,14 @@ public final class MainViewModel extends AndroidViewModel {
 
         com.socialpilot.app.core.AppContainer appContainer = ((SocialPilotApplication) application).container();
         repository = appContainer.drafts;
+        briefRepository = appContainer.briefs;
         facebookOAuth = appContainer.facebookOAuth;
     }
 
     public LiveData<List<DraftEntity>> drafts() { return repository.observeRecent(); }
+    public LiveData<List<BriefListItem>> briefs() {
+        return briefRepository.observeRecentDetails();
+    }
     public LiveData<SaveState> saveState() { return saveState; }
     public LiveData<OAuthUiState> oauthState() { return oauthState; }
     public String connectedPageSummary() { return facebookOAuth.connectedPageSummary(); }
@@ -47,6 +56,18 @@ public final class MainViewModel extends AndroidViewModel {
         saveState.setValue(SaveState.SAVING);
         repository.save(topic, ok -> new Handler(Looper.getMainLooper()).post(
             () -> saveState.setValue(ok ? SaveState.SAVED : SaveState.FAILED)));
+    }
+
+    public BriefFormValidator.Errors validateDraft(BriefForm form) {
+        return BriefFormValidator.validate(form, false);
+    }
+
+    public void saveBriefDraft(BriefForm form) {
+        if (saveState.getValue() == SaveState.SAVING) return;
+        if (validateDraft(form).hasErrors()) throw new IllegalArgumentException("Invalid brief draft");
+        saveState.setValue(SaveState.SAVING);
+        briefRepository.saveDraft(form, (id, saved) -> new Handler(Looper.getMainLooper()).post(
+                () -> saveState.setValue(saved ? SaveState.SAVED : SaveState.FAILED)));
     }
 
     public void connectFacebook() {
