@@ -1,6 +1,8 @@
 package com.socialpilot.app.ui;
 
+import android.content.Context;
 import android.content.Intent;
+import android.graphics.Rect;
 import android.net.Uri;
 import android.os.Bundle;
 import android.widget.Toast;
@@ -11,10 +13,19 @@ import androidx.lifecycle.ViewModelProvider;
 import com.socialpilot.app.R;
 import com.socialpilot.app.databinding.ActivityMainBinding;
 import com.socialpilot.app.domain.DraftValidator;
+import com.socialpilot.app.ui.channels.MyChannelsActivity;
 
 public final class MainActivity extends AppCompatActivity {
+    private static final String OPEN_FACEBOOK_CONNECTION = "open_facebook_connection";
     private ActivityMainBinding binding;
     private MainViewModel model;
+
+    public static void openFacebookConnection(Context context) {
+        Intent intent = new Intent(context, MainActivity.class)
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                .putExtra(OPEN_FACEBOOK_CONNECTION, true);
+        context.startActivity(intent);
+    }
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -25,6 +36,8 @@ public final class MainActivity extends AppCompatActivity {
             view.setPadding(bars.left, bars.top, bars.right, bars.bottom); return insets;
         });
         model = new ViewModelProvider(this).get(MainViewModel.class);
+        binding.myChannelsButton.setOnClickListener(view ->
+                startActivity(new Intent(this, MyChannelsActivity.class)));
         String page = model.connectedPageSummary();
         if (page != null) binding.facebookPageStatus.setText(getString(R.string.facebook_connected, page));
         binding.connectFacebookButton.setOnClickListener(view -> model.connectFacebook());
@@ -63,10 +76,22 @@ public final class MainActivity extends AppCompatActivity {
             catch (IllegalArgumentException error) { binding.topicInput.setError(getString(R.string.required)); }
         });
         handleOAuthIntent(getIntent());
+        showFacebookConnection(getIntent());
     }
 
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent); setIntent(intent); handleOAuthIntent(intent);
+        showFacebookConnection(intent);
+    }
+
+    private void showFacebookConnection(Intent intent) {
+        if (!intent.getBooleanExtra(OPEN_FACEBOOK_CONNECTION, false)) return;
+        intent.removeExtra(OPEN_FACEBOOK_CONNECTION);
+        binding.connectFacebookButton.post(() -> {
+            Rect bounds = new Rect();
+            binding.connectFacebookButton.getDrawingRect(bounds);
+            binding.connectFacebookButton.requestRectangleOnScreen(bounds);
+        });
     }
 
     private void handleOAuthIntent(Intent intent) {

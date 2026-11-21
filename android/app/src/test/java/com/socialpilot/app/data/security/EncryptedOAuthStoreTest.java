@@ -39,6 +39,8 @@ public class EncryptedOAuthStoreTest {
         assertFalse(preferences.getString("connected_v2", "").contains("fake-old-token"));
         EncryptedOAuthStore reloaded = new EncryptedOAuthStore(preferences.reboot(), cipher);
         assertEquals("old-page (old-page)", reloaded.pageSummary());
+        assertEquals("old-page", reloaded.pageMetadata().externalAccountId);
+        assertEquals("old-page", reloaded.pageMetadata().displayName);
         assertEquals("fake-old-token", reloaded.accessToken());
     }
 
@@ -93,6 +95,7 @@ public class EncryptedOAuthStoreTest {
         assertNull(store.pageSummary());
         assertNull(store.accessToken());
         assertFalse(preferences.contains("connected_v2"));
+        assertThrows(IllegalStateException.class, store::pageMetadata);
         assertEquals("pending-session", store.getPending().sessionId);
     }
 
