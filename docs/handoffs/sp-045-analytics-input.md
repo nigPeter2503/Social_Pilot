@@ -1,10 +1,10 @@
-# SP-045.05 — Đầu vào analytics cho SP-046 và SP-047
+# SP-045 — Đầu vào analytics cho SP-046 và SP-047
 
 **Bổ sung Instagram ngày 21/11/2026, chờ ACK của Đạt và Thiện.** Follower adapter nhận account `INSTAGRAM_PROFESSIONAL`, ID tài khoản IG và wire `PROFESSIONAL`. Post adapter nhận `IG_REACH` theo media ID và quyền metric. Sample lưu khóa `REACH_COUNT`, providerMetricName `reach`, COUNT, CUMULATIVE, DISTINCT_TOTAL và window LIFETIME. Consumer đọc reach theo từng media. Giá trị 0 được lưu nguyên. Khi thiếu mapping cho IG_LIKES/IG_COMMENTS/IG_SHARES/IG_IMPRESSIONS, adapter trả lý do thiếu tại local. Định danh collection, nguồn và revision theo schema bên dưới. Kiểm fixture collector bằng `MetricCollectionTest.instagramFollowerAndMediaReachPersistAsSeparateSubjectsOnReplay`. Nguồn T1/T2 production vẫn chờ Room và grant.
 
 **Version 0.1.0 · 18/11/2026 · Bàn giao sớm để triển khai từ fixture**
 
-**Người nhận:** Tô Lãng Nghị (SP-046.01/.02/.03) và Đỗ Phước Thiện (SP-047, khung dashboard). Thiện xác nhận chữ ký qua HO-DTO và SP-046.01.
+**Người nhận:** Tô Lãng Nghị (SP-046) và Đỗ Phước Thiện (SP-047, khung dashboard). Thiện xác nhận chữ ký qua handoff DTO của SP-046.
 
 | Nguồn | Revision đối chiếu |
 |---|---|
@@ -32,9 +32,9 @@ Mỗi sample có provenance API_THAT, FIXTURE_TU_API_DA_CHE, MO_PHONG hoặc PRO
 
 | Metric / đơn vị | Entity và kiểu đo | Định nghĩa, phép tính và trạng thái |
 |---|---|---|
-| FOLLOWER_COUNT · COUNT | CHANNEL · GAUGE | Mức follower tại observedAt. Fixture dùng **mock-followers-v1**, aggregation LATEST, providerMetricName null. Facebook PAGE có bằng chứng spike cho followers_count; mapping vào scope/revision app còn chờ SP-045.01. LinkedIn MEMBER/ORGANIZATION cần xác minh theo account; connections là metric khác. |
+| FOLLOWER_COUNT · COUNT | CHANNEL · GAUGE | Mức follower tại observedAt. Fixture dùng **mock-followers-v1**, aggregation LATEST, providerMetricName null. Facebook PAGE có bằng chứng spike cho followers_count; mapping vào scope/revision app còn chờ SP-045 (adapter follower). LinkedIn MEMBER/ORGANIZATION cần xác minh theo account; connections là metric khác. |
 | REACTION_COUNT · COUNT | POST · CUMULATIVE hoặc PERIOD theo định nghĩa | Chọn tổng reaction hoặc like theo nguồn. Cần definition riêng cho hai nghĩa và mỗi phạm vi đo. |
-| COMMENT_COUNT · COUNT | POST · CUMULATIVE hoặc PERIOD theo định nghĩa | Tách top-level và stream/bao gồm reply. Tên provider và phạm vi của từng definition còn chờ SP-045.02. |
+| COMMENT_COUNT · COUNT | POST · CUMULATIVE hoặc PERIOD theo định nghĩa | Tách top-level và stream/bao gồm reply. Tên provider và phạm vi của từng definition còn chờ SP-045 (adapter metric bài). |
 | SHARE_COUNT · COUNT | POST · CUMULATIVE hoặc PERIOD theo định nghĩa | Share/reshare theo phạm vi provider. Facebook spike có trường bị bỏ qua, giữ null/PROVIDER_OMITTED. |
 | IMPRESSION_COUNT · COUNT | POST · CUMULATIVE hoặc PERIOD theo định nghĩa | Impression theo mapping đã kiểm. Facebook media views và unique viewers có định nghĩa riêng; impression chưa xác minh. |
 | ENGAGEMENT_COUNT · COUNT | POST · Kế thừa phạm vi đo của thành phần | E = reaction + comment + share cùng scope/định nghĩa thành phần và measurement window. Thiếu thành phần → null/MISSING_COMPONENT. Definition dẫn đúng componentDefinitionIds. |
@@ -229,7 +229,7 @@ console.log('PASS follower-delta-missing-baseline');
 
 Kết quả tại base nêu trên với Node v24.19.0: 75/75 ca SP-020 và 4/4 view/DTO bổ sung đạt. Đã parse hai payload JSON, đối chiếu ID, expected values và đích liên kết từ working tree hoặc Git object ở ref đã pin. Kết quả áp dụng cho fixture MO_PHONG.
 
-## 4. Thiện xác nhận tại HO-DTO / SP-046.01
+## 4. Thiện xác nhận tại HO-DTO / SP-046 (hợp đồng DTO)
 
 1. **Chữ ký/lifecycle.** Chọn LiveData, callback hay dạng observable hiện có cho observeCachedDashboard(query)? refresh(query, callback) trả Cancelable theo contract nào, callback chạy ở thread nào, hủy theo query cũ/đổi revision ra sao? Observer gắn lại sau xoay màn hình đọc cache theo cách nào để tránh gọi refresh lặp?
 2. **Query và kỳ.** Consumer gửi channelIds để repository resolve revision, hay cần gửi ChannelScope tường minh? Chốt list cohortPostIds hoặc fingerprint + danh sách, granularity kỳ, zone mặc định Asia/Ho_Chi_Minh, grouping/topLimit và thứ tự tie-break. Khi đổi zone hoặc metric, UI lưu và tái lập query nào?
@@ -237,4 +237,4 @@ Kết quả tại base nêu trên với Node v24.19.0: 75/75 ca SP-020 và 4/4 v
 4. **Freshness/lỗi.** Xác nhận ngưỡng 48 giờ cho fixture và cách hiển thị lastSuccessAt, lastAttemptAt, lỗi refresh và offline độc lập trên cache. Chốt error theo scope/operation và các hành động retry/reconnect/resolve permission.
 5. **Coverage và truy xuất nguồn.** Chốt cấu trúc excludedReasons, requested/actual bounds, hai trục coverage, cách đánh dấu subtotal và phạm vi so sánh khác platform. UI cần sourceSnapshotIds + source/sourceRef trực tiếp hay resolver? Với goal tạm tính hoặc stale, Thiện xác nhận render rawProgress cùng completionStatus UNKNOWN.
 
-Nghị có thể chạy fixture và chuẩn bị logic SP-046.02/.03; Thiện dùng gói cho khung SP-047. Khi Thiện xác nhận, ghi ACK kèm version/SHA và quyết định vào HO-DTO/SP-046.01. Giao số và snapshot thật qua HO-DASH sau bước tích hợp.
+Nghị có thể chạy fixture và chuẩn bị logic SP-046; Thiện dùng gói cho khung SP-047. Khi Thiện xác nhận, ghi ACK kèm version/SHA và quyết định vào handoff DTO của SP-046. Giao số và snapshot thật sau bước tích hợp.

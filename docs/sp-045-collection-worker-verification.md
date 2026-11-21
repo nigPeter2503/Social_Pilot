@@ -1,4 +1,4 @@
-# SP-045.04 · Thu snapshot từ manual refresh và WorkManager
+# SP-045 (collector/Worker) · Thu snapshot từ manual refresh và WorkManager
 
 Nghị · 19/11/2026 21:44 Asia/Saigon · Issue SP-045 #47. Phần điều phối đã kiểm local, dữ liệu và credential của toàn bộ test mang nhãn **MO_PHONG**. Số lần gọi API thật bằng 0.
 
@@ -8,11 +8,11 @@ Worktree `D:/CNTT/mobile/Social_Pilot-SP045`, nhánh `feat/sp-045-follower-adapt
 
 | Đầu vào | Kết quả đối chiếu |
 |---|---|
-| Analytics draft-4 §§5/8/9, Social §§3/5 và master plan SP-045.04 | Khóa theo scope/subject/collection, action theo operation, revision ở transaction ghi. Slot ngày do caller truyền bằng UTC epoch. |
-| SP-045.01/.02/.03 | Đọc ba evidence, hai adapter, request/result, SnapshotReading, SnapshotWriter, SnapshotDao, SyncCoordinator, AppContainer và AppDatabase. Trước sửa có 29 file untracked, diff tracked và index rỗng. Sau sửa 26/29 có cùng SHA-256. Ba file bổ sung API là SnapshotDao, SnapshotReading và SimulatedSnapshotDao. Writer và hai adapter giữ nguyên byte. |
+| Analytics draft-4 §§5/8/9, Social §§3/5 và master plan SP-045 (collector/Worker) | Khóa theo scope/subject/collection, action theo operation, revision ở transaction ghi. Slot ngày do caller truyền bằng UTC epoch. |
+| SP-045 (adapter follower, metric bài và lưu snapshot) | Đọc ba evidence, hai adapter, request/result, SnapshotReading, SnapshotWriter, SnapshotDao, SyncCoordinator, AppContainer và AppDatabase. Trước sửa có 29 file untracked, diff tracked và index rỗng. Sau sửa 26/29 có cùng SHA-256. Ba file bổ sung API là SnapshotDao, SnapshotReading và SimulatedSnapshotDao. Writer và hai adapter giữ nguyên byte. |
 | Minh · SP-022 | Issue #24 open, 0 comment. Main có ChannelInfo/OAuth. Trong refs remote chưa thấy nhánh giao SP-022 hoặc SHA cho Channel DAO, revision bền và capability/grant theo operation. [Issue #24](https://github.com/nigPeter2503/Social_Pilot/issues/24) |
 | Đạt · SP-012 | PR #71 head `11abeb4`, merge `5a5f82b` là quy ước Room. PR #82 head `178e05c` dùng slot Brief. Issue #14 cùng PR #71/#82 có 0 issue comment. Chưa có base/slot được giao cho snapshot follower. AppDatabase và export v1 ở blob schema `5172492e197da5086e9ac37f1c0bcc8a5db5e15b`. [PR #71](https://github.com/nigPeter2503/Social_Pilot/pull/71) · [PR #82](https://github.com/nigPeter2503/Social_Pilot/pull/82) |
-| SP-041.01 | Issue #43 open, 0 comment. Evidence worktree SP041 trên `230c2a6` có upsert mô phỏng và đề xuất Room. Chưa có PublishedPost production để resolve native post trong scope. [Issue #43](https://github.com/nigPeter2503/Social_Pilot/issues/43) |
+| SP-041 (PublishedPost) | Issue #43 open, 0 comment. Evidence worktree SP041 trên `230c2a6` có upsert mô phỏng và đề xuất Room. Chưa có PublishedPost production để resolve native post trong scope. [Issue #43](https://github.com/nigPeter2503/Social_Pilot/issues/43) |
 
 Kiểm Git bằng `git status --short --branch --untracked-files=all`, `git rev-parse HEAD origin/main`, `git merge-base HEAD origin/main`, `git diff --stat HEAD`, `git diff --cached` và `git -c credential.helper= -c core.askPass= ls-remote origin 'refs/heads/*' 'refs/pull/*/head'`. Truy vấn GET GitHub issues cho #14/24/43/47/71/82. Lần đọc refs đầu trong sandbox lỗi DNS, truy vấn chỉ đọc ngoài sandbox thành công.
 
@@ -22,7 +22,7 @@ Kiểm Git bằng `git status --short --branch --untracked-files=all`, `git rev-
 - WorkData giữ nguyên collection ID, collectionStartedAt, identity/revision, version, cờ follower và từng query bài cùng period/evidence. Refresh mới cấp UUID ngay cả khi đồng hồ trùng nhau. Unique work `APPEND_OR_REPLACE` theo channel/revision tuần tự hóa hai refresh. Worker đọc lại progress theo khóa subject/collection. Lần thực thi có IO mới tạo attempt UUID mới. Đối tượng Batch giữ cố định attempt UUID, readings và completedAt cho giao lại. Một callback chỉ đi vào mapper của đúng request gốc.
 - Một job tối đa 8 endpoint, mỗi query của một post đo một kỳ trong một collection. Mỗi endpoint có tối đa 3 lần thực thi đã ghi. Mỗi work request có tối đa 8 lượt bắt đầu trước khi dừng retry tự động. Mỗi callback được đợi tối đa 20 giây. Đây là các giới hạn local để review. WorkManager yêu cầu CONNECTED, dùng exponential backoff gốc 30 giây. Sau 429/mất mạng dừng phát thêm request trong lượt đang chạy. Coordinator dùng thời điểm muộn hơn giữa backoff và Retry-After. Worker có thể thức muộn hơn hoặc thức sớm để kiểm thời hạn, lần thức sớm không gọi provider. Refresh mới cùng revision cũng tôn trọng Retry-After đã ghi.
 - Mỗi subject tạo một batch. Lượt sau chỉ gọi operation còn thiếu/chờ retry. Follower có thể hoàn tất riêng khi post thiếu ownership. Adapter kiểm capability, revision và grant con. Writer xác minh lại Channel và local post trong transaction; snapshot/attempt cùng commit. Cache trả lastGood nguyên sample/provenance, lastAttempt và gaps theo subject/operation của slot ngày, kèm outcome/lỗi nếu có. Kết quả nghiệp vụ ở output `state`; terminal domain result hoàn tất work item để lượt refresh kế tiếp trong chain được chạy.
-- `cancel(channelId, revision)` ngắt lượt đang chờ callback và hủy queued work có tag đó. SP-045.08 sẽ gọi hook cùng invalidation revision và policy cleanup. Snapshot cache trong app còn phụ thuộc implementation Room của các port. Lịch hằng ngày/tập bài và slot giờ cần cấu hình khi có channel thật.
+- `cancel(channelId, revision)` ngắt lượt đang chờ callback và hủy queued work có tag đó. SP-045 (disconnect/recovery) sẽ gọi hook cùng invalidation revision và policy cleanup. Snapshot cache trong app còn phụ thuộc implementation Room của các port. Lịch hằng ngày/tập bài và slot giờ cần cấu hình khi có channel thật.
 
 ## Xác minh
 
@@ -34,7 +34,7 @@ Kiểm Git bằng `git status --short --branch --untracked-files=all`, `git rev-
 | Gradle assembleDebug, testDebugUnitTest, lintDebug, installDebug, installDebugAndroidTest | BUILD SUCCESSFUL 33s trên bản cuối. JVM **161/161**, 0 skipped/errors/failures. Gồm 14 collector, 29 follower, 47 post, 11 storage, 60 regression khác. Lint **0 lỗi, 6 cảnh báo**. [JUnit](../android/app/build/reports/tests/testDebugUnitTest/index.html) · [Lint](../android/app/build/reports/lint-results-debug.html) |
 | TestDriver và Worker trên AVD Pixel_9, emulator-5554, API 37 x86_64 | **3/3**. Hai refresh đang ENQUEUED/BLOCKED, 0 calls trước constraint, sau đó 2 UUID/2 calls/2 snapshots. Round-trip WorkData giữ nguyên URN, period và scope. Dựng lại 3 Worker trong cùng process, offline/15s/30s cho retry/retry/success, 1 call, 2 attempt ID, 1 snapshot. |
 | WorkManager thật, hai tiến trình AVD, bật/tắt mạng thật của AVD | **2/2 pha của 1 kịch bản**. Job ngoại tuyến ở ENQUEUED, force-stop app, mở instrumentation với PID mới khi vẫn offline, bật mạng và đợi đúng work hoàn tất. Số liệu ở bảng dưới. |
-| Diff | PASS `git diff --check`, `git diff --cached --check` và `git diff --no-index --check -- /dev/null <file>` cho **39/39 file untracked**. Index rỗng. Đối chiếu hash file đầu phiên và blob của 15 file code/build/test .04. Thay lại dòng cũ trong bộ nhớ tái tạo đúng từng byte master plan trước sửa. |
+| Diff | PASS `git diff --check`, `git diff --cached --check` và `git diff --no-index --check -- /dev/null <file>` cho **39/39 file untracked**. Index rỗng. Đối chiếu hash file đầu phiên và blob của 15 file code/build/test collector/Worker. Thay lại dòng cũ trong bộ nhớ tái tạo đúng từng byte master plan trước sửa. |
 
 **Timeline thực của kịch bản AVD**
 
@@ -77,12 +77,12 @@ $cases = @('driverQueuesTwoManualCollectionsAndRunsWorkerOnlyWhenConnected','res
 
 | NOT_RUN | Lý do và người nhận |
 |---|---|
-| Thu follower thật SP-045.06 | Minh giao Channel/credential reference/capability READ_FOLLOWER_COUNT theo account và revision, xác minh grant/endpoint/version thật. Đạt giao slot follower, Nghị nối DAO Room và AppContainer, kiểm migration rồi đo từ ứng dụng. |
-| Thu metric bài thật SP-045.07 | Thêm root SP-041.01 PublishedPost có local/native ID đúng scope, ownership transaction và grant từng metric/query/version/period. Nghị thu bộ sample thật với provenance. |
+| Thu follower thật SP-045 (lượt follower T1) | Minh giao Channel/credential reference/capability READ_FOLLOWER_COUNT theo account và revision, xác minh grant/endpoint/version thật. Đạt giao slot follower, Nghị nối DAO Room và AppContainer, kiểm migration rồi đo từ ứng dụng. |
+| Thu metric bài thật SP-045 (lượt metric bài T1) | Thêm root PublishedPost của SP-041 có local/native ID đúng scope, ownership transaction và grant từng metric/query/version/period. Nghị thu bộ sample thật với provenance. |
 | Đọc lại snapshot/attempt từ Room qua kill giữa retry, migration/API 23 và 36 | DB app hiện chỉ export v1 Draft. Chưa có migration hoặc DAO production để chạy. Host chỉ có AVD system image API 37. Cần kiểm data v1→đích và fresh install trên ma trận đã chốt sau khi Đạt cấp slot. |
-| Lịch hằng ngày và cặp mốc thật, cleanup theo chính sách | Chờ cấu hình lịch/grant, hook invalidation/retention SP-045.08 và hai lượt thu thực tế SP-045.09. Nghị đối chiếu gap/partial và phối hợp SP-046.02. |
+| Lịch hằng ngày và cặp mốc thật, cleanup theo chính sách | Chờ cấu hình lịch/grant, hook invalidation/retention SP-045 (disconnect/recovery) và hai lượt thu thực tế SP-045 (lượt T2/recovery). Nghị đối chiếu gap/partial và phối hợp SP-046 (repository/query). |
 
-**Đủ cho Draft PR issue #47** · Nghị có thể đóng gói .01–.04 gồm adapter, writer, coordinator/Worker, tests và evidence để review phần độc lập. **Trước review toàn SP-045** · Hoàn tất các gate live/Room và recovery ở trên, Đạt kiểm migration/ownership, Thiện kiểm lastGood, lastAttempt, provenance, gap và DTO consumer. Việc gửi review nằm ở phiên bàn giao sau.
+**Đủ cho Draft PR issue #47** · Nghị có thể đóng gói các adapter và collector/Worker gồm adapter, writer, coordinator/Worker, tests và evidence để review phần độc lập. **Trước review toàn SP-045** · Hoàn tất các gate live/Room và recovery ở trên, Đạt kiểm migration/ownership, Thiện kiểm lastGood, lastAttempt, provenance, gap và DTO consumer. Việc gửi review nằm ở phiên bàn giao sau.
 
 ## Định danh bản local
 

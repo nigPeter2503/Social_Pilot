@@ -1,4 +1,4 @@
-# SP-045.01 — Follower adapter Android
+# SP-045 (adapter follower) — Follower adapter Android
 
 TV4 / Tô Lãng Nghị. Cập nhật **19/11/2026 12:59, Asia/Saigon (UTC+07)**.
 Trạng thái: **sẵn sàng review local/fixture**, chưa commit, push hoặc tạo PR.
@@ -6,8 +6,8 @@ Thời gian thực hiện: —. Live Facebook PAGE / LinkedIn MEMBER / ORGANIZAT
 
 ## Baseline và bảo toàn workspace
 
-- Đã đọc master plan SP-045.01, CONTRIBUTING, analytics-data-contract **draft-4**,
-  social-contract **v1**, handoff SP-045.05 **0.1.0** và SP-046.01 **draft 0.1.0**.
+- Đã đọc master plan SP-045 (adapter follower), CONTRIBUTING, analytics-data-contract **draft-4**,
+  social-contract **v1**, handoff SP-045 (bàn giao analytics) **0.1.0** và SP-046 (hợp đồng DTO) **draft 0.1.0**.
 - Worktree gốc `D:/CNTT/mobile/Social_Pilot` giữ nhánh
   `feat/sp-019-linkedin-comments-metrics-spike`, HEAD
   `7931f4dc5325f0550241f7d5188521bccec63b59`. Diff tracked/staged sạch trước sửa.
@@ -20,8 +20,8 @@ Thời gian thực hiện: —. Live Facebook PAGE / LinkedIn MEMBER / ORGANIZAT
   Không có task commit SHA; định danh bản làm việc bằng blob bên dưới.
 - `git worktree add -b feat/sp-045-follower-adapter D:/CNTT/mobile/Social_Pilot-SP045 origin/main`
   tạo worktree riêng từ main đã xác minh. Không sửa nhánh/main/worktree W1.
-- Handoff SP-045.05 blob `a34ce21e3920485e1a656335c382fce0fc45601d`;
-  SP-046.01 blob `d23e93bfa3974837a4d061de71783027a901228a`, chỉ đọc làm đầu vào.
+- Handoff SP-045 (bàn giao analytics) blob `a34ce21e3920485e1a656335c382fce0fc45601d`;
+  SP-046 (hợp đồng DTO) blob `d23e93bfa3974837a4d061de71783027a901228a`, chỉ đọc làm đầu vào.
 
 ## File và hành vi để review
 
@@ -63,7 +63,7 @@ availability AVAILABLE, kết nối CONNECTED. Capability UNVERIFIED không mở
 Kiểm lại sau lấy credential và sau nhận response; revision/account/token reference đổi
 thì loại sample. Capability bị thu hồi trong lúc nhận thì không nhận số cũ.
 Consumer phải lấy credential đúng subject (đặc biệt `q=me` không echo MEMBER) và kiểm
-scope/revision nguyên tử khi ghi ở SP-045.03/.04; adapter không thay transaction đó.
+scope/revision nguyên tử khi ghi ở SP-045 (lưu snapshot và collector/Worker); adapter không thay transaction đó.
 
 HTTP 401 và Facebook code 190 → AUTH_REQUIRED/RECONNECT; 429 và các code throttle
 trong fixture Facebook → RATE_LIMITED/WAIT. Retry-After hỗ trợ giây hoặc HTTP date;
@@ -130,10 +130,10 @@ definition khác account/version.
 
 ## Còn thiếu và bước tiếp theo
 
-Người nhận đầu ra: Nghị cho SP-045.04/.06; Thiện tham chiếu nghĩa metric qua SP-045.05.
+Người nhận đầu ra: Nghị cho SP-045 (collector/Worker và lượt follower T1); Thiện tham chiếu nghĩa metric qua SP-045 (bàn giao analytics).
 Chưa gửi tin nhắn/ACK, tạo PR hoặc cập nhật tracker. Bước tiếp: Nghị tự review bản local,
 đối chiếu chữ ký với Minh khi nối Channel/credential/capability, rồi tích hợp collector
-trong task tương ứng. Room, Worker, metric bài và UI nằm ngoài SP-045.01.
+trong task tương ứng. Room, Worker, metric bài và UI nằm ngoài SP-045 (adapter follower).
 
 Live **NOT_RUN** cho cả ba account: chưa có Channel/grant/capability gắn revision
 được bàn giao và xác minh cho worktree này. LinkedIn 202610 vẫn là version khảo sát
