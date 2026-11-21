@@ -28,7 +28,8 @@ SP-025/SP-026. Xem [cách kiểm chứng SP-065](sp-065-instagram-oauth-verifica
 - API key/token được mã hóa bằng Keystore, không lưu plaintext trong Room/log/backup.
 - OAuth cần state, ràng buộc phiên, PKCE khi hỗ trợ và mã bàn giao một lần có TTL.
 - URL/comment là dữ liệu đầu vào; không được ghi đè quy tắc duyệt và ngân sách.
-- Quyền Facebook/LinkedIn phải kiểm chứng thật ở tuần 1; mock không thay bằng chứng nghiệm thu.
+- Qua Facebook Login, tách đích Page và Instagram Professional liên kết theo ID và quyền. Với Instagram, phân biệt container ID lúc chuẩn bị ảnh với media ID và permalink sau xuất bản.
+- Quyền Facebook/Instagram phải kiểm chứng thật ở tuần 1; mock không thay bằng chứng nghiệm thu.
 
 ## Phân công dữ liệu và schema chung
 
