@@ -12,11 +12,14 @@ android {
         versionCode 1
         versionName '0.1.0'
         buildConfigField 'String', 'OAUTH_API_BASE_URL', '"' + escapedOauthApiBaseUrl + '"'
-        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+        testInstrumentationRunner providers.gradleProperty('deviceTestRunner')
+                .getOrElse('androidx.test.runner.AndroidJUnitRunner')
         javaCompileOptions { annotationProcessorOptions {
             arguments += ['room.schemaLocation': "$projectDir/schemas".toString()]
         } }
     }
+    // The snapshot DAO fixture is shared by the two test source sets.
+    sourceSets.androidTest.java.srcDir 'src/test/java/com/socialpilot/app/data/local/snapshot'
     buildFeatures { viewBinding true; buildConfig true }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
