@@ -16,7 +16,7 @@
 | [SP-012](https://github.com/nigPeter2503/Social_Pilot/issues/14) | Đạt (`dat532006`) | Hết ngày làm việc 2 | Chốt quy ước Room, quyền sở hữu dữ liệu và thứ tự migration |
 | [SP-014](https://github.com/nigPeter2503/Social_Pilot/issues/16) | Đạt (`dat532006`) | Hết ngày làm việc 4 | Kiểm chứng hai nhánh stream và hủy độc lập trên Java |
 | [SP-018](https://github.com/nigPeter2503/Social_Pilot/issues/20) | Nghị (`bob35306`) | Hết ngày làm việc 3 | Kiểm chứng Facebook comment, reply và số liệu thật |
-| [SP-019](https://github.com/nigPeter2503/Social_Pilot/issues/21) | Nghị (`bob35306`) | Hết ngày làm việc 4 | Kiểm chứng LinkedIn comment, reply, follower và số liệu |
+| [SP-066](https://github.com/nigPeter2503/Social_Pilot/issues/91) | Nghị (`bob35306`) | Hết ngày làm việc 4 | Kiểm chứng Instagram comment, reply, follower và số liệu |
 | [SP-020](https://github.com/nigPeter2503/Social_Pilot/issues/22) | Nghị (`bob35306`) | Hết ngày làm việc 3 | Chốt hợp đồng comment, snapshot, công thức và dashboard |
 
 Dành 0,75 giờ/người/task cho review ban đầu; chủ task gửi hợp đồng và ca thử sớm. Bố trí review theo mốc bàn giao, phản hồi các nhận xét bắt buộc trước merge.

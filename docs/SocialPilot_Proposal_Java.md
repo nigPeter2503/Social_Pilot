@@ -10,7 +10,13 @@
 
 Nền tảng: Android native bằng Java, giao diện XML Views và Material Components; backend OAuth bằng Java với Spring Boot.
 
-**Mạng xã hội tích hợp:** Facebook Page và LinkedIn.
+**Mạng xã hội tích hợp:** Facebook Page và Instagram Professional.
+
+<a id="doi-kenh"></a>
+
+**Quyết định ngày 20/11/2026.** Nhóm thay LinkedIn bằng Instagram Professional để đọc và trả lời bình luận thật trên cả hai kênh (F6). LinkedIn xét duyệt riêng quyền Community Management cho tổ chức có tư cách pháp nhân và mục đích thương mại. Hồ sơ yêu cầu thông tin doanh nghiệp, xác minh email công việc và xác nhận ứng dụng bởi quản trị viên cấp cao của Page. Quyền đăng cá nhân nhóm đã thử không cấp quyền đọc bình luận cần cho inbox. [Quy trình xét duyệt của LinkedIn](https://learn.microsoft.com/en-us/linkedin/marketing/community-management-app-review) · [Quyền truy cập Comments API](https://learn.microsoft.com/en-us/linkedin/marketing/community-management/shares/comments-api)
+
+Trên tài khoản demo, nhóm dùng Facebook Login và Graph API Explorer v27.0 để nhận diện tài khoản Instagram liên kết Page, đăng ảnh kèm caption, lấy permalink, đọc và trả lời đúng bình luận. API trả tổng follower bằng 0 và reach lifetime của bài thử bằng 0. TV1 kiểm chứng luồng OAuth và đăng từ SocialPilot. TV4 kiểm tra phân trang, đồng bộ lặp và ít nhất hai lần đo thực cho F7. Nhóm giữ 44 yêu cầu cam kết và 2 mục Optional. Nhóm cần trình giảng viên xác nhận thay đổi này.
 
 Phiên bản rà soát ngày 03 tháng 11 năm 2026\. Phạm vi bắt buộc gồm 44 yêu cầu: 33 mục \[B\] và 11 mục \[N\] không có tag Optional đã được lựa chọn. Chỉ hai mục có tag Optional là mở rộng: nhập topic bằng ảnh và thông báo comment mới kèm mở đúng comment. Ma trận tại mục 5.1 quy định cách kiểm chứng từng yêu cầu.
 
@@ -37,7 +43,7 @@ SocialPilot đề xuất một ứng dụng Android tập trung các hoạt đ�
 
 ## **1 3 Đối tượng sử dụng**
 
-Người sáng tạo nội dung cá nhân, người quản lý truyền thông cho câu lạc bộ, nhóm dự án hoặc đơn vị nhỏ cần quản lý Facebook Page và LinkedIn.
+Người sáng tạo nội dung cá nhân, người quản lý truyền thông cho câu lạc bộ, nhóm dự án hoặc đơn vị nhỏ cần quản lý Facebook Page và Instagram Professional.
 
 Bản đồ án phục vụ **một người dùng trên mỗi bản cài đặt**, quản lý các kênh mà người đó có quyền truy cập. Việc nhóm có 4 thành viên là quy mô phát triển, không đồng nghĩa sản phẩm phải có chức năng cộng tác nhiều người.
 
@@ -57,9 +63,9 @@ Kế hoạch và nguồn lực phải bảo đảm đủ 44 yêu cầu bắt bu�
 
 **Chức năng:**
 
-* Kết nối Facebook Page và LinkedIn qua OAuth bằng trình duyệt hệ thống.
+* Kết nối Facebook Page và Instagram Professional qua OAuth bằng trình duyệt hệ thống.
 
-Diễn giải phạm vi F1: tích hợp hai nền tảng khác nhau là Facebook Page và LinkedIn. Tuần 1 phải chốt loại tài khoản LinkedIn dùng cho demo (cá nhân hoặc tổ chức), quyền quản trị và từng khả năng API. Một luồng OAuth thành công không chứng minh đã có quyền đăng, đọc/trả lời comment hoặc lấy follower. Không thay hai nền tảng bằng hai tài khoản cùng nền tảng mà không điều chỉnh phạm vi được chấp thuận.
+Nhóm dùng Instagram API with Facebook Login cho tài khoản Instagram Professional liên kết với Facebook Page. Lưu riêng Page ID và Instagram user ID, xác minh từng quyền trên đúng kênh. [Tài liệu Meta](https://www.postman.com/meta/instagram/documentation/6yqw8pt/instagram-api)
 
 * Hiển thị danh sách kênh, tài khoản/Page đang sử dụng và trạng thái kết nối.  
 * Hiển thị khả năng thực tế của từng kênh: đăng bài, đọc/trả lời comment, mention và số liệu.  
@@ -70,7 +76,7 @@ Trước khi xóa, hiển thị rõ dữ liệu bị ảnh hưởng và cho phé
 
 **Kết quả mong đợi:** Người dùng biết rõ kênh nào đang hoạt động và chức năng nào có thể sử dụng.
 
-**Giới hạn cần kiểm chứng:** LinkedIn không cấp khả năng làm mới token theo chương trình cho mọi ứng dụng. Đây là phụ thuộc quyền truy cập cần kiểm chứng ở tuần 1\. [Tài liệu LinkedIn về refresh token](https://learn.microsoft.com/en-us/linkedin/shared/authentication/programmatic-refresh-tokens)
+**Vòng đời token.** TV1 kiểm chứng thời hạn thực, khả năng gia hạn của loại token sử dụng, thu hồi quyền và kết nối lại từ Android/backend. Ghi kết quả riêng cho từng thao tác.
 
 Tiêu chí F1.B3: tự làm mới token khi được cấp cơ chế tương ứng; khi token hết hạn hoặc bị thu hồi, báo kết nối lại và giữ bản nháp. Nếu ứng dụng không được cấp cơ chế refresh cần thiết, ghi yêu cầu là “Bị chặn” hoặc “Đạt một phần”; chỉ chuyển “Đạt” khi đã kiểm chứng hoặc có điều chỉnh yêu cầu được chấp thuận.
 
@@ -111,7 +117,7 @@ Nhật ký lưu các đầu vào, đầu ra và kết quả kiểm tra có cấu
 **Chức năng:**
 
 * Không đăng bài khi chưa có người dùng duyệt.  
-* Xem trước riêng cho Facebook và LinkedIn.  
+* Xem trước bài Page và bài ảnh feed Instagram kèm caption. Kiểm tra ảnh của phiên bản Instagram trước khi duyệt đăng.
 * Sửa văn bản, đếm ký tự và kiểm tra giới hạn theo kênh.  
 * Viết lại một đoạn theo yêu cầu; sinh lại ảnh.  
 * Lưu, xem và khôi phục phiên bản bản nháp.  
@@ -282,7 +288,7 @@ Kiểm tra state và ràng buộc phiên OAuth, redirect URI trong danh sách ch
 | BudgetManager | Giữ trước và quyết toán chi phí trong Room transaction; không để hai nhánh cùng chi phần ngân sách còn lại |
 | SyncCoordinator | Đồng bộ comment/số liệu, giới hạn số lần gọi và phát hiện dữ liệu mới |
 
-Mỗi bộ tích hợp phải trả về lỗi có phân loại và khả năng hỗ trợ thực tế, giúp giao diện không giả định Facebook và LinkedIn có tính năng giống nhau.
+Mỗi bộ tích hợp phải trả về lỗi có phân loại và khả năng hỗ trợ thực tế, giúp giao diện không giả định Facebook và Instagram có tính năng giống nhau.
 
 LiveData chỉ công bố trạng thái giao diện mới nhất; không dùng làm hàng đợi từng token vì cập nhật liên tiếp có thể được gộp. Parser tích lũy văn bản theo đúng thứ tự, ViewModel phát bản chụp tiến độ/văn bản; Room lưu checkpoint và kết quả. Callback mang mã phiên, kênh và bước để bỏ qua phản hồi muộn sau hủy hoặc ngắt kênh. \[2–3\]
 
@@ -444,7 +450,7 @@ Phụ trách TV1. Mốc triển khai Tuần 1–2.
 
 | Mã | Yêu cầu | Phép thử và điều kiện đạt |
 | :---- | :---- | :---- |
-| F1.B1 | Kết nối ít nhất hai kênh **Bắt buộc** | OAuth thật với Facebook Page và LinkedIn; nhận đúng định danh và tài khoản/Page. Hai tài khoản cùng nền tảng không thay hai nền tảng đã chọn. |
+| F1.B1 | Kết nối ít nhất hai kênh **Bắt buộc** | OAuth thật với Facebook Page và Instagram Professional; nhận đúng Page ID và Instagram user ID liên kết, hiển thị hai đích đăng riêng. Hai tài khoản cùng nền tảng không thay hai nền tảng đã chọn. |
 | F1.B2 | Màn hình Kênh của tôi **Bắt buộc** | Hiển thị trạng thái, tài khoản/Page và khả năng đăng, đọc/trả lời comment, mention, số liệu; đối chiếu quyền thực tế cho từng kênh. |
 | F1.B3 | OAuth và vòng đời token **Bắt buộc** | Mở trình duyệt hệ thống; thử refresh, hết hạn và thu hồi token. Refresh thành công khi được cấp quyền; thiếu cơ chế refresh phải ghi bị chặn/đạt một phần. |
 | F1.B4 | Ngắt kết nối và xóa dữ liệu **Bắt buộc** | Ngắt một kênh rồi mở lại app: token, dữ liệu và job liên quan không còn; kênh khác và bản nháp dùng chung vẫn đúng; kết quả về muộn không khôi phục dữ liệu. |
@@ -520,7 +526,7 @@ TV4 điều phối F7, phụ trách API/snapshot, truy vấn và công thức, l
 | :---- | :---- | :---- |
 | F7.B1 | Số liệu từng bài **Bắt buộc** | Đối chiếu thích/reaction, comment, chia sẻ, impression nếu có và công thức tương tác. Thiếu quyền/dữ liệu hoặc mẫu số 0 không hiển thị thành 0%. |
 | F7.B2 | Snapshot và đường tăng trưởng **Bắt buộc** | Lưu ít nhất hai thời điểm thực tế cho bài/kênh; biểu đồ đúng thời điểm và giá trị, giữ khoảng trống khi bỏ lỡ lịch. |
-| F7.B3 | Dashboard **Bắt buộc** | Có follower theo thời gian, tương tác theo tuần, top bài và so sánh kênh. Đối chiếu bằng dữ liệu có cùng định nghĩa; follower không được thay bằng connections. |
+| F7.B3 | Dashboard **Bắt buộc** | Có follower theo thời gian, tương tác theo tuần, top bài và so sánh kênh. Đối chiếu bằng dữ liệu có cùng định nghĩa; đối chiếu tổng follower với nguồn của từng kênh. |
 | F7.N1 | Phân tích theo nhóm **Bắt buộc** | Phân nhóm theo chủ đề, định dạng và giờ đăng; số liệu tổng hợp khớp dữ liệu gốc và múi giờ cấu hình. |
 | F7.N2 | Báo cáo tuần AI **Bắt buộc** | Nêu biến động và đề xuất dựa trên snapshot; số liệu khớp nguồn, nguyên nhân chưa chứng minh được ghi là giả thuyết; thiếu dữ liệu không bịa kết luận. |
 | F7.N3 | Mục tiêu tăng trưởng **Bắt buộc** | Lưu chỉ số, mức đích và hạn đạt; tiến độ tính từ dữ liệu thực, cập nhật sau đồng bộ và xử lý trường hợp chưa có số liệu. |
@@ -555,7 +561,7 @@ Kiểm thử kỹ thuật Java bổ sung: Espresso cho luồng Views/XML; MockWe
 
 | Rủi ro | Tác động | Biện pháp |
 | :---- | :---- | :---- |
-| Chưa được cấp đủ quyền Facebook/LinkedIn | Chặn đăng bài, comment hoặc số liệu thật | Đăng ký và kiểm chứng từ đầu tuần 1; ghi bằng chứng; làm việc với giảng viên ngay khi xác định bị chặn |
+| Chưa được cấp đủ quyền Facebook/Instagram | Chặn đăng bài, comment hoặc số liệu thật | Đăng ký và kiểm chứng từ đầu tuần 1; ghi bằng chứng; làm việc với giảng viên ngay khi xác định bị chặn |
 | Phạm vi lớn so với 6 tuần | Dồn tích hợp và kiểm thử về cuối | Tích hợp liên tục; dùng UI đơn giản; đóng chức năng chính trước tuần 6 |
 | Hạn mức API | Đồng bộ thất bại hoặc bị giới hạn | Đồng bộ tăng dần, phân bổ lượt gọi, backoff; tránh polling liên tục |
 | Tác vụ nền bị trì hoãn | Comment và thông báo cập nhật chậm | Hiển thị thời điểm đồng bộ; hỗ trợ làm mới thủ công; không cam kết tức thời |
@@ -565,7 +571,7 @@ Kiểm thử kỹ thuật Java bổ sung: Espresso cho luồng Views/XML; MockWe
 | Chi phí AI vượt dự tính | Thiếu ngân sách kiểm thử | Đo usage sớm, đặt hạn mức và giảm số lần gọi lặp không cần thiết |
 | Chuyển stack và vòng đời Java | Viết lại UI/async hoặc mất trạng thái, tốn thêm giờ tích hợp | Kiểm kê mã cũ; bản mẫu tuần 1; mẫu callback/hủy dùng chung; kiểm thử xoay màn hình, process bị kết thúc và Room transaction |
 
-LinkedIn Community Management ở Development tier có giới hạn lượt gọi và hạn chế webhook, nên thiết kế đồng bộ phải dựa trên quyền và hạn mức thực tế được cấp. [Tài liệu LinkedIn về cấp truy cập](https://learn.microsoft.com/en-us/linkedin/marketing/increasing-access?view=li-lms-2026-06)
+TV4 kiểm tra phân trang, hạn mức và các chỉ số Meta trả về cho từng kênh trước khi chốt lịch đồng bộ. Ghi thời điểm đo và lý do thiếu từng chỉ số.
 
 **Điều kiện khả thi quan trọng:** Mục tiêu tích hợp thật hai nền tảng phụ thuộc quyền API. Nếu quyền cần thiết không được cấp đúng thời hạn, nhóm phải ghi nhận đó là yêu cầu chưa đạt hoặc xin giảng viên chấp thuận điều chỉnh. Dữ liệu mock và thao tác bàn giao thủ công không tự động được coi là hoàn thành tích hợp API.
 
