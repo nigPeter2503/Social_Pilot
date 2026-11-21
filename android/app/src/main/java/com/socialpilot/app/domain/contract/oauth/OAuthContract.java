@@ -4,6 +4,7 @@ import java.net.URI;
 import java.text.ParsePosition;
 import java.text.SimpleDateFormat;
 import java.util.Locale;
+import java.util.List;
 import java.util.TimeZone;
 
 /**
@@ -20,7 +21,7 @@ public final class OAuthContract {
     }
 
     private static void provider(String value) {
-        if (!"FACEBOOK".equals(value) && !"LINKEDIN".equals(value)) {
+        if (!"FACEBOOK".equals(value) && !"LINKEDIN".equals(value) && !"INSTAGRAM".equals(value)) {
             throw new IllegalArgumentException("Invalid provider");
         }
     }
@@ -146,6 +147,16 @@ public final class OAuthContract {
         public final String refreshToken;
         public final String tokenType;
         public final String expiresAt;
+        public final String linkedPageId;
+        public final List<String> grantedScopes;
+        public final String graphApiVersion;
+
+        public OAuthExchangeResponse(String sessionId, String provider, String externalAccountId,
+                String accountType, String displayName, String accessToken, String refreshToken,
+                String tokenType, String expiresAt) {
+            this(sessionId, provider, externalAccountId, accountType, displayName, accessToken,
+                    refreshToken, tokenType, expiresAt, null, null, null);
+        }
 
         public OAuthExchangeResponse(
                 String sessionId,
@@ -156,7 +167,10 @@ public final class OAuthContract {
                 String accessToken,
                 String refreshToken,
                 String tokenType,
-                String expiresAt) {
+                String expiresAt,
+                String linkedPageId,
+                List<String> grantedScopes,
+                String graphApiVersion) {
             this.sessionId = sessionId;
             this.provider = provider;
             this.externalAccountId = externalAccountId;
@@ -166,18 +180,38 @@ public final class OAuthContract {
             this.refreshToken = refreshToken;
             this.tokenType = tokenType;
             this.expiresAt = expiresAt;
+            this.linkedPageId = linkedPageId;
+            this.grantedScopes = grantedScopes == null ? null
+                    : java.util.Collections.unmodifiableList(new java.util.ArrayList<>(grantedScopes));
+            this.graphApiVersion = graphApiVersion;
             validate();
         }
 
         /** Call after deserialization, especially Gson which may bypass constructors. */
         public void validate() {
             text(sessionId, "sessionId"); provider(provider); text(externalAccountId, "externalAccountId");
-            if (!"PAGE".equals(accountType) && !"PERSON".equals(accountType) && !"ORGANIZATION".equals(accountType)) {
+            if ("INSTAGRAM".equals(provider)) {
+                if (!"PROFESSIONAL".equals(accountType) || !numericId(externalAccountId)
+                        || !numericId(linkedPageId) || externalAccountId.equals(linkedPageId)
+                        || grantedScopes == null || grantedScopes.isEmpty()
+                        || graphApiVersion == null || !graphApiVersion.matches("v[0-9]+\\.[0-9]+")) {
+                    throw new IllegalArgumentException("Invalid Instagram connection metadata");
+                }
+                for (String scope : grantedScopes) {
+                    if (scope == null || !scope.matches("[a-z][a-z0-9_]*")) {
+                        throw new IllegalArgumentException("Invalid granted scope");
+                    }
+                }
+            } else if (!"PAGE".equals(accountType) && !"PERSON".equals(accountType) && !"ORGANIZATION".equals(accountType)) {
                 throw new IllegalArgumentException("Invalid accountType");
             }
             text(displayName, "displayName"); text(accessToken, "accessToken"); text(tokenType, "tokenType");
             if (refreshToken != null) text(refreshToken, "refreshToken");
             if (expiresAt != null) timestamp(expiresAt);
+        }
+
+        private static boolean numericId(String id) {
+            return id != null && id.matches("[0-9]{5,30}");
         }
 
         @Override
