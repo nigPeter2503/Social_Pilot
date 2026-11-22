@@ -25,6 +25,20 @@ function readError(httpStatus, body, permissionDeniedForOperation = false) {
     return permissionDeniedForOperation ? 'PERMISSION_REQUIRED' : 'UNVERIFIED';
 }
 
+function mediaCount(body, mediaId, field) {
+    if (!['like_count', 'comments_count', 'shares_count'].includes(field)) throw new Error('Unknown media count');
+    if (id(success(body).id) !== id(mediaId)) throw new Error('Wrong media');
+    return metric(body[field]);
+}
+
+function impression(body, publishedAt) {
+    if (!Number.isFinite(Date.parse(publishedAt))) throw new Error('Invalid publish time');
+    if (Date.parse(publishedAt) <= Date.parse('2024-07-02T23:59:59Z')) throw new Error('Historical media requires separate verification');
+    if (body?.error?.code !== 100 || !/impressions metric is no longer supported/i.test(body.error.message ?? ''))
+        throw new Error('Unsupported impression claim lacks matching provider error');
+    return {value: null, missingReason: 'UNSUPPORTED'};
+}
+
 function comments(body, parentId = null) {
     success(body);
     if (!Array.isArray(body.data)) throw new Error('Missing comment page');
@@ -35,7 +49,7 @@ function comments(body, parentId = null) {
         return {id: id(row.id), parent, text: row.text ?? null};
     });
     const after = body.paging?.next ? id(body.paging.cursors?.after) : null;
-    if (after && /:\/\/|access_token|bearer /i.test(after)) throw new Error('Invalid cursor');
+    if (after && /:\/\/|access_token|bearer |^\[REDACTED/i.test(after)) throw new Error('Invalid cursor');
     return {items, after};
 }
 
@@ -47,7 +61,7 @@ function follower(body, accountId) {
 function reach(body, mediaId) {
     success(body);
     if (!Array.isArray(body.data)) throw new Error('Missing insight list');
-    if (!body.data.length) return metric(undefined);
+    if (!body.data.length) return {value: null, missingReason: 'INSIGHT_EMPTY'};
     const [row] = body.data;
     if (body.data.length !== 1 || row.name !== 'reach' || row.period !== 'lifetime'
             || row.id !== id(mediaId) + '/insights/reach/lifetime') throw new Error('Wrong insight');
@@ -55,4 +69,4 @@ function reach(body, mediaId) {
     return metric(row.values.length ? row.values[0].value : undefined);
 }
 
-module.exports = {comments, follower, reach, readError};
+module.exports = {comments, follower, reach, mediaCount, impression, readError};

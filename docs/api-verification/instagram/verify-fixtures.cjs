@@ -1,7 +1,7 @@
 'use strict';
 const assert = require('node:assert/strict');
 const f = require('./fixtures.json');
-const {comments, follower, reach, readError} = require('./response-prototype.cjs');
+const {comments, follower, reach, mediaCount, impression, readError} = require('./response-prototype.cjs');
 
 assert.equal(f.source, 'MO_PHONG');
 assert.equal(f.page.instagram_business_account.id, f.account.id);
@@ -25,11 +25,17 @@ assert.equal(readError(400, {error: {code: 190}}), 'AUTH_REQUIRED');
 assert.equal(readError(429, {}), 'RATE_LIMITED');
 assert.equal(readError(200, {error: {code: 613}}), 'RATE_LIMITED');
 assert.throws(() => comments({data:[], paging:{next:'next'}}));
+assert.throws(() => comments({data:[], paging:{next:'[REDACTED_BY_USER]',cursors:{after:'[REDACTED_BY_USER]'}}}));
 assert.deepEqual(follower(f.account, 'mock-ig'), {value:0, missingReason:null});
 assert.throws(() => follower(f.account, f.page.id));
 assert.deepEqual(follower({id:'mock-ig'}, 'mock-ig'), {value:null, missingReason:'PROVIDER_OMITTED'});
 assert.deepEqual(reach(f.insights, f.media), {value:0, missingReason:null});
 assert.throws(() => reach(f.insights, 'different-media'));
 assert.throws(() => reach({data:[{...f.insights.data[0], period:'day'}]}, f.media));
-assert.deepEqual(reach({data:[]}, f.media), {value:null, missingReason:'PROVIDER_OMITTED'});
+assert.deepEqual(reach({data:[]}, f.media), {value:null, missingReason:'INSIGHT_EMPTY'});
+assert.deepEqual(mediaCount({id:f.media, like_count:0}, f.media, 'like_count'), {value:0, missingReason:null});
+assert.deepEqual(mediaCount({id:f.media}, f.media, 'shares_count'), {value:null, missingReason:'PROVIDER_OMITTED'});
+assert.throws(() => mediaCount({id:f.account.id}, f.media, 'like_count'));
+assert.deepEqual(impression({error:{code:100,message:'impressions metric is no longer supported'}}, '2026-11-21T09:11:22Z'), {value:null, missingReason:'UNSUPPORTED'});
+assert.throws(() => impression({error:{code:10,message:'Application does not have permission'}}, '2026-11-21T09:11:22Z'));
 console.log('PASS Instagram identity, pagination/replay, reply readback, follower and lifetime reach (MO_PHONG)');
