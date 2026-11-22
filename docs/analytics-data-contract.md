@@ -80,7 +80,6 @@ revision hiện hành. `SocialError` mô tả lỗi của lần gọi hoặc yê
 | `UNVERIFIED` | Capability hoặc metric cụ thể chưa được kiểm chứng. Trạng thái này tự nó không sinh `SocialError`. |
 | `NOT_SYNCED` | Giá trị chưa được thu và chưa có kết quả cụ thể hơn. Đây là trạng thái cục bộ, không có mã SocialError tương ứng. |
 | `PROVIDER_OMITTED` | Response thành công nhưng thiếu trường metric được yêu cầu. Giữ capability hiện có. Trường vắng mặt hoặc HTTP 403 chưa phân loại không đủ căn cứ để gán `UNSUPPORTED`. |
-| `INSIGHT_EMPTY` | Query insights thành công nhưng trả `data:[]`; Meta nói metric chưa có/không sẵn nên trả tập rỗng thay vì `0`. Giữ `value=null`, tên metric/query và capability; cần Đạt/Thiện chốt enum/schema trước khi lưu production. [Meta Media Insights](https://developers.facebook.com/documentation/instagram-platform/reference/instagram-media/insights) |
 | `AUTH_REQUIRED` | Lỗi `AUTH_REQUIRED / RECONNECT` trên kết nối cần xác thực lại. |
 | `NETWORK_ERROR` | Lỗi `NETWORK_ERROR` của lần đọc. Chỉ dùng `RETRY_WHEN_SAFE` cho lần đọc có thể thử lại an toàn. |
 | `RATE_LIMITED` | Lỗi `RATE_LIMITED / WAIT`. Lưu `retryAfterAt` cạnh lỗi khi provider có thông tin. |
@@ -380,7 +379,7 @@ hợp đồng ở adapter và repository.
 
 ### Phụ lục SP-066 · mapping Instagram chờ nghiệm thu
 
-Đối chiếu ngày 21/11/2026 với Facebook Login và account type `PROFESSIONAL` của SP-065. Follower là gauge trên Channel mang IG user ID; response IG-06 trả `followers_count=1`. Reach là số tài khoản tiếp cận trên media `18111630677338097`, giữ tên provider `reach`, kỳ `lifetime`, giá trị `0`. SP-045 lưu metric này với khóa `REACH_COUNT`; SP-046 dùng `REACH` cho số đọc của bài. `0` là số đo hợp lệ, khác `null`. Response insights thành công với `data:[]` dùng `value=null`, `missingReason=INSIGHT_EMPTY`; trường số vắng trong một row/query đã map dùng `PROVIDER_OMITTED`. [Hồ sơ SP-066](api-verification/instagram/verification-manifest.md)
+Đối chiếu ngày 21/11/2026 với Facebook Login và account type `PROFESSIONAL` của SP-065. Follower là gauge trên Channel mang IG user ID; response IG-06 trả `followers_count=1`. Reach là số tài khoản tiếp cận trên media `18111630677338097`, giữ tên provider `reach`, kỳ `lifetime`, giá trị `0`. SP-045 lưu metric này với khóa `REACH_COUNT`; SP-046 dùng `REACH` cho số đọc của bài. `0` là số đo hợp lệ, khác `null`. Response insights thành công với `data:[]` dùng `value=null`, `missingReason=PROVIDER_OMITTED` theo adapter SP-045; trường số vắng trong một row/query đã map cũng dùng `PROVIDER_OMITTED`. Không suy `data:[]` thành số 0. Lý do thiếu riêng cho tập rỗng chỉ là đề xuất cần Đạt/Thiện thống nhất trước khi đổi enum/schema và consumer. [Hồ sơ SP-066](api-verification/instagram/verification-manifest.md)
 
 IG-08–10 xác nhận **field trên media** `like_count=1`, `comments_count=6`, `shares_count=0`. Giữ provenance `MEDIA_FIELD` và ID media; không tự đổi thành insights `likes`/`comments`/`shares`, không lấy số comment trong một trang hay suy diễn phần replies trong tổng 6. Thiện chốt DTO/definition, unit, window và engagement formula trước khi các field này đi vào dashboard. Binding Channel/revision production, collection timestamp và readback vẫn chưa có. [Meta Instagram Media](https://developers.facebook.com/docs/instagram-platform/reference/instagram-media/v21.0/)
 

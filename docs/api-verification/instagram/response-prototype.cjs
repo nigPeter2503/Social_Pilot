@@ -22,7 +22,7 @@ function readError(httpStatus, body, permissionDeniedForOperation = false) {
     if (httpStatus === 401 || code === 190) return 'AUTH_REQUIRED';
     if (httpStatus === 429 || [4, 17, 32, 613].includes(code)) return 'RATE_LIMITED';
     if (httpStatus >= 200 && httpStatus < 300 && !body?.error) return null;
-    return permissionDeniedForOperation ? 'PERMISSION_REQUIRED' : 'UNVERIFIED';
+    return permissionDeniedForOperation && code === 10 ? 'PERMISSION_REQUIRED' : 'UNVERIFIED';
 }
 
 function mediaCount(body, mediaId, field) {
@@ -61,7 +61,7 @@ function follower(body, accountId) {
 function reach(body, mediaId) {
     success(body);
     if (!Array.isArray(body.data)) throw new Error('Missing insight list');
-    if (!body.data.length) return {value: null, missingReason: 'INSIGHT_EMPTY'};
+    if (!body.data.length) return {value: null, missingReason: 'PROVIDER_OMITTED'};
     const [row] = body.data;
     if (body.data.length !== 1 || row.name !== 'reach' || row.period !== 'lifetime'
             || row.id !== id(mediaId) + '/insights/reach/lifetime') throw new Error('Wrong insight');

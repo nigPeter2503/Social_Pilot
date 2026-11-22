@@ -23,6 +23,7 @@ assert.deepEqual(first, [parent]);
 assert.deepEqual(second, ['18133111096696939']);
 assert.deepEqual(get('IG-03_refresh_page1_response.json').data.map(x => x.id), first);
 assert.equal(new Set([...first, ...second]).size, 2);
+assert.equal(new Set([...first, ...second, ...get('IG-03_refresh_page1_response.json').data.map(x => x.id)]).size, 2);
 const terminal = get('IG-03_terminal_page_response.json');
 assert.deepEqual(terminal.data.map(x => x.id), ['18030188072700402']);
 assert.equal(terminal.paging, undefined);
@@ -40,8 +41,12 @@ for (const [name, field, value] of [
 assert.deepEqual(impression(get('IG11_impressions_error.json'), '2026-11-21T09:11:22Z'),
     {value:null, missingReason:'UNSUPPORTED'});
 assert.deepEqual(reach(get('IG12_token_A_success.json'), media), {value:0, missingReason:null});
-// HTTP status was not captured; classification uses the observed Graph body and scoped permission evidence.
-assert.equal(readError(undefined, get('IG12_token_B_denied.json'), true), 'PERMISSION_REQUIRED');
+// HTTP status was not captured; classification uses the observed Graph code and owner-confirmed token binding.
+const denied = get('IG12_token_B_denied.json');
+assert.equal(denied.error.code, 10);
+assert.equal(denied.error.type, 'OAuthException');
+assert.equal(readError(undefined, denied, true), 'PERMISSION_REQUIRED');
+assert.equal(readError(undefined, {error: {code: 100, message: 'Invalid parameter'}}, true), 'UNVERIFIED');
 assert.deepEqual(follower(get('IG13_followers_recheck.json'), account), {value:1, missingReason:null});
 assert.deepEqual(reach(get('IG13_reach_recheck.json'), media), {value:0, missingReason:null});
 console.log('PASS sanitized API response fixtures IG-01–IG-13; timing, token binding and production integration not asserted');

@@ -21,6 +21,7 @@ assert.throws(() => comments({data:[], error:{code:10}}));
 assert.equal(readError(200, {data: []}), null);
 assert.equal(readError(403, {error: {code: 10}}), 'UNVERIFIED');
 assert.equal(readError(403, {error: {code: 10}}, true), 'PERMISSION_REQUIRED');
+assert.equal(readError(400, {error: {code: 100, message: 'Invalid parameter'}}, true), 'UNVERIFIED');
 assert.equal(readError(400, {error: {code: 190}}), 'AUTH_REQUIRED');
 assert.equal(readError(429, {}), 'RATE_LIMITED');
 assert.equal(readError(200, {error: {code: 613}}), 'RATE_LIMITED');
@@ -32,7 +33,7 @@ assert.deepEqual(follower({id:'mock-ig'}, 'mock-ig'), {value:null, missingReason
 assert.deepEqual(reach(f.insights, f.media), {value:0, missingReason:null});
 assert.throws(() => reach(f.insights, 'different-media'));
 assert.throws(() => reach({data:[{...f.insights.data[0], period:'day'}]}, f.media));
-assert.deepEqual(reach({data:[]}, f.media), {value:null, missingReason:'INSIGHT_EMPTY'});
+assert.deepEqual(reach({data:[]}, f.media), {value:null, missingReason:'PROVIDER_OMITTED'});
 assert.deepEqual(mediaCount({id:f.media, like_count:0}, f.media, 'like_count'), {value:0, missingReason:null});
 assert.deepEqual(mediaCount({id:f.media}, f.media, 'shares_count'), {value:null, missingReason:'PROVIDER_OMITTED'});
 assert.throws(() => mediaCount({id:f.account.id}, f.media, 'like_count'));
