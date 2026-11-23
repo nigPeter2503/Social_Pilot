@@ -78,11 +78,15 @@ public final class TemplateLayout {
                 lines.add(line.toString());
                 line.setLength(0);
             }
-            // A single word wider than the line is broken by characters.
+            // Always keep at least one complete code point, even when it is too wide.
             String rest = word;
-            while (measurer.width(rest, size) > maxWidth && rest.length() > 1) {
-                int cut = rest.length() - 1;
-                while (cut > 1 && measurer.width(rest.substring(0, cut), size) > maxWidth) cut--;
+            while (measurer.width(rest, size) > maxWidth) {
+                int first = Character.charCount(rest.codePointAt(0));
+                if (first == rest.length()) break;
+                int cut = rest.offsetByCodePoints(rest.length(), -1);
+                while (cut > first && measurer.width(rest.substring(0, cut), size) > maxWidth) {
+                    cut = rest.offsetByCodePoints(cut, -1);
+                }
                 lines.add(rest.substring(0, cut));
                 rest = rest.substring(cut);
             }
@@ -93,7 +97,7 @@ public final class TemplateLayout {
         List<String> kept = new ArrayList<>(lines.subList(0, maxLines));
         String last = kept.get(maxLines - 1);
         while (!last.isEmpty() && measurer.width(last + ELLIPSIS, size) > maxWidth) {
-            last = last.substring(0, last.length() - 1).trim();
+            last = last.substring(0, last.offsetByCodePoints(last.length(), -1)).trim();
         }
         kept.set(maxLines - 1, last + ELLIPSIS);
         return kept;

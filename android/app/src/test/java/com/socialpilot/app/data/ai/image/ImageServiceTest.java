@@ -24,6 +24,7 @@ import com.socialpilot.app.testing.RecordingBudget;
 import java.io.File;
 import java.math.BigDecimal;
 import java.nio.file.Files;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -32,11 +33,14 @@ import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import okhttp3.mockwebserver.MockWebServer;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.After;
 import org.junit.Before;
@@ -190,13 +194,78 @@ public final class ImageServiceTest {
         assertEquals(1, budget.count("reserve:"));
     }
 
-    @Test public void failureBeforeDispatchReleasesTheReservation() {
+    @Test public void failureBeforeDispatchReleasesTheReservationAndStoresTheTemplate() {
         selections.select(AiTaskType.IMAGE, verified);
         provider.failure = new AiError(AiError.Code.INVALID_CREDENTIAL, null);
         provider.dispatched = false;
         ImageService.Result result = run(service(Runnable::run), true, request(FACEBOOK, sized(ChannelPlatform.FACEBOOK)));
+        assertEquals(ImageService.Result.Status.READY, result.status);
+        assertEquals(ImageAsset.Kind.TEMPLATE, result.asset.kind);
+        assertNotNull(store.file(result.asset.ref));
         assertEquals(UsageRecord.Settlement.RELEASED, result.settlement);
         assertEquals(1, budget.count("release:"));
+    }
+
+    @Test public void credentialLostAfterPreflightFallsBackWithoutSendingHttp() throws Exception {
+        selections.select(AiTaskType.IMAGE, verified);
+        try (MockWebServer server = new MockWebServer()) {
+            Map<AiRequest.Provider, ImageProvider> adapters = new EnumMap<>(AiRequest.Provider.class);
+            adapters.put(AiRequest.Provider.OPENAI, new OpenAiImageProvider(server.url("/v1/images/generations"),
+                    () -> { throw new IllegalStateException("credential no longer readable"); }, 1_000));
+            ImageService service = new ImageService(selections, adapters, p -> true, budget, store,
+                    (spec, headline, footer) -> png(spec.widthPx, spec.heightPx),
+                    (channel, revision) -> true, Runnable::run, () -> 1_000L);
+            ImageService.Result result = run(service, true, request(FACEBOOK, sized(ChannelPlatform.FACEBOOK)));
+            assertEquals(ImageService.Result.Status.READY, result.status);
+            assertEquals(ImageAsset.Kind.TEMPLATE, result.asset.kind);
+            assertEquals("KEY_NOT_USABLE", result.asset.fallbackReason);
+            assertEquals(UsageRecord.Settlement.RELEASED, result.settlement);
+            assertNotNull(result.requestId);
+            assertNull(result.asset.requestId);
+            assertEquals(0, server.getRequestCount());
+            assertEquals(1, budget.count("release:"));
+            assertEquals(0, budget.count("settle:"));
+        }
+    }
+
+    @Test public void providerExceptionsKeepAccountingConservative() {
+        selections.select(AiTaskType.IMAGE, verified);
+        Map<AiRequest.Provider, ImageProvider> adapters = new EnumMap<>(AiRequest.Provider.class);
+        adapters.put(AiRequest.Provider.OPENAI, (request, size) -> {
+            throw new IllegalStateException("prepare failed");
+        });
+        ImageService before = new ImageService(selections, adapters, p -> true, budget, store, renderer,
+                (channel, revision) -> true, Runnable::run, () -> 1_000L);
+        ImageService.Request request = request(FACEBOOK, sized(ChannelPlatform.FACEBOOK));
+        ImageService.Result fallback = run(before, true, request);
+        assertEquals(ImageAsset.Kind.TEMPLATE, fallback.asset.kind);
+        assertEquals("PROVIDER_PRE_DISPATCH_FAILED", fallback.reason);
+        assertEquals(UsageRecord.Settlement.RELEASED, fallback.settlement);
+
+        adapters.put(AiRequest.Provider.OPENAI, (ai, size) -> new ImageProvider.Attempt() {
+            @Override public void cancel() {}
+            @Override public ImageProvider.Response run() { throw new IllegalStateException("run failed"); }
+        });
+        ImageService during = new ImageService(selections, adapters, p -> true, budget, store, renderer,
+                (channel, revision) -> true, Runnable::run, () -> 1_000L);
+        ImageService.Result failed = run(during, true, request);
+        assertEquals(ImageService.Result.Status.FAILED, failed.status);
+        assertEquals(UsageRecord.Settlement.UNCERTAIN, failed.settlement);
+        assertNull(failed.asset);
+        assertEquals(1, budget.count("release:"));
+    }
+
+    @Test public void callbackRunsOutsideTheJobMonitor() {
+        Queue<Runnable> queued = new ArrayDeque<>();
+        AtomicReference<ImageService.Job> job = new AtomicReference<>();
+        AtomicInteger callbacks = new AtomicInteger();
+        ImageService service = service(queued::add);
+        job.set(service.template(request(FACEBOOK, sized(ChannelPlatform.FACEBOOK)), result -> {
+            assertFalse(Thread.holdsLock(job.get()));
+            callbacks.incrementAndGet();
+        }));
+        queued.remove().run();
+        assertEquals(1, callbacks.get());
     }
 
     @Test public void budgetLimitOrMissingSizeFallsBackToTheTemplate() {
@@ -233,6 +302,46 @@ public final class ImageServiceTest {
         assertEquals(ImageService.Result.Status.CANCELLED, result.get().status);
         assertEquals(UsageRecord.Settlement.SETTLED, result.get().settlement);
         assertEquals(0, dir.listFiles().length);
+    }
+
+    @Test public void cancellationDuringCommitDiscardsTheFileButKeepsSettlement() throws Exception {
+        selections.select(AiTaskType.IMAGE, verified);
+        Map<AiRequest.Provider, ImageProvider> adapters = new EnumMap<>(AiRequest.Provider.class);
+        adapters.put(AiRequest.Provider.OPENAI, provider);
+        CountDownLatch fileSaved = new CountDownLatch(1);
+        CountDownLatch resumeCommit = new CountDownLatch(1);
+        AtomicInteger revisionChecks = new AtomicInteger();
+        ImageService.RevisionCheck revisions = (channel, revision) -> {
+            if (revisionChecks.incrementAndGet() == 2) {
+                fileSaved.countDown();
+                try {
+                    if (!resumeCommit.await(5, TimeUnit.SECONDS)) throw new AssertionError("commit was not released");
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError(e);
+                }
+            }
+            return true;
+        };
+        ExecutorService pool = Executors.newSingleThreadExecutor();
+        pools.add(pool);
+        ImageService service = new ImageService(selections, adapters, p -> true, budget, store, renderer,
+                revisions, pool, () -> 1_000L);
+        var result = new java.util.concurrent.CompletableFuture<ImageService.Result>();
+        ImageService.Job job = service.generate(request(FACEBOOK, sized(ChannelPlatform.FACEBOOK)), result::complete);
+        try {
+            assertTrue(fileSaved.await(5, TimeUnit.SECONDS));
+            assertEquals(1, dir.listFiles().length);
+            job.cancel();
+            resumeCommit.countDown();
+            ImageService.Result terminated = result.get(5, TimeUnit.SECONDS);
+            assertEquals(ImageService.Result.Status.CANCELLED, terminated.status);
+            assertEquals(UsageRecord.Settlement.SETTLED, terminated.settlement);
+            assertNull(terminated.asset);
+            assertEquals(0, dir.listFiles().length);
+        } finally {
+            resumeCommit.countDown();
+        }
     }
 
     @Test public void budgetExhaustionStopsARunningGeneration() throws Exception {

@@ -5,6 +5,9 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -21,9 +24,12 @@ public final class ImageStore {
     private static final Pattern REF = Pattern.compile("img_[0-9a-f-]{36}\\.png");
     private static final String TEMP_SUFFIX = ".tmp";
     private final File root;
+    private final Set<String> inheritedFiles;
 
     public ImageStore(File root) {
         this.root = Objects.requireNonNull(root);
+        String[] existing = root.list();
+        inheritedFiles = existing == null ? Collections.emptySet() : new HashSet<>(Arrays.asList(existing));
     }
 
     public static final class Stored {
@@ -40,7 +46,9 @@ public final class ImageStore {
 
     /** Writes a complete image and returns its reference. */
     public Stored save(byte[] png) throws IOException {
-        if (!root.isDirectory() && !root.mkdirs()) throw new IOException("Cannot create image directory");
+        if (!root.isDirectory() && !root.mkdirs() && !root.isDirectory()) {
+            throw new IOException("Cannot create image directory");
+        }
         String ref = "img_" + UUID.randomUUID() + ".png";
         File temp = new File(root, ref + TEMP_SUFFIX);
         try (FileOutputStream out = new FileOutputStream(temp)) {
@@ -71,8 +79,10 @@ public final class ImageStore {
     }
 
     /**
-     * Removes leftover temp files and images that no version references. The caller passes every
-     * reference still in use (all versions, all channels); anything in that set is kept.
+     * Removes leftover temp files and unreferenced images inherited when the store was opened.
+     * Use one store per directory for the process lifetime. Files created by this store are
+     * outside the sweep, including images just delivered to the editor. Take the referenced set
+     * from all versions and serialize mutations of inherited references with the sweep.
      */
     public int cleanup(Set<String> referenced) {
         File[] files = root.listFiles();
@@ -80,7 +90,9 @@ public final class ImageStore {
         int removed = 0;
         for (File file : files) {
             String name = file.getName();
-            boolean temp = name.endsWith(TEMP_SUFFIX);
+            if (!inheritedFiles.contains(name)) continue;
+            boolean temp = name.endsWith(TEMP_SUFFIX)
+                    && REF.matcher(name.substring(0, name.length() - TEMP_SUFFIX.length())).matches();
             boolean orphan = REF.matcher(name).matches() && !referenced.contains(name);
             if ((temp || orphan) && file.delete()) removed++;
         }

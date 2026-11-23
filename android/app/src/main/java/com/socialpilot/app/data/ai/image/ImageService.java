@@ -43,7 +43,7 @@ public final class ImageService {
     public static final RevisionCheck CALLER_REVISION = (channelId, revision) -> true;
 
     public interface Callback {
-        /** Called once, on a worker thread. */
+        /** Called once outside the job lock. Worker rejection is reported on the calling thread. */
         void onFinished(Result result);
     }
 
@@ -178,14 +178,22 @@ public final class ImageService {
 
         @Override
         public void cancel() {
-            cancelled = true;
-            ImageProvider.Attempt current = attempt;
-            if (current != null) current.cancel();
+            cancel(false);
         }
 
         void stopForBudget() {
-            budgetStopped = true;
-            cancel();
+            cancel(true);
+        }
+
+        private void cancel(boolean forBudget) {
+            ImageProvider.Attempt current;
+            synchronized (this) {
+                if (finished) return;
+                budgetStopped |= forBudget;
+                cancelled = true;
+                current = attempt;
+            }
+            if (current != null) current.cancel();
         }
 
         void run() {
@@ -223,25 +231,12 @@ public final class ImageService {
                         ? AiGateway.Rejection.BUDGET_LIMIT_REACHED.name() : AiGateway.Rejection.DUPLICATE_REQUEST.name());
                 return;
             }
-            if (cancelled) {
-                // Stopped between reserve and dispatch: never sent; release the hold once.
-                active.remove(this);
-                UsageRecord released = complete(ai, false, null, AiUsage.MISSING);
-                UsageRecord.Settlement settlement = released == null ? null : released.settlement;
-                finish(budgetStopped
-                        ? new Result(Result.Status.FAILED, null, ai.requestId, null,
-                                AiGateway.Rejection.BUDGET_LIMIT_REACHED.name(), settlement, null, true)
-                        : new Result(Result.Status.CANCELLED, null, ai.requestId, null, null, settlement, null, false));
-                return;
-            }
             ImageProvider.Response response;
-            ImageProvider.Attempt prepared = providers.get(entry.provider()).prepare(ai, request.spec.providerSize);
-            attempt = prepared;
             try {
-                if (cancelled) prepared.cancel();
-                response = prepared.run();
+                response = invokeProvider(ai);
             } finally {
                 active.remove(this);
+                attempt = null;
             }
             boolean succeeded = response.outcome == ImageProvider.Response.Outcome.SUCCEEDED;
             // Billed per image: a produced image is charged even if the user cancelled meanwhile.
@@ -249,11 +244,20 @@ public final class ImageService {
                     response.usage == null ? AiUsage.MISSING : response.usage);
             UsageRecord.Settlement settlement = record == null ? null : record.settlement;
             Long micros = record == null ? null : record.estimateMicros;
-            if (response.outcome != ImageProvider.Response.Outcome.SUCCEEDED || cancelled) {
-                Result.Status status = budgetStopped ? Result.Status.FAILED
-                        : cancelled || response.outcome == ImageProvider.Response.Outcome.CANCELLED
-                        ? Result.Status.CANCELLED : Result.Status.FAILED;
-                finish(new Result(status, null, ai.requestId, response.error, null, settlement, micros, budgetStopped));
+            if (cancelled || response.outcome == ImageProvider.Response.Outcome.CANCELLED) {
+                finish(new Result(Result.Status.CANCELLED, null, ai.requestId, response.error,
+                        null, settlement, micros, false));
+                return;
+            }
+            if (!succeeded) {
+                if (!response.mayHaveDispatched) {
+                    String fallback = response.error != null && response.error.code == AiError.Code.INVALID_CREDENTIAL
+                            ? AiGateway.Rejection.KEY_NOT_USABLE.name() : "PROVIDER_PRE_DISPATCH_FAILED";
+                    renderTemplate(fallback, ai.requestId, record);
+                } else {
+                    finish(new Result(Result.Status.FAILED, null, ai.requestId, response.error,
+                            null, settlement, micros, false));
+                }
                 return;
             }
             PngInfo info = PngInfo.read(response.image);
@@ -263,6 +267,25 @@ public final class ImageService {
                 return;
             }
             commit(response.image, info, ImageAsset.Kind.GENERATED, ai.requestId, null, null, settlement, micros);
+        }
+
+        private ImageProvider.Response invokeProvider(AiRequest ai) {
+            if (cancelled) return ImageProvider.Response.cancelled(false);
+            ImageProvider.Attempt prepared;
+            try {
+                prepared = Objects.requireNonNull(providers.get(ai.provider).prepare(ai, request.spec.providerSize));
+            } catch (RuntimeException failure) {
+                // prepare() cannot perform network I/O.
+                return ImageProvider.Response.failed(new AiError(AiError.Code.PROVIDER_UNAVAILABLE, null), false);
+            }
+            attempt = prepared;
+            if (cancelled) return ImageProvider.Response.cancelled(false);
+            try {
+                return Objects.requireNonNull(prepared.run());
+            } catch (RuntimeException failure) {
+                // Once run() began, an exception cannot prove the request did not leave the device.
+                return ImageProvider.Response.failed(new AiError(AiError.Code.PROVIDER_UNAVAILABLE, null), true);
+            }
         }
 
         private String unavailable(ModelEntry entry) {
@@ -283,28 +306,41 @@ public final class ImageService {
         }
 
         private void renderTemplate(String fallbackReason) {
+            renderTemplate(fallbackReason, null, null);
+        }
+
+        private void renderTemplate(String fallbackReason, String requestId, UsageRecord priorAttempt) {
+            UsageRecord.Settlement settlement = priorAttempt == null ? null : priorAttempt.settlement;
+            Long micros = priorAttempt == null ? null : priorAttempt.estimateMicros;
+            if (cancelled) {
+                finish(new Result(Result.Status.CANCELLED, null, requestId, null,
+                        fallbackReason, settlement, micros, false));
+                return;
+            }
             byte[] png;
             try {
                 png = renderer.render(request.spec, request.headline, request.footer);
             } catch (RuntimeException failed) {
-                finish(new Result(Result.Status.FAILED, null, null, null, "TEMPLATE_FAILED", null, null, false));
+                finish(new Result(Result.Status.FAILED, null, requestId, null, "TEMPLATE_FAILED", settlement, micros, false));
                 return;
             }
             PngInfo info = PngInfo.read(png);
             if (info == null) {
-                finish(new Result(Result.Status.FAILED, null, null, null, "INVALID_IMAGE", null, null, false));
+                finish(new Result(Result.Status.FAILED, null, requestId, null, "INVALID_IMAGE", settlement, micros, false));
                 return;
             }
-            if (cancelled) {
-                finish(new Result(Result.Status.CANCELLED, null, null, null, fallbackReason, null, null, false));
-                return;
-            }
-            commit(png, info, ImageAsset.Kind.TEMPLATE, null, TemplateLayout.TEMPLATE_ID, fallbackReason, null, null);
+            commit(png, info, ImageAsset.Kind.TEMPLATE, requestId, TemplateLayout.TEMPLATE_ID,
+                    fallbackReason, settlement, micros);
         }
 
         /** Saves only while the channel is still at the request's revision; re-checks after saving. */
         private void commit(byte[] png, PngInfo info, ImageAsset.Kind kind, String requestId, String templateId,
                             String fallbackReason, UsageRecord.Settlement settlement, Long micros) {
+            if (cancelled) {
+                finish(new Result(Result.Status.CANCELLED, null, requestId, null,
+                        fallbackReason, settlement, micros, false));
+                return;
+            }
             ChannelTarget target = request.target;
             if (!revisions.current(target.channelId, target.connectionRevision)) {
                 finish(new Result(Result.Status.STALE, null, requestId, null, fallbackReason, settlement, micros, false));
@@ -324,7 +360,8 @@ public final class ImageService {
             }
             ImageAsset asset = new ImageAsset(target.channelId, target.connectionRevision, kind, stored.ref,
                     "image/png", info.width, info.height, stored.byteSize, stored.sha256,
-                    request.spec.verification == ImageSpec.Verification.VERIFIED, requestId, templateId, fallbackReason);
+                    request.spec.verification == ImageSpec.Verification.VERIFIED,
+                    kind == ImageAsset.Kind.GENERATED ? requestId : null, templateId, fallbackReason);
             finish(new Result(Result.Status.READY, asset, requestId, null, fallbackReason, settlement, micros, false));
         }
 
@@ -343,9 +380,20 @@ public final class ImageService {
             }
         }
 
-        synchronized void finish(Result result) {
-            if (finished) return;
-            finished = true;
+        void finish(Result result) {
+            ImageAsset discarded = null;
+            synchronized (this) {
+                if (finished) return;
+                finished = true;
+                if (cancelled) {
+                    discarded = result.asset;
+                    result = new Result(budgetStopped ? Result.Status.FAILED : Result.Status.CANCELLED, null,
+                            result.requestId, result.error,
+                            budgetStopped ? AiGateway.Rejection.BUDGET_LIMIT_REACHED.name() : result.reason,
+                            result.settlement, result.estimateMicros, budgetStopped);
+                }
+            }
+            if (discarded != null) store.delete(discarded.ref);
             callback.onFinished(ledgerWriteFailed ? result.withLedgerWriteFailed() : result);
         }
     }

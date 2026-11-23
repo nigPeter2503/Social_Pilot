@@ -6,6 +6,7 @@ import com.socialpilot.app.domain.contract.ai.AiUsage;
 
 /** One image generation call. {@link Attempt#run} blocks on a worker; cancel may come from any thread. */
 public interface ImageProvider {
+    /** Builds an attempt without network I/O. Only run() may dispatch a request. */
     Attempt prepare(AiRequest request, String size);
 
     interface Attempt {

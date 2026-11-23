@@ -30,7 +30,7 @@
     },
     {
       "provider": "OPENAI",
-      "model": "gpt-image-1",
+      "model": "gpt-image-2.5-flare",
       "verification": "UNVERIFIED",
       "text": "UNSUPPORTED",
       "streamingText": "UNSUPPORTED",
@@ -39,7 +39,7 @@
       "maxOutputTokens": 1,
       "tasks": ["IMAGE"],
       "price": null,
-      "source": "Image candidate for SP-032. To verify: https://platform.openai.com/docs/guides/image-generation and https://openai.com/api/pricing (per-image price, sizes, response format)"
+      "source": "Image candidate for SP-032. Endpoint model list: https://developers.openai.com/api/reference/resources/images/methods/generate. Verify response, request size and per-image cost before enabling."
     }
   ]
 }

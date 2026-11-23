@@ -113,7 +113,9 @@ public final class OpenAiImageProvider implements ImageProvider {
                 BufferedSource source = payload.source();
                 if (source.request(MAX_RESPONSE_BYTES + 1)) return protocol();
                 ImageProvider.Response parsed = parse(source.getBuffer().readUtf8());
-                return cancelled ? ImageProvider.Response.cancelled(true) : parsed;
+                // Report a complete image even after cancel so the service can settle its cost.
+                return cancelled && parsed.outcome != ImageProvider.Response.Outcome.SUCCEEDED
+                        ? ImageProvider.Response.cancelled(true) : parsed;
             } catch (InterruptedIOException timeout) {
                 return cancelled ? ImageProvider.Response.cancelled(true)
                         : ImageProvider.Response.failed(new AiError(Code.TIMEOUT, null), true);
@@ -130,27 +132,36 @@ public final class OpenAiImageProvider implements ImageProvider {
             JsonArray data = root.getAsJsonArray("data");
             if (data == null || data.size() != 1) return protocol();
             JsonElement encoded = data.get(0).getAsJsonObject().get("b64_json");
-            if (encoded == null || !encoded.isJsonPrimitive()) return protocol(); // URL-only: rejected.
+            if (encoded == null || !encoded.isJsonPrimitive() || !encoded.getAsJsonPrimitive().isString()) {
+                return protocol(); // URL-only: rejected.
+            }
             ByteString image = ByteString.decodeBase64(encoded.getAsString());
             if (image == null || image.size() == 0) return protocol();
-            return ImageProvider.Response.succeeded(image.toByteArray(), usage(root.getAsJsonObject("usage")));
+            return ImageProvider.Response.succeeded(image.toByteArray(), usage(root.get("usage")));
         } catch (JsonParseException | IllegalStateException | ClassCastException | NumberFormatException malformed) {
             return protocol();
         }
     }
 
-    private static AiUsage usage(JsonObject usage) {
-        if (usage == null) return AiUsage.MISSING;
-        Long input = number(usage, "input_tokens");
-        Long output = number(usage, "output_tokens");
-        Long total = number(usage, "total_tokens");
+    private static AiUsage usage(JsonElement usage) {
+        if (usage == null || !usage.isJsonObject()) return AiUsage.MISSING;
+        JsonObject tokens = usage.getAsJsonObject();
+        Long input = number(tokens, "input_tokens");
+        Long output = number(tokens, "output_tokens");
+        Long total = number(tokens, "total_tokens");
         if (input == null && output == null && total == null) return AiUsage.MISSING;
         return new AiUsage(input, output, total, null, null);
     }
 
     private static Long number(JsonObject object, String name) {
         JsonElement value = object.get(name);
-        return value == null || !value.isJsonPrimitive() ? null : value.getAsLong();
+        if (value == null || !value.isJsonPrimitive() || !value.getAsJsonPrimitive().isNumber()) return null;
+        try {
+            long count = value.getAsBigDecimal().longValueExact();
+            return count < 0 ? null : count;
+        } catch (ArithmeticException | NumberFormatException invalid) {
+            return null;
+        }
     }
 
     private static ImageProvider.Response protocol() {

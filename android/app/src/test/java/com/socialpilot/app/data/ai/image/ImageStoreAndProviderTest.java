@@ -53,10 +53,11 @@ public final class ImageStoreAndProviderTest {
     }
 
     @Test public void storeCommitsAtomicallyAndCleanupKeepsReferencedImages() throws Exception {
-        ImageStore store = new ImageStore(dir);
-        ImageStore.Stored kept = store.save(ImageServiceTest.png(10, 10));
-        ImageStore.Stored orphan = store.save(ImageServiceTest.png(20, 20));
+        ImageStore previous = new ImageStore(dir);
+        ImageStore.Stored kept = previous.save(ImageServiceTest.png(10, 10));
+        ImageStore.Stored orphan = previous.save(ImageServiceTest.png(20, 20));
         assertTrue(new File(dir, "img_00000000-0000-0000-0000-000000000000.png.tmp").createNewFile());
+        ImageStore store = new ImageStore(dir);
         assertEquals(64, kept.sha256.length());
         assertNotNull(store.file(kept.ref));
         assertEquals(2, store.cleanup(new HashSet<>(Collections.singletonList(kept.ref)))); // orphan + temp
@@ -68,6 +69,32 @@ public final class ImageStoreAndProviderTest {
         assertNull(store.file(null));
         assertTrue(store.delete(kept.ref));
         assertFalse(store.delete(kept.ref));
+    }
+
+    @Test public void cleanupWithStaleReferencesKeepsAConcurrentSaveInHandoff() throws Exception {
+        ImageStore previous = new ImageStore(dir);
+        ImageStore.Stored orphan = previous.save(ImageServiceTest.png(10, 10));
+        ImageStore store = new ImageStore(dir);
+        var snapshotBeforeSave = Collections.<String>emptySet();
+        ExecutorService writer = Executors.newSingleThreadExecutor();
+        java.util.concurrent.CountDownLatch saved = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.CountDownLatch handoff = new java.util.concurrent.CountDownLatch(1);
+        try {
+            Future<ImageStore.Stored> pending = writer.submit(() -> {
+                ImageStore.Stored image = store.save(ImageServiceTest.png(20, 20));
+                saved.countDown();
+                if (!handoff.await(5, TimeUnit.SECONDS)) throw new AssertionError("handoff was not released");
+                return image;
+            });
+            assertTrue(saved.await(5, TimeUnit.SECONDS));
+            assertEquals(1, store.cleanup(snapshotBeforeSave));
+            assertNull(store.file(orphan.ref));
+            handoff.countDown();
+            assertNotNull(store.file(pending.get(5, TimeUnit.SECONDS).ref));
+        } finally {
+            handoff.countDown();
+            writer.shutdownNow();
+        }
     }
 
     @Test public void pngHeaderIsRequired() {
@@ -94,6 +121,25 @@ public final class ImageStoreAndProviderTest {
         List<String> broken = TemplateLayout.of(spec, "x".repeat(200), "", monospace).lines;
         for (String line : broken) assertFalse(line.isEmpty());
         assertTrue(TemplateLayout.of(spec, "   ", "", monospace).lines.isEmpty());
+    }
+
+    @Test public void templateWrapAndEllipsisKeepWholeSurrogatePairs() {
+        ImageSpec spec = ImageSpec.defaults(ChannelPlatform.FACEBOOK);
+        TemplateLayout split = TemplateLayout.of(spec, "a🚀b", "", (text, size) -> text.length() * 450);
+        assertEquals(Arrays.asList("a", "🚀", "b"), split.lines);
+        TemplateLayout truncated = TemplateLayout.of(spec, "🚀".repeat(8), "",
+                (text, size) -> text.length() * 400);
+        assertEquals(Arrays.asList("🚀", "🚀", "🚀", "🚀", "…"), truncated.lines);
+    }
+
+    @Test public void malformedOptionalUsageDoesNotDiscardACompletedImage() {
+        byte[] png = ImageServiceTest.png(1024, 1024);
+        String payload = "{\"data\":[{\"b64_json\":\"" + ByteString.of(png).base64() + "\"}],"
+                + "\"usage\":{\"input_tokens\":-1,\"output_tokens\":1.5,\"total_tokens\":\"bad\"}}";
+        ImageProvider.Response response = OpenAiImageProvider.parse(payload);
+        assertEquals(ImageProvider.Response.Outcome.SUCCEEDED, response.outcome);
+        assertArrayEquals(png, response.image);
+        assertEquals(com.socialpilot.app.domain.contract.ai.AiUsage.State.MISSING, response.usage.state);
     }
 
     @Test public void openAiImageSendsOneSizedRequestAndDecodesBase64() throws Exception {
