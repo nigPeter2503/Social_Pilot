@@ -4,6 +4,8 @@ import static com.socialpilot.app.domain.contract.ai.ModelCapabilities.Support.*
 import static org.junit.Assert.*;
 
 import com.socialpilot.app.data.ai.ModelSelectionStore;
+import com.socialpilot.app.data.ai.ledger.BudgetLedger;
+import com.socialpilot.app.data.ai.ledger.MemoryLedgerStore;
 import com.socialpilot.app.domain.agent.ChannelPlatform;
 import com.socialpilot.app.domain.agent.ChannelTarget;
 import com.socialpilot.app.domain.agent.ImageAsset;
@@ -14,6 +16,7 @@ import com.socialpilot.app.domain.contract.ai.AiError;
 import com.socialpilot.app.domain.contract.ai.AiRequest;
 import com.socialpilot.app.domain.contract.ai.AiTaskType;
 import com.socialpilot.app.domain.contract.ai.AiUsage;
+import com.socialpilot.app.domain.contract.ai.AttemptLedger;
 import com.socialpilot.app.domain.contract.ai.ModelCapabilities;
 import com.socialpilot.app.domain.contract.ai.ModelEntry;
 import com.socialpilot.app.domain.contract.ai.ModelRegistry;
@@ -374,6 +377,37 @@ public final class ImageServiceTest {
         assertEquals(ImageService.Result.Status.FAILED, result.status);
         assertTrue(result.budgetStopped);
         assertEquals("BUDGET_LIMIT_REACHED", result.reason);
+        assertEquals(UsageRecord.Settlement.RELEASED, result.settlement);
+        assertNull(result.asset);
+    }
+
+    @Test public void revokedReservationNeverReachesProviderWithoutLocalListener() {
+        selections.select(AiTaskType.IMAGE, verified);
+        MemoryLedgerStore ledgerStore = new MemoryLedgerStore();
+        BudgetLedger workerLedger = new BudgetLedger(ledgerStore, () -> 1795451400000L);
+        BudgetLedger settingsLedger = new BudgetLedger(ledgerStore, () -> 1795451400000L);
+        settingsLedger.setLimits(new AttemptLedger.Limits("USD", 100_000, 200_000, "Asia/Bangkok"));
+        AtomicInteger runs = new AtomicInteger();
+        Map<AiRequest.Provider, ImageProvider> adapters = new EnumMap<>(AiRequest.Provider.class);
+        adapters.put(AiRequest.Provider.OPENAI, (ai, size) -> {
+            settingsLedger.setLimits(new AttemptLedger.Limits("USD", 40_000, 200_000, "Asia/Bangkok"));
+            return new ImageProvider.Attempt() {
+                @Override public ImageProvider.Response run() {
+                    runs.incrementAndGet();
+                    return ImageProvider.Response.cancelled(true);
+                }
+
+                @Override public void cancel() {}
+            };
+        });
+        ImageService service = new ImageService(selections, adapters, p -> true, workerLedger, store, renderer,
+                (channel, revision) -> true, Runnable::run, () -> 1795451400000L);
+
+        ImageService.Result result = run(service, true, request(FACEBOOK, sized(ChannelPlatform.FACEBOOK)));
+
+        assertEquals(0, runs.get());
+        assertEquals(ImageService.Result.Status.FAILED, result.status);
+        assertTrue(result.budgetStopped);
         assertEquals(UsageRecord.Settlement.RELEASED, result.settlement);
         assertNull(result.asset);
     }

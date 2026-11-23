@@ -35,6 +35,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -345,6 +346,7 @@ public final class AiGatewayTest {
             completes++;
             return delegate.complete(requestId, mayHaveDispatched, estimate, usage);
         }
+        @Override public boolean claimDispatch(String requestId) { io(); return delegate.claimDispatch(requestId); }
         @Override public void settle(String requestId, AiCostEstimate estimate) { io(); delegate.settle(requestId, estimate); }
         @Override public void releaseUndispatched(String requestId) { io(); delegate.releaseUndispatched(requestId); }
         @Override public void markUncertain(String requestId) { io(); delegate.markUncertain(requestId); }
@@ -382,6 +384,92 @@ public final class AiGatewayTest {
         assertEquals(0, ledger.currentSpend().dayMicros);
     }
 
+    @Test public void capChangeRevokesQueuedDispatchBeforeAllListenersRun() {
+        assertQueuedCallRevoked(false, false);
+    }
+
+    @Test public void loweringDailyCapToExactlyCommittedStopsQueuedCall() {
+        assertQueuedCallRevoked(true, false);
+    }
+
+    @Test public void loweringMonthlyCapToExactlyCommittedStopsQueuedCall() {
+        assertQueuedCallRevoked(true, true);
+    }
+
+    private void assertQueuedCallRevoked(boolean exactly, boolean monthly) {
+        selections.select(AiTaskType.CONTENT_TEXT, openAi);
+        Scripted provider = new Scripted();
+        providers.put(AiRequest.Provider.OPENAI, provider);
+        MemoryLedgerStore store = new MemoryLedgerStore();
+        HookedLedger ledger = new HookedLedger(new BudgetLedger(store, () -> now));
+        ledger.setLimits(new AttemptLedger.Limits("USD", 1_000, 10_000, BANGKOK));
+        if (monthly) {
+            now -= TimeUnit.DAYS.toMillis(1);
+            AiCostEstimate prior = AiCostEstimate.text(500, 0, 0, BigDecimal.ONE, BigDecimal.ZERO,
+                    BigDecimal.ZERO, PRICE.currency, PRICE.priceRevision);
+            assertEquals(BudgetManager.Admission.RESERVED, ledger.reserve("prior-day", prior));
+            ledger.settle("prior-day", prior);
+            now += TimeUnit.DAYS.toMillis(1);
+        }
+        // This listener runs first, so the queued worker can start before the gateway hears about the stop.
+        ledger.addExhaustionListener(() -> queued.remove(0).run());
+        Collector collector = new Collector();
+        AiGateway.Submission queuedCall = gateway(ledger, manual).submit(call("draft"), collector);
+        long held = store.raw(queuedCall.requestId).reservedMicros;
+        ledger.setLimits(monthly
+                ? new AttemptLedger.Limits("USD", 600, held + 500, BANGKOK)
+                : new AttemptLedger.Limits("USD", exactly ? held : 50, 10_000, BANGKOK));
+        if (!queued.isEmpty()) queued.remove(0).run();
+
+        assertEquals(0, provider.runs);
+        assertNotNull(collector.finished.get());
+        assertTrue(collector.finished.get().budgetStopped);
+        assertEquals(UsageRecord.Settlement.RELEASED, collector.finished.get().usage.settlement);
+        assertEquals(1, ledger.completes);
+        assertEquals(0, ledger.currentSpend().dayMicros);
+    }
+
+    @Test public void listenerFailureCannotTurnCommittedUsageIntoAWriteFailure() {
+        selections.select(AiTaskType.CONTENT_TEXT, openAi);
+        Scripted provider = new Scripted();
+        provider.usage = new AiUsage(10L, 200L, 210L, 0L, null);
+        providers.put(AiRequest.Provider.OPENAI, provider);
+        MemoryLedgerStore store = new MemoryLedgerStore();
+        BudgetLedger ledger = new BudgetLedger(store, () -> now);
+        ledger.setLimits(new AttemptLedger.Limits("USD", 500, 10_000, BANGKOK));
+        AtomicInteger notified = new AtomicInteger();
+        ledger.addExhaustionListener(() -> { throw new IllegalStateException("fixture listener failure"); });
+        ledger.addExhaustionListener(notified::incrementAndGet);
+        Collector collector = new Collector();
+        AiGateway.Submission submission = gateway(ledger, manual).submit(call("draft"), collector);
+        queued.remove(0).run();
+
+        assertEquals(AttemptEntity.SETTLED, store.raw(submission.requestId).state);
+        assertEquals(1, notified.get());
+        assertFalse(collector.finished.get().ledgerWriteFailed);
+        assertEquals(UsageRecord.Settlement.SETTLED, collector.finished.get().usage.settlement);
+    }
+
+    @Test public void unpriceableUsageStillDeliversTheTerminalAndKeepsTheHold() {
+        selections.select(AiTaskType.CONTENT_TEXT, openAi);
+        Scripted provider = new Scripted();
+        provider.usage = new AiUsage(0L, Long.MAX_VALUE, Long.MAX_VALUE, 0L, null);
+        providers.put(AiRequest.Provider.OPENAI, provider);
+        MemoryLedgerStore store = new MemoryLedgerStore();
+        BudgetLedger ledger = new BudgetLedger(store, () -> now);
+        ledger.setLimits(new AttemptLedger.Limits("USD", 1_000, 10_000, BANGKOK));
+        Collector collector = new Collector();
+        AiGateway.Submission submission = gateway(ledger, manual).submit(call("draft"), collector);
+        long held = store.raw(submission.requestId).reservedMicros;
+        queued.remove(0).run();
+
+        assertNotNull(collector.finished.get());
+        assertFalse(collector.finished.get().ledgerWriteFailed);
+        assertEquals(UsageRecord.Settlement.UNCERTAIN, collector.finished.get().usage.settlement);
+        assertEquals(Long.valueOf(Long.MAX_VALUE), collector.finished.get().usage.usage.totalTokens);
+        assertEquals(held, ledger.currentSpend().dayMicros);
+    }
+
     @Test public void ledgerWriteFailureStillEndsTheCallClearlyAndStaysHeld() {
         selections.select(AiTaskType.CONTENT_TEXT, openAi);
         Scripted provider = new Scripted();
@@ -392,7 +480,7 @@ public final class AiGatewayTest {
         ledger.setLimits(new AttemptLedger.Limits("USD", 1_000, 10_000, BANGKOK));
         Collector collector = new Collector();
         AiGateway.Submission submission = gateway(ledger, manual).submit(call("draft"), collector);
-        store.failNextUpdate = true; // The terminal write fails after the provider answered.
+        provider.beforeTerminal = () -> store.failNextUpdate = true;
         queued.get(0).run();
         AiGateway.Finished finished = collector.finished.get();
         assertNotNull(finished);
@@ -400,7 +488,7 @@ public final class AiGatewayTest {
         assertNull(finished.usage);
         assertEquals(AiEvent.Type.COMPLETED, finished.terminal.type);
         AttemptEntity row = store.raw(submission.requestId);
-        assertEquals(AttemptEntity.RESERVED, row.state); // Settlement and usage were rolled back together.
+        assertEquals(AttemptEntity.DISPATCHING, row.state); // Settlement and usage were rolled back together.
         assertNull(row.usageState);
         BudgetLedger afterRestart = new BudgetLedger(store, () -> now);
         assertEquals(1, afterRestart.recoverInterrupted());
@@ -503,6 +591,7 @@ public final class AiGatewayTest {
         List<String> script = Arrays.asList("ok");
         AiUsage usage = AiUsage.MISSING;
         boolean failAfterText;
+        Runnable beforeTerminal = () -> {};
         int runs;
         private Listener last;
 
@@ -522,6 +611,7 @@ public final class AiGatewayTest {
                     }
                     listener.onEvent(AiEvent.started(request, ++sequence));
                     for (String part : script) listener.onEvent(AiEvent.text(request, ++sequence, part));
+                    beforeTerminal.run();
                     if (failAfterText) {
                         listener.onEvent(AiEvent.terminal(request, ++sequence, AiEvent.Type.FAILED,
                                 new com.socialpilot.app.domain.contract.ai.AiError(

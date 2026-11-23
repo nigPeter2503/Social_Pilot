@@ -64,12 +64,16 @@ public final class PriceSheet {
         if (usage == null || usage.inputTokens == null || usage.outputTokens == null) return null;
         long cached = usage.cachedInputTokens == null ? 0 : usage.cachedInputTokens;
         if (cached > usage.inputTokens) return null;
-        long output = usage.outputTokens;
-        if (provider == AiRequest.Provider.GEMINI && usage.reasoningTokens != null) {
-            output = Math.addExact(output, usage.reasoningTokens);
+        try {
+            long output = usage.outputTokens;
+            if (provider == AiRequest.Provider.GEMINI && usage.reasoningTokens != null) {
+                output = Math.addExact(output, usage.reasoningTokens);
+            }
+            return AiCostEstimate.text(usage.inputTokens - cached, cached, output,
+                    uncachedInputPerMillion, cachedInputPerMillion, outputPerMillion, currency, priceRevision);
+        } catch (ArithmeticException unpriceable) {
+            return null;
         }
-        return AiCostEstimate.text(usage.inputTokens - cached, cached, output,
-                uncachedInputPerMillion, cachedInputPerMillion, outputPerMillion, currency, priceRevision);
     }
 
     /** Estimate for {@code images} generated images, or null without a sourced per-image price. */

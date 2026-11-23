@@ -280,6 +280,17 @@ public final class ImageService {
             }
             attempt = prepared;
             if (cancelled) return ImageProvider.Response.cancelled(false);
+            final boolean permitted;
+            try {
+                permitted = ledger.claimDispatch(ai.requestId);
+            } catch (RuntimeException failure) {
+                return ImageProvider.Response.failed(new AiError(AiError.Code.PROVIDER_UNAVAILABLE, null), false);
+            }
+            if (!permitted) {
+                stopForBudget();
+                return ImageProvider.Response.cancelled(false);
+            }
+            if (cancelled) return ImageProvider.Response.cancelled(false);
             try {
                 return Objects.requireNonNull(prepared.run());
             } catch (RuntimeException failure) {

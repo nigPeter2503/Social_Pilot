@@ -20,7 +20,7 @@ Issue [#34](https://github.com/nigPeter2503/Social_Pilot/issues/34) · F2.B3, F8
 generate(request) → model IMAGE đã chọn → blockFor(IMAGE): capability image SUPPORTED, VERIFIED, có giá perImage
   → provider có adapter → key BYOK usable → spec có providerSize → ledger có trần
   → đăng ký job đang chạy → reserve(perImage × 1) → nếu bị dừng vì vượt trần ngay sau reserve thì không gửi, release một lần, FAILED + budgetStopped
-  → một lần gọi API → AttemptLedger.complete(...): quyết toán và usage trong cùng transaction, kỳ ghim lúc reserve; lỗi ghi → Result.ledgerWriteFailed, settlement null, khoản giữ vẫn tính
+  → claimDispatch(requestId) trong ledger trước khi chạy provider → một lần gọi API → AttemptLedger.complete(...): quyết toán và usage trong cùng transaction, kỳ ghim lúc reserve; lỗi ghi → Result.ledgerWriteFailed, settlement null, khoản giữ vẫn tính
   → PNG hợp lệ → kiểm revision kênh → lưu file → kiểm revision lại → ImageAsset(GENERATED)
 ```
 
