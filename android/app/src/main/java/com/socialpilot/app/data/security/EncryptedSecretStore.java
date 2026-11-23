@@ -8,9 +8,10 @@ import com.socialpilot.app.domain.contract.secret.SecretRead;
 import com.socialpilot.app.domain.contract.secret.SecretRef;
 import com.socialpilot.app.domain.contract.secret.SecretStore;
 import com.socialpilot.app.domain.contract.secret.SecretStoreException;
-import java.util.HashSet;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
+import java.util.WeakHashMap;
 import java.util.UUID;
 
 /**
@@ -24,8 +25,9 @@ public final class EncryptedSecretStore implements SecretStore {
     private final SharedPreferences preferences;
     private final RecordCipher cipher;
     private final Gson gson = new Gson();
-    /** Records whose last commit failed; the in-memory map may hold an unconfirmed value. */
-    private final Set<String> unconfirmed = new HashSet<>();
+    /** SharedPreferences shares one memory-first map across stores using the same file. */
+    private static final Map<SharedPreferences, Map<String, String>> ROLLBACKS = new WeakHashMap<>();
+    private final Map<String, String> pendingRollback;
 
     public EncryptedSecretStore(Context context, SecretNamespace namespace) {
         this(namespace, context.getApplicationContext().getSharedPreferences(
@@ -38,6 +40,14 @@ public final class EncryptedSecretStore implements SecretStore {
         this.namespace = Objects.requireNonNull(namespace);
         this.preferences = Objects.requireNonNull(preferences);
         this.cipher = Objects.requireNonNull(cipher);
+        synchronized (ROLLBACKS) {
+            Map<String, String> shared = ROLLBACKS.get(preferences);
+            if (shared == null) {
+                shared = new HashMap<>();
+                ROLLBACKS.put(preferences, shared);
+            }
+            pendingRollback = shared;
+        }
     }
 
     @Override
@@ -46,7 +56,7 @@ public final class EncryptedSecretStore implements SecretStore {
     }
 
     @Override
-    public synchronized String write(SecretRef ref, String secret) throws SecretStoreException {
+    public String write(SecretRef ref, String secret) throws SecretStoreException {
         String name = name(ref);
         if (secret == null || secret.isEmpty()) throw new IllegalArgumentException("Empty secret");
         Record record = new Record(ref.opaque(), secret, UUID.randomUUID().toString());
@@ -57,25 +67,20 @@ public final class EncryptedSecretStore implements SecretStore {
         } catch (Exception failure) {
             throw new SecretStoreException(SecretStoreException.Reason.ENCRYPTION_FAILED);
         }
-        boolean committed;
-        try {
-            committed = preferences.edit().putString(name, encrypted).commit();
-        } catch (RuntimeException failure) {
-            committed = false;
-        }
-        if (!committed) {
-            // commit(false) may still have changed the in-memory map; never serve that value.
-            unconfirmed.add(name);
-            throw new SecretStoreException(SecretStoreException.Reason.WRITE_FAILED);
-        }
-        unconfirmed.remove(name);
+        commit(name, encrypted);
         return record.revision;
     }
 
     @Override
-    public synchronized SecretRead read(SecretRef ref) {
+    public SecretRead read(SecretRef ref) {
         String name = name(ref);
-        if (unconfirmed.contains(name)) return SecretRead.unreadable();
+        synchronized (pendingRollback) {
+            if (pendingRollback.containsKey(name)) return SecretRead.unreadable();
+            return readRecord(ref, name);
+        }
+    }
+
+    private SecretRead readRecord(SecretRef ref, String name) {
         try {
             String encrypted = preferences.getString(name, null);
             if (encrypted == null) return SecretRead.missing();
@@ -93,19 +98,47 @@ public final class EncryptedSecretStore implements SecretStore {
     }
 
     @Override
-    public synchronized void delete(SecretRef ref) throws SecretStoreException {
-        String name = name(ref);
-        boolean committed;
-        try {
-            committed = preferences.edit().remove(name).commit();
-        } catch (RuntimeException failure) {
-            committed = false;
-        }
-        if (!committed) {
-            unconfirmed.add(name);
+    public void delete(SecretRef ref) throws SecretStoreException {
+        commit(name(ref), null);
+    }
+
+    private void commit(String name, String value) throws SecretStoreException {
+        synchronized (pendingRollback) {
+            // Keep the last confirmed ciphertext (or absence) before touching the in-memory map.
+            String previous;
+            try {
+                if (pendingRollback.containsKey(name)) {
+                    previous = pendingRollback.get(name);
+                } else {
+                    Object stored = preferences.getAll().get(name);
+                    previous = stored instanceof String ? (String) stored : null;
+                }
+            } catch (RuntimeException unavailable) {
+                throw new SecretStoreException(SecretStoreException.Reason.WRITE_FAILED);
+            }
+
+            try {
+                SharedPreferences.Editor editor = preferences.edit();
+                // A successful commit writes the whole file, including changes by other providers.
+                for (Map.Entry<String, String> entry : pendingRollback.entrySet()) {
+                    putOrRemove(editor, entry.getKey(), entry.getValue());
+                }
+                putOrRemove(editor, name, value);
+                if (editor.commit()) {
+                    pendingRollback.clear();
+                    return;
+                }
+            } catch (RuntimeException failed) {
+                // An exception can also leave an unconfirmed in-memory edit.
+            }
+            pendingRollback.put(name, previous);
             throw new SecretStoreException(SecretStoreException.Reason.WRITE_FAILED);
         }
-        unconfirmed.remove(name);
+    }
+
+    private static void putOrRemove(SharedPreferences.Editor editor, String name, String value) {
+        if (value == null) editor.remove(name);
+        else editor.putString(name, value);
     }
 
     private String name(SecretRef ref) {
