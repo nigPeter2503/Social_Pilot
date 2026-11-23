@@ -276,6 +276,58 @@ public class MetricCollectionTest {
         assertEquals(2, server.getRequestCount());
     }
 
+    @Test public void http503FollowerWithRetryAfterRetriesAndCompletes() {
+        MetricJob job = job(true);
+        server.enqueue(new MockResponse().setResponseCode(503).setHeader("Retry-After", "120"));
+        MetricCollectionCoordinator.Result first = run(job, 0);
+        assertEquals(WAIT, first.state());
+        assertEquals(Long.valueOf(START + 120_000), first.retryAt());
+        assertEquals(1, server.getRequestCount());
+
+        clock.addAndGet(119_999);
+        MetricCollectionCoordinator.Result early = run(job, 1);
+        assertEquals(WAIT, early.state());
+        assertEquals(1, server.getRequestCount());
+
+        clock.incrementAndGet();
+        good();
+        MetricCollectionCoordinator.Result completed = run(job, 2);
+        assertEquals(COMPLETE, completed.state());
+        assertEquals(2, server.getRequestCount());
+        assertEquals(1, history().snapshots().size());
+        Snapshot snapshot = history().snapshots().get(0);
+        assertEquals(job.collectionId(), snapshot.key().collectionId());
+        assertEquals(job.collectionStartedAt(), snapshot.collectionStartedAt());
+        assertEquals(Long.valueOf(0), snapshot.samples().get(0).value());
+    }
+
+    @Test public void http503PostMetricsPartialPreservesGoodFollower() {
+        MetricJob job = job(true, likes);
+        good();
+        server.enqueue(new MockResponse().setResponseCode(503).setHeader("Retry-After", "60"));
+        MetricCollectionCoordinator.Result first = run(job, 0);
+        assertEquals(WAIT, first.state());
+        assertEquals(Long.valueOf(START + 60_000), first.retryAt());
+        assertEquals(2, server.getRequestCount());
+        assertEquals(1, history().snapshots().size());
+        Snapshot followerSnapshot = history().snapshots().get(0);
+        assertEquals(Snapshot.Subject.CHANNEL, followerSnapshot.key().subjectType());
+        assertEquals(Long.valueOf(0), followerSnapshot.samples().get(0).value());
+
+        clock.addAndGet(60_000);
+        server.enqueue(new MockResponse().setBody("{\"summary\":{\"total_count\":5}}"));
+        MetricCollectionCoordinator.Result completed = run(job, 1);
+        assertEquals(COMPLETE, completed.state());
+        assertEquals(3, server.getRequestCount());
+        assertEquals(2, history().snapshots().size());
+        Snapshot likeSnapshot = history().snapshots().stream()
+                .filter(s -> s.key().subjectType() == Snapshot.Subject.POST)
+                .findFirst().orElseThrow();
+        assertEquals(Long.valueOf(5), likeSnapshot.samples().get(0).value());
+        assertEquals(job.collectionId(), likeSnapshot.key().collectionId());
+        assertEquals(job.collectionStartedAt(), likeSnapshot.collectionStartedAt());
+    }
+
     @Test public void unownedPostDoesNotBlockIndependentFollower() {
         good();
         MetricJob j = job(true, new MetricJob.PostTarget("not-owned", shares.query(), null));

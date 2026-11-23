@@ -431,6 +431,32 @@ public class FollowerMetricAdapterTest {
         }
     }
 
+    @Test public void http503WithRetryAfterReturnsNetworkErrorAndWait() throws Exception {
+        FollowerRequest r = request(FACEBOOK_PAGE); bind(r);
+        server.enqueue(new MockResponse().setResponseCode(503).setHeader("Retry-After", "120"));
+        FollowerResult result = read(r);
+        assertEquals(Status.FAILURE, result.status);
+        assertEquals(MissingReason.NETWORK_ERROR, result.sample.missingReason);
+        assertEquals(Failure.PROVIDER_ERROR, result.failure);
+        assertNotNull(result.error);
+        assertEquals(SocialError.Code.NETWORK_ERROR, result.error.code);
+        assertEquals(SocialError.NextAction.WAIT, result.error.nextAction);
+        assertEquals(Long.valueOf(NOW + 120_000), result.retryAfterAt);
+    }
+
+    @Test public void http503WithoutRetryAfter() throws Exception {
+        FollowerRequest r = request(FACEBOOK_PAGE); bind(r);
+        server.enqueue(new MockResponse().setResponseCode(503));
+        FollowerResult result = read(r);
+        assertEquals(Status.FAILURE, result.status);
+        assertEquals(MissingReason.NETWORK_ERROR, result.sample.missingReason);
+        assertEquals(Failure.PROVIDER_ERROR, result.failure);
+        assertNotNull(result.error);
+        assertEquals(SocialError.Code.NETWORK_ERROR, result.error.code);
+        assertEquals(SocialError.NextAction.RETRY_WHEN_SAFE, result.error.nextAction);
+        assertNull(result.retryAfterAt);
+    }
+
     @Test public void malformedSuccessfulBodyAndErrorEnvelopeDoNotBecomeZero() throws Exception {
         FollowerRequest r = request(FACEBOOK_PAGE); bind(r);
         for (String body : new String[] {"not-json", "[]", "null", "{\"error\":{\"code\":100}}"}) {

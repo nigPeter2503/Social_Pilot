@@ -289,12 +289,17 @@ public final class PostMetricAdapter {
                     && (code == 4 || code == 17 || code == 32 || code == 613)) {
                 reason = MissingReason.RATE_LIMITED;
                 social = error(SocialError.Code.RATE_LIMITED, SocialError.NextAction.WAIT);
+            } else if (status == 503) {
+                reason = MissingReason.NETWORK_ERROR;
+                social = error(SocialError.Code.NETWORK_ERROR,
+                        retryAfter != null ? SocialError.NextAction.WAIT : SocialError.NextAction.RETRY_WHEN_SAFE);
             } else if (binding.permissionEvidence != null && binding.permissionEvidence.matches(r, code)) {
                 reason = MissingReason.PERMISSION_REQUIRED;
                 social = error(SocialError.Code.PERMISSION_REQUIRED, SocialError.NextAction.RESOLVE_PERMISSION);
             }
+            boolean hasRetryHeader = reason == MissingReason.RATE_LIMITED || status == 503;
             return failed(r, reason, Failure.PROVIDER_ERROR, social,
-                    reason == MissingReason.RATE_LIMITED ? retryAt(retryAfter, receivedAt) : null, receivedAt);
+                    hasRetryHeader ? retryAt(retryAfter, receivedAt) : null, receivedAt);
         }
         List<MetricDefinition> definitions = PostMetricMapping.definitions(r);
         PostMetricMapping.Parsed parsed = PostMetricMapping.parse(r, body, definitions,

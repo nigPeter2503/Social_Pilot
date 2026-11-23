@@ -498,6 +498,32 @@ public class PostMetricAdapterTest {
             else assertNull(result.retryAfterAt);
         }
     }
+
+    @Test public void http503WithRetryAfterReturnsNetworkErrorAndWait() throws Exception {
+        PostRequest r = request(FB_REACTIONS); bind(r);
+        server.enqueue(new MockResponse().setResponseCode(503).setHeader("Retry-After", "120").setBody("{}"));
+        PostResult result = read(r);
+        assertEquals(Status.FAILURE, result.status);
+        assertEquals(Failure.PROVIDER_ERROR, result.failure);
+        assertNotNull(result.error);
+        assertEquals(SocialError.Code.NETWORK_ERROR, result.error.code);
+        assertEquals(SocialError.NextAction.WAIT, result.error.nextAction);
+        assertEquals(Long.valueOf(NOW + 120_000), result.retryAfterAt);
+        missing(result, Metric.REACTION_COUNT, MissingReason.NETWORK_ERROR);
+    }
+
+    @Test public void http503WithoutRetryAfter() throws Exception {
+        PostRequest r = request(FB_REACTIONS); bind(r);
+        server.enqueue(new MockResponse().setResponseCode(503).setBody("{}"));
+        PostResult result = read(r);
+        assertEquals(Status.FAILURE, result.status);
+        assertEquals(Failure.PROVIDER_ERROR, result.failure);
+        assertNotNull(result.error);
+        assertEquals(SocialError.Code.NETWORK_ERROR, result.error.code);
+        assertEquals(SocialError.NextAction.RETRY_WHEN_SAFE, result.error.nextAction);
+        assertNull(result.retryAfterAt);
+        missing(result, Metric.REACTION_COUNT, MissingReason.NETWORK_ERROR);
+    }
     @Test public void graphRateAndAuthEnvelopeOn200AreFailures() throws Exception {
         PostRequest r = request(FB_REACTIONS); bind(r);
         missing(response(r, 200, "{\"error\":{\"code\":190}}"), Metric.REACTION_COUNT, MissingReason.AUTH_REQUIRED);
