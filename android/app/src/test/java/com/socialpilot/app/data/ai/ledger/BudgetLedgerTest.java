@@ -202,6 +202,57 @@ public final class BudgetLedgerTest {
         assertEquals(60, ledger.currentSpend().dayMicros);
     }
 
+    @Test public void completeSettlesAndStoresUsageTogetherOnceInThePinnedPeriod() {
+        AiRequest request = request("a", "facebook");
+        ledger.reserve(request, AiTaskType.CONTENT_TEXT, usd(80)); // 2026-11-23 23:30 Bangkok.
+        now += HOUR; // Terminal after local midnight.
+        AiUsage reported = new AiUsage(10L, 5L, 15L, 0L, null);
+        UsageRecord record = ledger.complete("a", true, usd(15), reported);
+        assertEquals(UsageRecord.Settlement.SETTLED, record.settlement);
+        assertEquals(Long.valueOf(15), record.estimateMicros);
+        assertEquals(AiUsage.State.REPORTED, record.usage.state);
+        assertEquals("2026-11-23", record.period.dayKey);
+        // A duplicate terminal changes nothing and returns the stored record.
+        UsageRecord again = ledger.complete("a", true, usd(60), AiUsage.MISSING);
+        assertEquals(Long.valueOf(15), again.estimateMicros);
+        assertEquals(AiUsage.State.REPORTED, again.usage.state);
+        assertEquals(15, store.raw("a").settledMicros.longValue());
+        assertNull(ledger.complete("unknown", true, usd(1), reported));
+    }
+
+    @Test public void completeReleasesUndispatchedAndKeepsUnpricedOrMismatchedHeld() {
+        ledger.reserve(request("a", "facebook"), AiTaskType.CONTENT_TEXT, usd(20));
+        assertEquals(UsageRecord.Settlement.RELEASED, ledger.complete("a", false, null, AiUsage.MISSING).settlement);
+        ledger.reserve(request("b", "facebook"), AiTaskType.CONTENT_TEXT, usd(30));
+        assertEquals(UsageRecord.Settlement.UNCERTAIN, ledger.complete("b", true, null, AiUsage.MISSING).settlement);
+        ledger.reserve(request("c", "facebook"), AiTaskType.CONTENT_TEXT, usd(40));
+        UsageRecord mismatch = ledger.complete("c", true, usd(5, "fixture-other"), new AiUsage(5L, 0L, 5L, 0L, null));
+        assertEquals(UsageRecord.Settlement.UNCERTAIN, mismatch.settlement);
+        assertEquals(70, ledger.currentSpend().dayMicros); // 30 + 40 held, 20 released.
+    }
+
+    @Test public void failedCompleteStoresNothingAndRestartHoldsItAsUncertain() {
+        AiRequest request = request("a", "facebook");
+        ledger.reserve(request, AiTaskType.CONTENT_TEXT, usd(40));
+        store.failNextUpdate = true;
+        try {
+            ledger.complete("a", true, usd(15), new AiUsage(10L, 5L, 15L, 0L, null));
+            fail("the write failure must reach the caller");
+        } catch (IllegalStateException expected) {
+            // Rolled back: neither the settlement nor the usage was stored.
+        }
+        AttemptEntity row = store.raw("a");
+        assertEquals(AttemptEntity.RESERVED, row.state);
+        assertNull(row.usageState);
+        assertNull(row.settledMicros);
+        BudgetLedger afterRestart = new BudgetLedger(store, () -> now);
+        assertEquals(1, afterRestart.recoverInterrupted());
+        UsageRecord recovered = afterRestart.forMonth("2026-11").get(0);
+        assertEquals(UsageRecord.Settlement.UNCERTAIN, recovered.settlement); // Never SETTLED with MISSING usage.
+        assertEquals(AiUsage.State.MISSING, recovered.usage.state);
+        assertEquals(40, afterRestart.currentSpend().dayMicros);
+    }
+
     @Test public void priceRevisionOrCurrencyMismatchKeepsTheReservationHeld() {
         ledger.reserve("a", usd(50));
         ledger.settle("a", usd(5, "fixture-other"));

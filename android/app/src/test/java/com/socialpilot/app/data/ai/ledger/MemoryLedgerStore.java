@@ -9,25 +9,41 @@ import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Labelled JVM fake with the same rules as the Room store: one writer at a time (like SQLite's
- * write lock) and copies in and out, so callers cannot mutate stored rows without update().
- * The real store is checked by LedgerDatabaseDeviceTest.
+ * write lock), copies in and out so callers cannot mutate stored rows without update(), and
+ * rollback of the whole transaction when it throws. The real store is checked by
+ * LedgerDatabaseDeviceTest.
  */
-final class MemoryLedgerStore implements LedgerStore {
+public final class MemoryLedgerStore implements LedgerStore {
     private final ReentrantLock lock = new ReentrantLock();
     private final Map<String, AttemptEntity> rows = new LinkedHashMap<>();
     private BudgetSettingsEntity settings;
+    /** Fault injection: the next update() throws, like a full disk or a closed database. */
+    public volatile boolean failNextUpdate;
 
     @Override public <T> T inTransaction(Callable<T> work) {
         lock.lock();
+        boolean outer = lock.getHoldCount() == 1;
+        Map<String, AttemptEntity> before = outer ? copyAll() : null;
+        BudgetSettingsEntity settingsBefore = settings;
         try {
             return work.call();
-        } catch (RuntimeException failure) {
-            throw failure;
         } catch (Exception failure) {
+            if (outer) {
+                rows.clear();
+                rows.putAll(before);
+                settings = settingsBefore;
+            }
+            if (failure instanceof RuntimeException) throw (RuntimeException) failure;
             throw new IllegalStateException(failure);
         } finally {
             lock.unlock();
         }
+    }
+
+    private Map<String, AttemptEntity> copyAll() {
+        Map<String, AttemptEntity> copy = new LinkedHashMap<>();
+        for (Map.Entry<String, AttemptEntity> entry : rows.entrySet()) copy.put(entry.getKey(), copy(entry.getValue()));
+        return copy;
     }
 
     private void requireTransaction() {
@@ -48,6 +64,10 @@ final class MemoryLedgerStore implements LedgerStore {
 
     @Override public void update(AttemptEntity row) {
         requireTransaction();
+        if (failNextUpdate) {
+            failNextUpdate = false;
+            throw new IllegalStateException("fixture: write failed");
+        }
         if (rows.containsKey(row.requestId)) rows.put(row.requestId, copy(row));
     }
 
@@ -134,7 +154,7 @@ final class MemoryLedgerStore implements LedgerStore {
         return result;
     }
 
-    AttemptEntity raw(String requestId) {
+    public AttemptEntity raw(String requestId) {
         return inTransaction(() -> find(requestId));
     }
 

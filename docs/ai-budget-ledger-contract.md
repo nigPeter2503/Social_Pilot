@@ -17,7 +17,8 @@ Issue [#31](https://github.com/nigPeter2503/Social_Pilot/issues/31) · F8.N1, F8
 | `settle(id, estimate)` | Idempotent. Áp từ `RESERVED` hoặc `UNCERTAIN` (đối soát muộn). Bỏ qua nếu đã `SETTLED`/`RELEASED`. Currency hoặc price revision khác bản ghim → giữ ở `UNCERTAIN`, không áp số |
 | `releaseUndispatched(id)` | Chỉ từ `RESERVED`, một lần. Dòng đã `SETTLED`/`UNCERTAIN` không bao giờ được giải phóng |
 | `markUncertain(id)` | Từ `RESERVED`: có thể đã gửi nhưng thiếu usage tính được. Vẫn giữ số đã reserve |
-| `record(UsageRecord)` | Ghi usage một lần theo requestId; không đổi trạng thái hay kỳ |
+| `record(UsageRecord)` | Ghi usage một lần theo requestId; không đổi trạng thái hay kỳ. Gateway không còn gọi riêng `settle`/`markUncertain`/`releaseUndispatched` + `record` |
+| `complete(id, mayHaveDispatched, estimate, usage)` | **Đường terminal của gateway.** Một transaction: chuyển trạng thái (release / settle / `UNCERTAIN`) **và** ghi usage cùng lúc, hoặc không ghi gì. Lỗi ghi được ném ra và rollback toàn bộ: dòng vẫn `RESERVED`, lúc khởi động lại thành `UNCERTAIN` với usage `MISSING` (không bao giờ `SETTLED` mà thiếu usage). Trả `UsageRecord` dựng từ dòng đã lưu, nên kỳ, currency và price revision trong callback đúng là bản ghim lúc reserve. Lặp lại thì không đổi gì, trả bản đã lưu |
 | `recoverInterrupted()` | Gọi khi khởi động. Dòng `RESERVED` của process cũ (khác `bootId`) → `UNCERTAIN`, `interrupted = 1`. Không bao giờ coi là chi phí 0 |
 | `forgetChannel(channelId)` | Xóa `channelId`/`sessionId`/`stepId`/`connectionRevision` của kênh, giữ chi phí, trạng thái và kỳ. Xem §5 |
 
@@ -31,6 +32,8 @@ Tổng chi tiêu của một kỳ = `settledMicros` của dòng `SETTLED` + `res
 - Chưa đặt trần thì gateway trả `BUDGET_NOT_SET` và không reserve, không gửi.
 - Đầy trần đúng bằng giới hạn là bình thường: lượt mới bị `BUDGET_LIMIT_REACHED`, lượt đang chạy vẫn chạy tiếp.
 - **Vượt** trần (quyết toán lớn hơn reserve, hoặc người dùng hạ trần dưới mức đã dùng) gọi `ExhaustionListener`. `AiGateway` hủy mọi lượt đang chạy hoặc đang chờ: lượt chưa gửi được release, lượt đã gửi đi theo quy tắc terminal (thường là `UNCERTAIN`). `Finished.budgetStopped = true`, text partial được giữ để consumer lưu kèm lý do.
+- Gateway đăng ký lượt vào danh sách đang chạy **trước** khi reserve. Nếu trần bị hạ ngay sau khi reservation commit nhưng trước khi lượt được kích hoạt, lượt không được gửi, khoản giữ được release đúng một lần và `submit` trả `BUDGET_LIMIT_REACHED` (không callback).
+- Lỗi ghi ledger ở terminal: caller vẫn nhận `onFinished` với `Finished.ledgerWriteFailed = true` và `usage = null`; chi phí coi là chưa biết, khoản giữ vẫn tính vào trần.
 - Đổi zone sau khi đã có reservation: dòng cũ giữ kỳ đã ghim; kỳ "hiện tại" tính theo zone mới. Chuyển zone hoặc qua nửa đêm không mở thêm ngân sách cho attempt cũ.
 
 ## 4. Lưu trữ và schema
@@ -54,10 +57,10 @@ Tổng chi tiêu của một kỳ = `settledMicros` của dòng `SETTLED` + `res
 
 | Lớp | Nội dung | Kết quả |
 |---|---|---|
-| `BudgetLedgerTest` (JVM, `MemoryLedgerStore` có nhãn: một writer mỗi lúc, copy vào/ra) | Race A/B 60/100, 40 lượt đồng thời không vượt trần, trần ngày/tháng, retry ID mới, settle/release một lần, uncertain, restart, qua nửa đêm/đổi zone, lệch price revision/currency, vượt trần và hạ trần, tràn số, báo cáo đa kênh/provider, quên kênh | Pass |
-| `AiGatewayTest` | `BUDGET_NOT_SET` không reserve; vượt trần hủy lượt đang chạy (giữ partial, `UNCERTAIN`) và lượt đang chờ (release) | Pass |
+| `BudgetLedgerTest` (JVM, `MemoryLedgerStore` có nhãn: một writer mỗi lúc, copy vào/ra, rollback khi transaction lỗi) | Race A/B 60/100, 40 lượt đồng thời không vượt trần, trần ngày/tháng, retry ID mới, settle/release một lần, uncertain, restart, qua nửa đêm/đổi zone, lệch price revision/currency, vượt trần và hạ trần, tràn số, báo cáo đa kênh/provider, quên kênh; `complete` ghi quyết toán + usage cùng lúc trong kỳ ghim, idempotent; release/uncertain/lệch giá; lỗi ghi rollback toàn bộ và restart giữ `UNCERTAIN` | Pass |
+| `AiGatewayTest` | `BUDGET_NOT_SET` không reserve; vượt trần hủy lượt đang chạy (giữ partial, `UNCERTAIN`) và lượt đang chờ (release); hạ trần giữa reserve và dispatch: không gửi, release một lần, không callback; lỗi ghi ledger: caller vẫn nhận kết thúc với `ledgerWriteFailed`, dòng vẫn giữ; qua nửa đêm giữa gateway và ledger: callback dùng kỳ ledger ghim (ledger thật) | Pass |
 | `BudgetInputTest` | Parse/format số tiền | Pass |
-| `LedgerDatabaseDeviceTest` (Room thật trên emulator) | Cài mới không trần; reserve đồng thời từ hai ledger trên cùng DB không vượt trần và trùng ID chỉ một lượt thắng; đóng/mở lại DB giữ reservation ở `UNCERTAIN` | Pass, xem [evidence](evidence/sp-029-device-check-2026-11-23.md) |
+| `LedgerDatabaseDeviceTest` (Room thật trên emulator) | Cài mới không trần; reserve đồng thời từ hai ledger trên cùng DB không vượt trần và trùng ID chỉ một lượt thắng; đóng/mở lại DB giữ reservation ở `UNCERTAIN`; `complete` lỗi sau khi đã ghi dòng vào SQLite thì Room rollback cả quyết toán lẫn usage, ghi lại sau đó thành công một lần | Pass, xem [evidence](evidence/sp-029-device-check-2026-11-23.md) |
 | Lượt AI thật qua ledger | **NOT_RUN**: registry chỉ có ứng viên chưa xác minh, chưa được cấp key/quota/trần thử | — |
 
 Ledger giả trong test không phải trần production và số micros trong fixture không phải hóa đơn provider.
