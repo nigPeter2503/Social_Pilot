@@ -238,7 +238,7 @@ public final class AiGateway {
     }
 
     private final class Run implements AiProvider.Listener {
-        /** NEW until the reservation is admitted and armed; only PENDING can be finalized by cancel. */
+        /** NEW until the reservation is admitted and armed; a cancelled PENDING run is finalized by its worker job. */
         private static final int NEW = 0, PENDING = 1, RUNNING = 2, ABANDONED = 3;
         private final AiRequest request;
         private final ModelEntry entry;
@@ -257,30 +257,40 @@ public final class AiGateway {
         }
 
         /**
-         * After an admitted reserve. False when a cancel (budget stop) arrived first; the caller then
-         * finalizes without callback. Exactly one of arm and a concurrent cancel finalizes.
+         * After an admitted reserve, on the submitting worker. False when a cancel (budget stop)
+         * arrived first; the caller then finalizes without callback. Only one of arm and the queued
+         * job can move the run out of PENDING.
          */
         boolean arm() {
             if (!state.compareAndSet(NEW, PENDING)) return false;
             return !(cancelled && state.compareAndSet(PENDING, ABANDONED));
         }
 
-        /** Worker refused the job: true when this call, not a concurrent cancel, must finalize. */
+        /** Worker refused the job: true when this call, not the queued job, must finalize. */
         boolean disarm() {
             return state.compareAndSet(PENDING, ABANDONED);
         }
 
+        /**
+         * Worker thread. A run cancelled while still queued is finalized here, never on the thread
+         * that called {@link #cancel}: release, usage and the callback are ledger I/O and must not run
+         * on the UI thread or throw into it.
+         */
         void execute() {
+            if (cancelled && state.compareAndSet(PENDING, ABANDONED)) {
+                abandon(true);
+                return;
+            }
             if (!state.compareAndSet(PENDING, RUNNING)) return;
+            // A cancel racing with this start is honoured by the attempt: it ends CANCELLED, not dispatched.
             attempt.run();
         }
 
+        /** Safe on any thread, including the UI thread: it only flags and forwards; it does no I/O. */
         void cancel() {
             cancelled = true;
             AiProvider.Attempt current = attempt;
             if (current != null) current.cancel();
-            // Never started: finalize here, because the worker will skip it.
-            if (state.compareAndSet(PENDING, ABANDONED)) abandon(true);
         }
 
         void stopForBudget() {
