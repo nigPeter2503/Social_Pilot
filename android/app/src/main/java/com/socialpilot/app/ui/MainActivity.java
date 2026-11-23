@@ -188,11 +188,7 @@ public final class MainActivity extends AppCompatActivity {
 
     private void refreshNetworkStatus() {
         ConnectivityManager manager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
-        NetworkCapabilities capabilities = manager == null ? null
-                : manager.getNetworkCapabilities(manager.getActiveNetwork());
-        boolean online = capabilities != null
-                && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
+        boolean online = NetworkStatus.isOnline(manager);
         binding.networkStatus.setText(online ? R.string.online_draft_ready
                 : R.string.offline_draft_ready);
     }

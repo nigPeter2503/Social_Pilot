@@ -15,11 +15,16 @@ public final class DashboardViewModel extends ViewModel {
         public final Integer value;
         public final String observedAt;
         public final String missingReason;
+        public final String gapAt;
+        public final String gapReason;
 
-        private PreviewValue(Integer value, String observedAt, String missingReason) {
+        private PreviewValue(Integer value, String observedAt, String missingReason,
+                String gapAt, String gapReason) {
             this.value = value;
             this.observedAt = observedAt;
             this.missingReason = missingReason;
+            this.gapAt = gapAt;
+            this.gapReason = gapReason;
         }
     }
 
@@ -35,15 +40,20 @@ public final class DashboardViewModel extends ViewModel {
         if (metric != FOLLOWERS && metric != ENGAGEMENT) {
             throw new IllegalArgumentException("unknown dashboard metric");
         }
-        savedState.set(METRIC_KEY, metric);
+        Integer current = selectedMetric().getValue();
+        if (current == null || current != metric) {
+            savedState.set(METRIC_KEY, metric);
+        }
     }
 
     public PreviewValue previewValue(int metric) {
         if (metric == FOLLOWERS) {
             // docs/contracts/analytics-examples.json, mock-snapshot-1 (MO_PHONG).
-            return new PreviewValue(100, "2026-11-08T17:00:00Z", null);
+            return new PreviewValue(100, "2026-11-08T17:00:00Z", null,
+                    "2026-11-01T17:00:00Z", "NOT_SYNCED");
         }
-        if (metric == ENGAGEMENT) return new PreviewValue(null, null, "NOT_SYNCED");
+        if (metric == ENGAGEMENT) return new PreviewValue(null, null, "NOT_SYNCED",
+                "2026-11-01T17:00:00Z", "NOT_SYNCED");
         throw new IllegalArgumentException("unknown dashboard metric");
     }
 }
