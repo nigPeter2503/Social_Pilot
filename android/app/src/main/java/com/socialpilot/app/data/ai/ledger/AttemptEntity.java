@@ -12,6 +12,8 @@ import androidx.room.PrimaryKey;
 @Entity(tableName = "ai_attempts", indices = {@Index("dayKey"), @Index("monthKey"), @Index("state")})
 public class AttemptEntity {
     public static final String RESERVED = "RESERVED";
+    public static final String QUEUED = "QUEUED";
+    public static final String DISPATCHING = "DISPATCHING";
     public static final String SETTLED = "SETTLED";
     public static final String RELEASED = "RELEASED";
     public static final String UNCERTAIN = "UNCERTAIN";
