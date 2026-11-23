@@ -13,7 +13,9 @@ public final class ChannelBranch {
         TEXT_READY,
         /** A stage failed or was rejected; {@link #failedStage} names it. Earlier results are kept. */
         FAILED,
-        CANCELLED
+        CANCELLED,
+        /** Restored from a checkpoint after process death; waits for an explicit user retry. */
+        INTERRUPTED
     }
 
     public final ChannelTarget target;
@@ -64,7 +66,8 @@ public final class ChannelBranch {
 
     /** The stage to resume from after a failure, or null when nothing failed. */
     public PipelineStage resumeStage() {
-        return status == Status.FAILED || status == Status.CANCELLED ? firstIncompleteTextStage() : null;
+        return status == Status.FAILED || status == Status.CANCELLED || status == Status.INTERRUPTED
+                ? firstIncompleteTextStage() : null;
     }
 
     private PipelineStage firstIncompleteTextStage() {

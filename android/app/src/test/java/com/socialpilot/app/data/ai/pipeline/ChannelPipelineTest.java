@@ -6,6 +6,7 @@ import static org.junit.Assert.*;
 import com.socialpilot.app.data.ai.AiGateway;
 import com.socialpilot.app.data.ai.ModelSelectionStore;
 import com.socialpilot.app.domain.agent.ChannelBranch;
+import com.socialpilot.app.domain.agent.CheckpointPolicy;
 import com.socialpilot.app.domain.agent.ChannelPlatform;
 import com.socialpilot.app.domain.agent.ChannelTarget;
 import com.socialpilot.app.domain.agent.PipelineInput;
@@ -85,10 +86,14 @@ public final class ChannelPipelineTest {
     }
 
     private ChannelPipeline pipeline(Executor workers) {
+        return pipeline(workers, CheckpointStore.NONE);
+    }
+
+    private ChannelPipeline pipeline(Executor workers, CheckpointStore store) {
         Map<AiRequest.Provider, AiProvider> providers = new EnumMap<>(AiRequest.Provider.class);
         providers.put(AiRequest.Provider.OPENAI, provider);
         AiGateway gateway = new AiGateway(selections, providers, p -> true, budget, workers, clock::get);
-        return new ChannelPipeline(gateway, workers, clock::incrementAndGet);
+        return new ChannelPipeline(gateway, workers, clock::incrementAndGet, store);
     }
 
     private static PipelineInput input(ChannelTarget... targets) {
@@ -292,6 +297,108 @@ public final class ChannelPipelineTest {
         assertEquals(ChannelBranch.Status.FAILED, branch.status);
         assertEquals(AiError.Code.INCOMPLETE, branch.stage(PipelineStage.OUTLINE).error.code);
         assertEquals(1, provider.prepared.size());
+    }
+
+    /** Counts writes so tests can see which publishes were checkpointed. */
+    private static final class CountingStore implements CheckpointStore {
+        final MemoryCheckpointStore delegate = new MemoryCheckpointStore();
+        final List<PipelineSnapshot> saved = new CopyOnWriteArrayList<>();
+
+        @Override public CheckpointPolicy.Write save(PipelineSnapshot snapshot) {
+            saved.add(snapshot);
+            return delegate.save(snapshot);
+        }
+        @Override public PipelineSnapshot load(String sessionId) { return delegate.load(sessionId); }
+        @Override public List<PipelineSnapshot> all() { return delegate.all(); }
+        @Override public void forgetChannel(String channelId) { delegate.forgetChannel(channelId); }
+        @Override public void delete(String sessionId) { delegate.delete(sessionId); }
+    }
+
+    @Test public void structuralChangesAreCheckpointedButStreamedDeltasAreNot() {
+        CountingStore store = new CountingStore();
+        Recorder recorder = new Recorder();
+        ChannelPipeline.Session session = pipeline(inline, store).start(input(FACEBOOK), recorder);
+        // The fake streams one delta per text stage.
+        assertEquals(recorder.snapshots.size() - 3, store.saved.size());
+        for (int i = 1; i < store.saved.size(); i++) {
+            assertTrue(store.saved.get(i).revision > store.saved.get(i - 1).revision);
+        }
+        PipelineSnapshot last = store.load(session.sessionId);
+        assertEquals(recorder.last().revision, last.revision);
+        assertEquals(ChannelBranch.Status.TEXT_READY, last.branch("page-1").status);
+    }
+
+    @Test public void restoreAfterProcessDeathSendsNothingAndRetryUsesANewRequest() throws Exception {
+        provider.hangStep = "page-1/draft";
+        MemoryCheckpointStore store = new MemoryCheckpointStore();
+        ChannelPipeline.Session dead = pipeline(pool(), store).start(input(FACEBOOK), new Recorder());
+        assertTrue(provider.hanging.await(5, TimeUnit.SECONDS));
+        long deadline = System.currentTimeMillis() + 5_000;
+        while (store.load(dead.sessionId).branch("page-1").stage(PipelineStage.DRAFT).requestId == null
+                && System.currentTimeMillis() < deadline) {
+            Thread.yield();
+        }
+        PipelineSnapshot checkpoint = store.load(dead.sessionId);
+        String interruptedRequest = checkpoint.branch("page-1").stage(PipelineStage.DRAFT).requestId;
+        assertNotNull(interruptedRequest);
+        dead.cancel(); // Frees the fake's worker; the checkpoint above is what a dead process left.
+        provider.hangStep = null;
+        int sentBefore = provider.prepared.size();
+        long reservedBefore = budget.count("reserve:");
+
+        Recorder recorder = new Recorder();
+        ChannelPipeline.Session restored = pipeline(inline).restore(input(FACEBOOK), checkpoint, recorder);
+        assertEquals(dead.sessionId, restored.sessionId);
+        assertEquals(sentBefore, provider.prepared.size());
+        assertEquals(reservedBefore, budget.count("reserve:"));
+        ChannelBranch branch = restored.snapshot().branch("page-1");
+        assertEquals(ChannelBranch.Status.INTERRUPTED, branch.status);
+        assertEquals(StageResult.Status.INTERRUPTED, branch.stage(PipelineStage.DRAFT).status);
+        assertEquals(interruptedRequest, branch.stage(PipelineStage.DRAFT).requestId);
+        assertEquals("outline for page-1", branch.stage(PipelineStage.OUTLINE).text);
+        assertTrue(restored.snapshot().revision > checkpoint.revision);
+        assertFalse(restored.cancelBranch("page-1"));
+
+        assertTrue(restored.retry("page-1"));
+        branch = restored.snapshot().branch("page-1");
+        assertEquals(ChannelBranch.Status.TEXT_READY, branch.status);
+        StageResult draft = branch.stage(PipelineStage.DRAFT);
+        assertEquals(2, draft.attempt);
+        assertNotEquals(interruptedRequest, draft.requestId);
+        // Outline was not sent again: only draft and rule check after the restore.
+        assertEquals(sentBefore + 2, provider.prepared.size());
+        assertEquals("draft", provider.prepared.get(sentBefore).stepId);
+        assertTrue(provider.prepared.get(sentBefore).prompt.contains("outline for page-1"));
+    }
+
+    @Test public void restoreRefusesACheckpointBoundToAnOldConnection() {
+        MemoryCheckpointStore store = new MemoryCheckpointStore();
+        ChannelPipeline.Session session = pipeline(inline, store).start(input(FACEBOOK), new Recorder());
+        int sent = provider.prepared.size();
+        ChannelTarget reconnected = new ChannelTarget("page-1", ChannelPlatform.FACEBOOK, 4);
+        try {
+            pipeline(inline).restore(input(reconnected), store.load(session.sessionId), new Recorder());
+            fail("restored against a new connection revision");
+        } catch (IllegalArgumentException expected) {
+            assertTrue(expected.getMessage().contains("CONNECTION_CHANGED"));
+        }
+        assertEquals(sent, provider.prepared.size());
+    }
+
+    @Test public void storeDropsLateWritesAndForgetsDisconnectedChannels() {
+        MemoryCheckpointStore store = new MemoryCheckpointStore();
+        ChannelPipeline.Session session = pipeline(inline, store).start(input(FACEBOOK, INSTAGRAM), new Recorder());
+        PipelineSnapshot latest = store.load(session.sessionId);
+        PipelineSnapshot late = new PipelineSnapshot(latest.sessionId, latest.briefId, latest.revision - 1,
+                latest.branches);
+        assertEquals(CheckpointPolicy.Write.STALE, store.save(late));
+        assertSame(latest, store.load(session.sessionId));
+        store.forgetChannel("ig-1");
+        assertNull(store.load(session.sessionId).branch("ig-1"));
+        assertNotNull(store.load(session.sessionId).branch("page-1"));
+        store.forgetChannel("page-1");
+        assertNull(store.load(session.sessionId));
+        assertTrue(store.all().isEmpty());
     }
 
     /**

@@ -17,7 +17,12 @@ public final class StageResult {
         /** Refused before dispatch (no model, key, budget...); {@link #rejection} says why. */
         REJECTED,
         /** Week-4 stage not built yet; never shown as complete. */
-        NOT_IMPLEMENTED
+        NOT_IMPLEMENTED,
+        /**
+         * Was RUNNING when the process died; the call may have been dispatched and charged. Kept with its
+         * requestId and partial text; only an explicit user retry (new requestId) runs the stage again.
+         */
+        INTERRUPTED
     }
 
     public final PipelineStage stage;
@@ -92,8 +97,14 @@ public final class StageResult {
                 usage == null ? null : usage.estimateMicros, budgetStopped, startedAtMillis, now);
     }
 
+    /** Recovery after process death: keeps attempt, requestId and partial text; never resumes the call. */
+    public StageResult interrupted(long now) {
+        return new StageResult(stage, Status.INTERRUPTED, attempt, requestId, text, null, null, null, null, null,
+                null, false, startedAtMillis, now);
+    }
+
     public boolean terminal() {
         return status == Status.COMPLETED || status == Status.FAILED || status == Status.CANCELLED
-                || status == Status.REJECTED;
+                || status == Status.REJECTED || status == Status.INTERRUPTED;
     }
 }

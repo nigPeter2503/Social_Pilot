@@ -32,7 +32,7 @@ session.cancelBranch(channelId); session.cancel(); session.retry(channelId); ses
 - Lỗi provider ghi `AiError.Code` ở đúng bước. Bước `COMPLETED` nhưng không có text là `FAILED`/`INCOMPLETE`, không chạy tiếp trên dữ liệu rỗng.
 - Hủy giữ text partial và usage theo contract (thường `UNCERTAIN` nếu có thể đã gửi). Vượt trần ngân sách giữa chừng → nhánh `FAILED`, `budgetStopped = true`, giữ partial.
 - **Không tự retry.** `retry(channelId)` là thao tác của người dùng: chạy lại từ bước text đầu tiên chưa xong, attempt mới, requestId mới, reservation mới; các bước đã xong giữ nguyên. Callback của attempt cũ không ghi đè (generation guard).
-- Session nằm trong bộ nhớ. Sau khi process chết, không tự gửi lại; checkpoint thuộc SP-033.
+- Session nằm trong bộ nhớ. Sau khi process chết, không tự gửi lại. Checkpoint và `restore` (phần 2h SP-033, chưa có store Room): xem [agent-checkpoint-mapping.md](agent-checkpoint-mapping.md).
 - Observer được gọi trên worker theo thứ tự `revision` tăng dần, kể cả khi đang stream (`TEXT_DELTA` cập nhật text của bước đang chạy). Observer chỉ nên post về main thread.
 
 ## 4. Prompt và quy tắc
