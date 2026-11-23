@@ -88,6 +88,29 @@ public final class TextStagesTest {
         assertTrue(unparsed.localIssues.contains(RuleCheck.LocalIssue.LENGTH_LIMIT_UNVERIFIED));
     }
 
+    @Test public void ruleCheckRecognizesSentencePunctuationAndPreservesExactSourceUrls() {
+        List<PipelineInput.Source> sources = Arrays.asList(
+                new PipelineInput.Source(true, "https://EXAMPLE.com/Menu"),
+                new PipelineInput.Source(true, "https://example.com/offer!"),
+                new PipelineInput.Source(true, "example.com/drinks"));
+        assertTrue(RuleCheck.of("VERDICT: PASS",
+                "Xem https://example.com/Menu! và https://example.com/offer!; hoặc http://example.com/drinks.",
+                sources).clean());
+        RuleCheck wrong = RuleCheck.of("VERDICT: PASS",
+                "https://example.com/menu https://example.com/offer https://other.example/drinks http://example.com/Menu",
+                sources);
+        assertEquals(4, wrong.unknownLinks.size());
+    }
+
+    @Test public void passWithParsedIssuesIsNotClean() {
+        assertTrue(RuleCheck.of("VERDICT: PASS", "Bản nháp", Collections.emptyList()).clean());
+        RuleCheck inconsistent = RuleCheck.of("VERDICT: PASS\n- tone is wrong\n* wrong audience",
+                "Bản nháp", Collections.emptyList());
+        assertEquals(Arrays.asList("tone is wrong", "wrong audience"), inconsistent.modelIssues);
+        assertFalse(inconsistent.clean());
+        assertFalse(RuleCheck.of("VERDICT: REVISE", "Bản nháp", Collections.emptyList()).clean());
+    }
+
     @Test public void weekFourStagesStartAsNotImplemented() {
         ChannelBranch branch = ChannelBranch.initial(FACEBOOK);
         assertEquals(StageResult.Status.NOT_STARTED, branch.stage(PipelineStage.OUTLINE).status);

@@ -46,6 +46,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.After;
 import org.junit.Before;
@@ -85,9 +86,13 @@ public final class ChannelPipelineTest {
     }
 
     private ChannelPipeline pipeline(Executor workers) {
+        return pipeline(workers, p -> true);
+    }
+
+    private ChannelPipeline pipeline(Executor workers, AiGateway.KeyGate keys) {
         Map<AiRequest.Provider, AiProvider> providers = new EnumMap<>(AiRequest.Provider.class);
         providers.put(AiRequest.Provider.OPENAI, provider);
-        AiGateway gateway = new AiGateway(selections, providers, p -> true, budget, workers, clock::get);
+        AiGateway gateway = new AiGateway(selections, providers, keys, budget, workers, clock::get);
         return new ChannelPipeline(gateway, workers, clock::incrementAndGet);
     }
 
@@ -148,6 +153,103 @@ public final class ChannelPipelineTest {
         assertEquals("post for page-1", output.draft);
         assertEquals(provider.prepared.get(1).requestId, output.requestIds.get(PipelineStage.DRAFT));
         assertNull(TextStageOutput.of(done, "ig-1", "vi")); // No second channel was dispatched.
+    }
+
+    @Test public void observerFailureDuringOutlineDoesNotPreventSubmission() {
+        Recorder recorder = new Recorder();
+        ChannelPipeline.Session session = pipeline(inline).start(input(FACEBOOK), snapshot -> {
+            if (snapshot.branch("page-1").stage(PipelineStage.OUTLINE).status == StageResult.Status.RUNNING) {
+                throw new IllegalStateException("observer failed");
+            }
+            recorder.onSnapshot(snapshot);
+        });
+        assertEquals(ChannelBranch.Status.TEXT_READY, session.snapshot().branch("page-1").status);
+        assertEquals(3, provider.prepared.size());
+        assertTrue(recorder.last().settled());
+    }
+
+    @Test public void submissionFailureLeavesTheBranchRetryable() {
+        AtomicBoolean fail = new AtomicBoolean(true);
+        ChannelPipeline pipeline = pipeline(inline, ignored -> {
+            if (fail.getAndSet(false)) throw new IllegalStateException("admission store unavailable");
+            return true;
+        });
+        ChannelPipeline.Session session = pipeline.start(input(FACEBOOK), new Recorder());
+        ChannelBranch failed = session.snapshot().branch("page-1");
+        assertEquals(ChannelBranch.Status.FAILED, failed.status);
+        assertEquals("SUBMISSION_FAILED", failed.stage(PipelineStage.OUTLINE).rejection);
+        assertEquals(0, provider.prepared.size());
+
+        assertTrue(session.retry("page-1"));
+        assertEquals(ChannelBranch.Status.TEXT_READY, session.snapshot().branch("page-1").status);
+        assertEquals(3, provider.prepared.size());
+    }
+
+    @Test public void adapterPrepareFailureReleasesTheReservationAndCanRetry() {
+        provider.failPrepareStep = "page-1/outline";
+        ChannelPipeline.Session session = pipeline(inline).start(input(FACEBOOK), new Recorder());
+        ChannelBranch failed = session.snapshot().branch("page-1");
+        assertEquals(ChannelBranch.Status.FAILED, failed.status);
+        StageResult outline = failed.stage(PipelineStage.OUTLINE);
+        assertEquals("PROVIDER_PREPARE_FAILED", outline.rejection);
+        assertEquals(1, budget.count("release:"));
+        assertNotNull(outline.requestId);
+
+        provider.failPrepareStep = null;
+        assertTrue(session.retry("page-1"));
+        assertEquals(ChannelBranch.Status.TEXT_READY, session.snapshot().branch("page-1").status);
+        assertNotEquals(outline.requestId, session.snapshot().branch("page-1").stage(PipelineStage.OUTLINE).requestId);
+    }
+
+    @Test public void adapterRunFailureKeepsPartialAndUncertainUsage() {
+        provider.throwStep = "page-1/outline";
+        ChannelPipeline.Session session = pipeline(inline).start(input(FACEBOOK), new Recorder());
+        ChannelBranch failed = session.snapshot().branch("page-1");
+        assertEquals(ChannelBranch.Status.FAILED, failed.status);
+        StageResult outline = failed.stage(PipelineStage.OUTLINE);
+        assertEquals("partial before exception", outline.text);
+        assertEquals(UsageRecord.Settlement.UNCERTAIN, outline.settlement);
+        assertEquals(0, budget.count("release:"));
+        assertEquals(1, provider.prepared.size());
+    }
+
+    @Test public void slowObserverDoesNotHoldSessionLockOrStopBothBranches() throws Exception {
+        ExecutorService workers = pool();
+        CountDownLatch sessionReturned = new CountDownLatch(1);
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        Recorder recorder = new Recorder();
+        AtomicBoolean blocked = new AtomicBoolean();
+        try {
+            ChannelPipeline.Session session = pipeline(workers).start(input(FACEBOOK, INSTAGRAM), snapshot -> {
+                if (snapshot.revision > 1 && blocked.compareAndSet(false, true)) {
+                    entered.countDown();
+                    try {
+                        if (!sessionReturned.await(5, TimeUnit.SECONDS) || !release.await(10, TimeUnit.SECONDS)) {
+                            throw new AssertionError("observer did not get released");
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+                recorder.onSnapshot(snapshot);
+            });
+            sessionReturned.countDown();
+            assertTrue(entered.await(5, TimeUnit.SECONDS));
+            ExecutorService reader = Executors.newSingleThreadExecutor();
+            pools.add(reader);
+            assertNotNull(reader.submit(session::snapshot).get(2, TimeUnit.SECONDS));
+
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            while (!session.snapshot().settled() && System.nanoTime() < deadline) Thread.yield();
+            assertTrue("both branches can settle while delivery is paused", session.snapshot().settled());
+            assertEquals(6, provider.prepared.size());
+            release.countDown();
+            assertTrue(recorder.settled.await(5, TimeUnit.SECONDS));
+            assertEquals(session.snapshot().revision, recorder.last().revision);
+        } finally {
+            release.countDown();
+        }
     }
 
     @Test public void twoTargetsOverlapAndOneFailureDoesNotTouchTheOther() throws Exception {
@@ -235,6 +337,25 @@ public final class ChannelPipelineTest {
         assertFalse(session.retry("page-1")); // Nothing left to retry.
     }
 
+    @Test public void completedRuleCheckAfterCancellationKeepsTheCancelledBranchAndPartial() throws Exception {
+        provider.hangStep = "page-1/rule-check";
+        provider.completeAfterCancel = true;
+        Recorder recorder = new Recorder();
+        ChannelPipeline.Session session = pipeline(pool()).start(input(FACEBOOK), recorder);
+        assertTrue(provider.hanging.await(5, TimeUnit.SECONDS));
+        assertTrue(session.cancelBranch("page-1"));
+        assertTrue(recorder.settled.await(5, TimeUnit.SECONDS));
+
+        ChannelBranch branch = recorder.last().branch("page-1");
+        StageResult ruleCheck = branch.stage(PipelineStage.RULE_CHECK);
+        assertEquals(ChannelBranch.Status.CANCELLED, branch.status);
+        assertEquals(StageResult.Status.CANCELLED, ruleCheck.status);
+        assertEquals("partial page-1", ruleCheck.text);
+        assertEquals(UsageRecord.Settlement.SETTLED, ruleCheck.settlement);
+        assertNull(branch.ruleCheck);
+        assertEquals(PipelineStage.RULE_CHECK, branch.resumeStage());
+    }
+
     @Test public void staleTerminalFromAnOlderAttemptNeverOverwritesTheRetry() throws Exception {
         provider.hangStep = "page-1/outline";
         Recorder recorder = new Recorder();
@@ -304,7 +425,10 @@ public final class ChannelPipelineTest {
         final CountDownLatch hanging = new CountDownLatch(1);
         volatile CyclicBarrier barrier;
         volatile String failStep;
+        volatile String failPrepareStep;
+        volatile String throwStep;
         volatile String hangStep;
+        volatile boolean completeAfterCancel;
         volatile String emptyStep;
 
         private boolean matches(String rule, AiRequest request) {
@@ -314,6 +438,7 @@ public final class ChannelPipelineTest {
         }
 
         @Override public Attempt prepare(AiRequest request, Listener listener) {
+            if (matches(failPrepareStep, request)) throw new IllegalStateException("fixture prepare failure");
             prepared.add(request);
             listeners.add(listener);
             CountDownLatch cancelled = new CountDownLatch(1);
@@ -321,10 +446,20 @@ public final class ChannelPipelineTest {
                 @Override public void cancel() { cancelled.countDown(); }
                 @Override public void run() {
                     listener.onEvent(AiEvent.started(request, 1));
+                    if (matches(throwStep, request)) {
+                        listener.onEvent(AiEvent.text(request, 2, "partial before exception"));
+                        throw new IllegalStateException("fixture run failure");
+                    }
                     if (matches(hangStep, request)) {
                         listener.onEvent(AiEvent.text(request, 2, "partial " + request.channelId));
                         hanging.countDown();
                         await(cancelled);
+                        if (completeAfterCancel) {
+                            listener.onEvent(AiEvent.text(request, 3, " late result"));
+                            listener.onEvent(AiEvent.terminal(request, 4, AiEvent.Type.COMPLETED, null,
+                                    new AiUsage(10L, 5L, 15L, 0L, null), false, true));
+                            return;
+                        }
                         listener.onEvent(AiEvent.terminal(request, 3, AiEvent.Type.CANCELLED, null,
                                 AiUsage.MISSING, false, true));
                         return;
