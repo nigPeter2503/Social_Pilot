@@ -5,7 +5,8 @@
 Triển khai độc lập dùng `domain/analytics/AnalyticsSource.java`, `AnalyticsCalculator.java`
 và `data/repository/analytics/{AnalyticsProjector,DefaultAnalyticsRepository}.java`.
 Không nối vào AppContainer. Source MO_PHONG duy nhất nằm trong `src/test`.
-DTO/AnalyticsRepository giữ nguyên byte so với SP-046 (hợp đồng DTO) draft 0.1.0.
+DTO/AnalyticsRepository giữ nguyên chữ ký và semantics so với draft 0.1.0 đã ACK;
+chú thích đã đổi mã task con sang ticket SP-046, nên không khẳng định byte-identical.
 
 ## API cần nối khi mở gate
 
