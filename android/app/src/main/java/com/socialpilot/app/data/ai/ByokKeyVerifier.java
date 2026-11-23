@@ -57,6 +57,12 @@ public final class ByokKeyVerifier {
                 .followRedirects(false)
                 .followSslRedirects(false)
                 .retryOnConnectionFailure(false)
+                .addNetworkInterceptor(chain -> {
+                    Response response = chain.proceed(chain.request());
+                    // OkHttp can follow a 503 + Retry-After: 0 even with connection retries off.
+                    return response.code() == 503 ? response.newBuilder().removeHeader("Retry-After").build()
+                            : response;
+                })
                 .connectTimeout(10, TimeUnit.SECONDS)
                 .readTimeout(readTimeoutMillis, TimeUnit.MILLISECONDS)
                 .callTimeout(20, TimeUnit.SECONDS)
