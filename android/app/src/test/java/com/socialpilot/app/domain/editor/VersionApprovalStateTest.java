@@ -55,14 +55,17 @@ public final class VersionApprovalStateTest {
     @Test
     public void restoringOldContentCreatesNewUnapprovedVersion() {
         VersionApprovalState state = new VersionApprovalState(brief());
-        state.saveVersion(version("fb-v1", FACEBOOK, null, "Original", null), null);
+        state.saveVersion(version("fb-v1", FACEBOOK, null, "Original", "image-original"), null);
         state.saveVersion(version("fb-v2", FACEBOOK, "fb-v1", "Edited", null), "fb-v1");
         state.approve(FACEBOOK, "fb-v2");
 
-        ContentVersion restored = version("fb-v3", FACEBOOK, "fb-v1", "Original", null);
-        state.restoreVersion(restored, "fb-v2");
+        ContentVersion restored = state.restoreVersion(FACEBOOK, "fb-v1", "fb-v3",
+                "fb-v2", 1_762_819_200_001L);
 
         assertEquals("fb-v3", state.currentVersionId(FACEBOOK));
+        assertEquals("Original", restored.text());
+        assertEquals("image-original", restored.imageReference());
+        assertEquals("fb-v1", restored.parentVersionId());
         assertNull(state.approvedVersionId(FACEBOOK));
         assertThrows(IllegalStateException.class,
                 () -> state.requireEnqueueable(FACEBOOK, "fb-v2"));
@@ -98,14 +101,16 @@ public final class VersionApprovalStateTest {
         state.saveVersion(approved, "fb-v2");
         state.approve(FACEBOOK, "fb-v3");
 
-        ContentVersion restore = version("fb-v4", FACEBOOK, "fb-v1", "Original", null);
         assertThrows(IllegalStateException.class,
-                () -> state.restoreVersion(restore, "fb-v2"));
+                () -> state.restoreVersion(FACEBOOK, "fb-v1", "fb-v4",
+                        "fb-v2", 1_762_819_200_001L));
         assertSame(approved, state.requireEnqueueable(FACEBOOK, "fb-v3"));
 
         assertThrows(IllegalArgumentException.class,
-                () -> state.saveVersion(restore, "fb-v3"));
-        state.restoreVersion(restore, "fb-v3");
+                () -> state.saveVersion(version("fb-v4", FACEBOOK, "fb-v1",
+                        "Original", null), "fb-v3"));
+        state.restoreVersion(FACEBOOK, "fb-v1", "fb-v4",
+                "fb-v3", 1_762_819_200_001L);
         assertEquals("fb-v4", state.currentVersionId(FACEBOOK));
         assertNull(state.approvedVersionId(FACEBOOK));
     }

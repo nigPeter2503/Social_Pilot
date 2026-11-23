@@ -51,9 +51,17 @@ public abstract class EditorDao {
     }
 
     @Transaction
-    public void restoreVersion(ContentVersion version, String expectedCurrentVersionId,
-            long expectedBriefUpdatedAt) {
-        saveVersion(version, expectedCurrentVersionId, expectedBriefUpdatedAt, true);
+    public void restoreVersion(String briefId, String channelId, String sourceVersionId,
+            String newVersionId, String expectedCurrentVersionId,
+            long expectedBriefUpdatedAt, long createdAtEpochMillis) {
+        ContentVersionEntity source = version(sourceVersionId);
+        if (source == null || !briefId.equals(source.briefId)
+                || !channelId.equals(source.channelId)) {
+            throw new IllegalArgumentException("source must belong to this brief and channel");
+        }
+        ContentVersion restored = new ContentVersion(newVersionId, briefId, channelId,
+                sourceVersionId, source.text, source.imageReference, createdAtEpochMillis);
+        saveVersion(restored, expectedCurrentVersionId, expectedBriefUpdatedAt, true);
     }
 
     private void saveVersion(ContentVersion version, String expectedCurrentVersionId,

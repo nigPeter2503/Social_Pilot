@@ -80,13 +80,26 @@ public final class EditorPersistenceInstrumentedTest {
         try {
             seedBrief(database);
             EditorDao editor = database.editor();
-            editor.saveVersion(version("fb-v1", "fb", null, "Original"), null, 100);
+            editor.saveVersion(new ContentVersion("fb-v1", "brief-1", "fb", null,
+                    "Original", "image-original", 200), null, 100);
             editor.saveVersion(version("fb-v2", "fb", "fb-v1", "Edited"), "fb-v1", 100);
             editor.approve("brief-1", "fb", "fb-v2", 101);
-            editor.restoreVersion(version("fb-v3", "fb", "fb-v1", "Original"), "fb-v2", 100);
+            editor.restoreVersion("brief-1", "fb", "fb-v1", "fb-v3", "fb-v2", 100, 300);
             assertEquals("fb-v3", editor.link("brief-1", "fb").currentVersionId);
+            assertEquals("Original", editor.version("fb-v3").text);
+            assertEquals("image-original", editor.version("fb-v3").imageReference);
+            assertEquals("fb-v1", editor.version("fb-v3").parentVersionId);
             assertNull(editor.link("brief-1", "fb").approvedVersionId);
             assertEquals(1, editor.approvalCount("fb-v2"));
+            assertThrows(IllegalStateException.class,
+                    () -> editor.restoreVersion("brief-1", "fb", "fb-v1", "fb-stale",
+                            "fb-v2", 100, 301));
+            assertNull(editor.version("fb-stale"));
+            assertEquals("fb-v3", editor.link("brief-1", "fb").currentVersionId);
+            assertThrows(IllegalArgumentException.class,
+                    () -> editor.restoreVersion("brief-1", "li", "fb-v1", "li-bad",
+                            null, 100, 301));
+            assertNull(editor.version("li-bad"));
             assertThrows(IllegalStateException.class,
                     () -> editor.requireEnqueueable("brief-1", "fb", "fb-v2"));
         } finally {
