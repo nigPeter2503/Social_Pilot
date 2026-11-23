@@ -66,5 +66,8 @@
     <TextView android:id="@+id/instagramPublishStatus" android:layout_width="match_parent"
         android:layout_height="wrap_content" android:layout_marginTop="8dp"
         android:accessibilityLiveRegion="polite" android:text="@string/instagram_publish_hint" />
+    <com.google.android.material.button.MaterialButton android:id="@+id/openPrototype"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="24dp" android:text="@string/open_prototype" />
   </LinearLayout>
 </ScrollView>

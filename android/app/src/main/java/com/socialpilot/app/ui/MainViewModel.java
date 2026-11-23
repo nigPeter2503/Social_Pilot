@@ -62,15 +62,16 @@ public final class MainViewModel extends AndroidViewModel {
     }
 
     private MainViewModel(Application application, AppContainer appContainer) {
-        this(application, appContainer, appContainer.instagram, appContainer.io);
+        this(application, appContainer.drafts, appContainer.facebookOAuth, appContainer.oauthStore,
+                appContainer.instagram, appContainer.io);
     }
 
-    MainViewModel(Application application, AppContainer appContainer,
-            InstagramPublishRepository instagram, Executor io) {
+    MainViewModel(Application application, DraftRepository repository, FacebookOAuthCoordinator facebookOAuth,
+            EncryptedOAuthStore connections, InstagramPublishRepository instagram, Executor io) {
         super(application);
-        repository = appContainer.drafts;
-        facebookOAuth = appContainer.facebookOAuth;
-        connections = appContainer.oauthStore;
+        this.repository = repository;
+        this.facebookOAuth = facebookOAuth;
+        this.connections = connections;
         this.instagram = instagram;
         this.io = io;
     }

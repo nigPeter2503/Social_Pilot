@@ -6,11 +6,15 @@ import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.SharedPreferences;
 import androidx.lifecycle.Observer;
+import androidx.room.Room;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
-import com.socialpilot.app.core.AppContainer;
+import com.socialpilot.app.core.FacebookOAuthCoordinator;
+import com.socialpilot.app.data.local.AppDatabase;
 import com.socialpilot.app.data.repository.ControlledInstagramPublishRepository;
+import com.socialpilot.app.data.repository.DraftRepository;
 import com.socialpilot.app.data.repository.InstagramPublishRepository;
+import com.socialpilot.app.data.security.EncryptedOAuthStore;
 import com.socialpilot.app.domain.contract.oauth.OAuthContract.OAuthExchangeResponse;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -49,10 +53,11 @@ public final class MainViewModelInstagramDeviceTest {
                 return super.getSharedPreferences(prefix + name, mode);
             }
         };
-        AppContainer container = new AppContainer(isolated);
+        AppDatabase database = Room.inMemoryDatabaseBuilder(application, AppDatabase.class).build();
+        EncryptedOAuthStore store = new EncryptedOAuthStore(isolated);
         ExecutorService worker = Executors.newSingleThreadExecutor();
         InstagramPublishRepository instagram = ControlledInstagramPublishRepository.create(isolated,
-                container.oauthStore, chain -> {
+                store, chain -> {
                     Request request = chain.request();
                     assertEquals("GET", request.method());
                     String accountId = "Bearer token-a".equals(request.header("Authorization")) ? ACCOUNT_A : ACCOUNT_B;
@@ -61,12 +66,13 @@ public final class MainViewModelInstagramDeviceTest {
                             .message("Controlled response")
                             .body(ResponseBody.create("{\"id\":\"" + accountId + "\"}", null)).build();
                 });
-        MainViewModel model = new MainViewModel(application, container, instagram, worker);
+        MainViewModel model = new MainViewModel(application, new DraftRepository(database.drafts(), worker),
+                new FacebookOAuthCoordinator(store, worker, "https://127.0.0.1/"), store, instagram, worker);
         List<InstagramPublishRepository.Result> emissions = new ArrayList<>();
         Observer<InstagramPublishRepository.Result> observer = emissions::add;
         SharedPreferences attempts = isolated.getSharedPreferences("instagram_feed_spike", Context.MODE_PRIVATE);
         assertTrue(attempts.edit().putString(ACCOUNT_A, attempt(LINK_A)).putString(ACCOUNT_B, attempt(LINK_B)).commit());
-        container.oauthStore.saveConnected(connection("a", ACCOUNT_A));
+        store.saveConnected(connection("a", ACCOUNT_A));
         try {
             device.runOnMainSync(() -> {
                 model.instagramResult().observeForever(observer);
@@ -79,7 +85,7 @@ public final class MainViewModelInstagramDeviceTest {
                 model.reconcileInstagram();
                 // The worker posts A's result while this runnable still owns the main thread.
                 awaitWorker(worker);
-                container.oauthStore.saveConnected(connection("b", ACCOUNT_B));
+                store.saveConnected(connection("b", ACCOUNT_B));
                 assertEquals(ACCOUNT_B, model.instagramConnection().externalAccountId);
                 assertNull(model.instagramResultFor(model.instagramConnection()));
                 assertNull(model.instagramPermalink());
@@ -100,8 +106,7 @@ public final class MainViewModelInstagramDeviceTest {
         } finally {
             device.runOnMainSync(() -> model.instagramResult().removeObserver(observer));
             worker.shutdownNow();
-            container.io.shutdownNow();
-            container.database.close();
+            database.close();
             attempts.edit().clear().commit();
             isolated.getSharedPreferences("oauth_secure_v1", Context.MODE_PRIVATE).edit().clear().commit();
         }

@@ -1,0 +1,15 @@
+{
+  "data": [
+    {
+      "id": "18133111096696939",
+      "text": "SP066-C03 - Pagination test B",
+      "timestamp": "2026-11-21T09:14:39+0000"
+    }
+  ],
+  "paging": {
+    "cursors": {
+      "after": "[REDACTED_BY_USER]"
+    },
+    "next": "[REDACTED_BY_USER]"
+  }
+}
