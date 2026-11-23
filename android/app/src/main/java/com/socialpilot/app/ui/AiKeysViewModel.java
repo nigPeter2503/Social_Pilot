@@ -15,7 +15,7 @@ import com.socialpilot.app.domain.contract.ai.AiRequest.Provider;
 import com.socialpilot.app.domain.contract.secret.SecretStoreException;
 import java.util.EnumMap;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 
 /**
  * Per-provider BYOK state. Every user action starts a new generation; results of an older
@@ -47,22 +47,30 @@ public final class AiKeysViewModel extends AndroidViewModel {
     }
 
     private final AiKeyRepository keys;
-    private final ExecutorService io;
+    private final Executor io;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final Map<Provider, MutableLiveData<ProviderState>> states = new EnumMap<>(Provider.class);
     private final Map<Provider, Integer> generations = new EnumMap<>(Provider.class);
     private final Map<Provider, AiKeyRepository.Verification> running = new EnumMap<>(Provider.class);
+    private boolean cleared;
 
     public AiKeysViewModel(@NonNull Application application) {
+        this(application, ((SocialPilotApplication) application).container());
+    }
+
+    private AiKeysViewModel(Application application, com.socialpilot.app.core.AppContainer container) {
+        this(application, container.aiKeys, container.io);
+    }
+
+    AiKeysViewModel(Application application, AiKeyRepository keys, Executor io) {
         super(application);
-        com.socialpilot.app.core.AppContainer container = ((SocialPilotApplication) application).container();
-        keys = container.aiKeys;
-        io = container.io;
+        this.keys = keys;
+        this.io = io;
         for (Provider provider : Provider.values()) {
             states.put(provider, new MutableLiveData<>(new ProviderState(provider, null, Busy.LOADING, null, Notice.NONE)));
             generations.put(provider, 0);
-            load(provider);
         }
+        for (Provider provider : Provider.values()) load(provider);
     }
 
     public LiveData<ProviderState> state(Provider provider) {
@@ -119,6 +127,7 @@ public final class AiKeysViewModel extends AndroidViewModel {
     @Override
     protected void onCleared() {
         synchronized (running) {
+            cleared = true;
             for (AiKeyRepository.Verification verification : running.values()) verification.cancel();
             running.clear();
         }
@@ -134,14 +143,19 @@ public final class AiKeysViewModel extends AndroidViewModel {
 
     /** Runs on the I/O worker. */
     private void verify(Provider provider, int generation) {
-        AiKeyRepository.Verification verification = keys.prepareVerification(provider);
+        AiKeyRepository.Verification verification;
         synchronized (running) {
-            if (generation != generationNow(provider)) return;
+            if (cleared || generation != generations.get(provider)) return;
+            verification = keys.prepareVerification(provider);
             running.put(provider, verification);
         }
-        AiKeyRepository.CheckResult result = verification.run();
-        synchronized (running) {
-            if (running.get(provider) == verification) running.remove(provider);
+        AiKeyRepository.CheckResult result;
+        try {
+            result = verification.run();
+        } finally {
+            synchronized (running) {
+                if (running.get(provider) == verification) running.remove(provider);
+            }
         }
         post(provider, generation, state -> state.with(result.status, Busy.NONE, result.outcome, Notice.NONE));
     }
@@ -160,9 +174,9 @@ public final class AiKeysViewModel extends AndroidViewModel {
         return generation;
     }
 
-    private int generationNow(Provider provider) {
+    private boolean isCurrent(Provider provider, int generation) {
         synchronized (running) {
-            return generations.get(provider);
+            return !cleared && generation == generations.get(provider);
         }
     }
 
@@ -172,9 +186,9 @@ public final class AiKeysViewModel extends AndroidViewModel {
 
     /** Returns false when the work is already stale; the update itself is re-checked on main. */
     private boolean post(Provider provider, int generation, Update update) {
-        if (generation != generationNow(provider)) return false;
+        if (!isCurrent(provider, generation)) return false;
         main.post(() -> {
-            if (generation == generationNow(provider)) set(provider, update.apply(current(provider)));
+            if (isCurrent(provider, generation)) set(provider, update.apply(current(provider)));
         });
         return true;
     }

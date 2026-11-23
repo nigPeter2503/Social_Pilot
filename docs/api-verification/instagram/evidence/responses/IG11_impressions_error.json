@@ -1,0 +1,8 @@
+{
+  "error": {
+    "message": "(#100) Starting from version v22.0 and above, the impressions metric is no longer supported for the queried media. Please refer to the documentation at https://developers.facebook.com/docs/instagram-api/reference/ig-media/insights for a list of supported metrics.",
+    "code": 100,
+    "type": "OAuthException",
+    "fbtrace_id": "AUV6KZojc2ez5Gk_ePe9DIA"
+  }
+}

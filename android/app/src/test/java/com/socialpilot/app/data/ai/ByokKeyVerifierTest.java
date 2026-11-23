@@ -104,6 +104,13 @@ public final class ByokKeyVerifierTest {
         assertOutcome(TIMEOUT, verifier.prepare(OPENAI, KEY).run());
     }
 
+    @Test public void retryAfterZeroOn503StillUsesOnlyOneRequest() {
+        server.enqueue(json(503, "{}").addHeader("Retry-After", "0"));
+        server.enqueue(json(200, "{\"data\":[]}"));
+        assertEquals(PROVIDER_UNAVAILABLE, verifier.prepare(OPENAI, KEY).run());
+        assertEquals(1, server.getRequestCount());
+    }
+
     @Test public void networkFailuresAreNotInvalidKeys() {
         server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START));
         assertOutcome(NETWORK_ERROR, verifier.prepare(OPENAI, KEY).run());

@@ -69,6 +69,32 @@ public class EncryptedSecretStoreTest {
         assertEquals("fake-key-new-0000000000000", store.read(OPENAI).value);
     }
 
+    @Test public void failedOpenAiReplacementCannotBeFlushedByAGeminiWrite() throws Exception {
+        String original = store.write(OPENAI, FAKE_KEY);
+        preferences.failCommits = 1;
+        assertThrows(SecretStoreException.class, () -> store.write(OPENAI, "fake-key-new-0000000000000"));
+        store.write(GEMINI, "fake-key-gemini-0000000000");
+
+        EncryptedSecretStore restarted = new EncryptedSecretStore(SecretNamespace.AI_PROVIDER, preferences.reboot(), cipher);
+        assertEquals(FAKE_KEY, restarted.read(OPENAI).value);
+        assertEquals(original, restarted.read(OPENAI).revision);
+        assertEquals(FAKE_KEY, store.read(OPENAI).value);
+    }
+
+    @Test public void failedWriteAndDeleteCannotLeakIntoAnotherRecordsCommit() throws Exception {
+        String revision = store.write(OPENAI, FAKE_KEY);
+        preferences.failCommits = 2;
+        assertThrows(SecretStoreException.class, () -> store.write(OPENAI, "fake-key-new-0000000000000"));
+        assertThrows(SecretStoreException.class, () -> store.delete(OPENAI));
+
+        EncryptedSecretStore second = new EncryptedSecretStore(SecretNamespace.AI_PROVIDER, preferences, cipher);
+        second.write(GEMINI, "fake-key-gemini-0000000000");
+        EncryptedSecretStore restarted = new EncryptedSecretStore(SecretNamespace.AI_PROVIDER, preferences.reboot(), cipher);
+        assertEquals(FAKE_KEY, restarted.read(OPENAI).value);
+        assertEquals(revision, restarted.read(OPENAI).revision);
+        assertEquals("fake-key-gemini-0000000000", restarted.read(GEMINI).value);
+    }
+
     @Test public void lostKeystoreKeyIsUnreadableWithoutCrashAndCanBeReplaced() throws Exception {
         store.write(OPENAI, FAKE_KEY);
         EncryptedSecretStore afterKeyLoss = new EncryptedSecretStore(SecretNamespace.AI_PROVIDER,
