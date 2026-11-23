@@ -35,7 +35,7 @@ final class CommentResponseMapper {
             SocialError error = null;
             if (status == 401 || r.platform != Platform.LINKEDIN && Objects.equals(code, 190)) {
                 error = new SocialError(SocialError.Code.AUTH_REQUIRED, SocialError.NextAction.RECONNECT);
-            } else if (status == 429 || r.platform != Platform.LINKEDIN
+            } else if (status == 429 || status == 503 || r.platform != Platform.LINKEDIN
                     && Arrays.asList(4, 17, 32, 613).contains(code)) {
                 error = new SocialError(SocialError.Code.RATE_LIMITED, SocialError.NextAction.WAIT);
             } else if (binding.permissionEvidence != null && binding.permissionEvidence.matches(r, code)) {
