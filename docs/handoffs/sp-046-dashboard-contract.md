@@ -1,6 +1,20 @@
 # SP-046 · Query và DTO dashboard cho Thiện/SP-047
 
-**Mã bàn giao** `c2da6480f151b1799bd461b311adbbe53774a382`, 148/148 unit test tại revision này. ViewModel nhận `AnalyticsRepository`. Implementation là `DefaultAnalyticsRepository`, đọc và refresh projection qua `AnalyticsSource`. Fixture `SimulatedAnalyticsSource` nằm trong src/test và dùng bộ nhớ. Chưa có nguồn DAO SP-045 hoặc binding AppContainer cho dashboard thật. [PR #89](https://github.com/nigPeter2503/Social_Pilot/pull/89) · [Source port](sp-046-source-query-proposal.md) · [Implementation](../../android/app/src/main/java/com/socialpilot/app/data/repository/analytics/DefaultAnalyticsRepository.java)
+**Bản consumer 23/11/2026:** mã/test `aa5d592f27436b833edc5b3b562083cab1b64bd2`, kế thừa fix PARTIAL `0573ca9126a9bb22ad333996d75afc4ffdfa2bb1`. Chạy mới **159/159 JVM**, 17 suite, 0 failure/error/skip; assemble đạt, lint 0 lỗi/14 cảnh báo, analytics fixture 75/75. Java query/DTO vẫn draft **0.1.0**, analytics draft-4; không đổi schema. [Evidence và ma trận consumer](../sp-046-consumer-verification-2026-11-23.md) · [Manifest production NOT_RUN](../sp-046-reconciliation-manifest.json).
+
+ViewModel nhận `AnalyticsRepository`. Implementation là `DefaultAnalyticsRepository`, đọc và refresh projection qua `AnalyticsSource`. Fixture `SimulatedAnalyticsSource` nằm trong src/test và dùng bộ nhớ. Chưa có nguồn DAO SP-045 hoặc binding AppContainer cho dashboard thật. [PR #89](https://github.com/nigPeter2503/Social_Pilot/pull/89) · [Source port](sp-046-source-query-proposal.md) · [Implementation](../../android/app/src/main/java/com/socialpilot/app/data/repository/analytics/DefaultAnalyticsRepository.java)
+
+**ACK đã xác minh:** [Thiện xác nhận consumer](https://github.com/nigPeter2503/Social_Pilot/pull/89#issuecomment-7094996411) cho handoff `2012752` và Java `c2da648`: observe/refresh với hai Cancelable, dispatch main thread, generation query/revision, 0/null, giữ cache khi lỗi và nhãn MO_PHONG. Không suy ACK đó thành xác nhận fix `0573ca9`, bộ test `aa5d592`, source transaction hay dashboard production. Bản PARTIAL này chờ Thiện đối chiếu lại; review CHANGES_REQUESTED của Đạt trên `1f96962` chưa có re-review trong lần đọc GitHub 23/11.
+
+## PARTIAL: dữ liệu tốt cũ cùng dữ liệu mới
+
+Source commit sample thành công và attempt/errors nguyên tử trước khi trả. Batch của `refreshProjection` có thể thiếu lịch sử; repository chỉ project kết quả **readCached đầy đủ**, có attempt khớp. Readback không available hoặc attempt khác → FAILED/CACHE_READ_FAILED, giữ projection tốt đã có; không publish batch riêng của attempt như cache đầy đủ. Source chịu trách nhiệm tính đầy đủ của readback: so attempt không tự chứng minh DAO đã giữ mọi mẫu.
+
+Ca consumer qua repository thật và hàng đợi UI: cache follower 10, tương tác tuần `(12−0)+(3−0)+(5−0)=20`; refresh chỉ có follower 15 và NETWORK_ERROR/READ_POST_METRICS. Observer render follower 15, tuần 20, CONTENT/ERROR rồi callback PARTIAL. `lastAttemptAt` theo lần mới; 20 giữ snapshot/collection IDs, observedAt/basis, collectedAt, bounds và coverage cũ. Freshness lấy từ input cũ nhất của từng giá trị; timestamp mới của follower không làm 20 thành fresh. Đọc errors của dashboard/card và freshness của **từng metric**, không dùng `lastSuccessAt` toàn dashboard để tô mới mọi số.
+
+Reattach chỉ đọc cache, không gọi refresh; generation được kiểm lại khi UI thực thi công việc đã queued. Cancel refresh chặn outcome muộn nhưng không hoàn tác dữ liệu đã commit. Đổi query/revision hủy hai handle cũ và vô hiệu generation trước attach. Tạo repository mới đọc được history/attempt từ cùng source RAM chỉ là **MO_PHONG**, không phải restart/process death trên Room. [Bốn ca consumer](../../android/app/src/test/java/com/socialpilot/app/data/repository/analytics/AnalyticsDashboardConsumerTest.java).
+
+**Mapping IG:** follower GAUGE/COUNT/LATEST; reach CUMULATIVE/COUNT/**DISTINCT_TOTAL/LIFETIME** theo từng media. Không cộng reach giữa bài thành unique reach, không dùng reach/views làm impressions. Definition ID pin aggregation/window dù source port không có enum aggregation riêng; adapter production cần registry đã review. IG-11 chỉ chứng minh UNSUPPORTED cho đúng media/query/API version; thiếu binding giữ UNVERIFIED. Không suy ER khi thiếu impression hoặc component tương thích. [Đầu vào SP-045 tại b6a59ee](https://github.com/nigPeter2503/Social_Pilot/blob/b6a59ee7767e6cf6d86bb09d0c7b3327bfca40b7/docs/handoffs/sp-045-analytics-input.md).
 
 ## Dùng query trong ViewModel
 
@@ -42,7 +56,7 @@ Các hàm `show…IfCurrent` do UI triển khai, chuyển việc vẽ sang main 
 
 Bảng dùng dữ liệu MO_PHONG. Với từng metric, `provenance()` xác định source, scope, snapshot và thời điểm. Nghị sẽ nối DAO và đối soát T1/T2 khi có cặp snapshot thật tương thích. [Regression IG và coverage](../../android/app/src/test/java/com/socialpilot/app/data/repository/analytics/AnalyticsProjectorRegressionTest.java) · [Regression mẫu số](../../android/app/src/test/java/com/socialpilot/app/domain/analytics/AnalyticsCalculatorRegressionTest.java) · [Consumer fixture](../../android/app/src/test/java/com/socialpilot/app/domain/contract/analytics/AnalyticsConsumerContractTest.java) · [Regression vòng đời và cache](../../android/app/src/test/java/com/socialpilot/app/data/repository/analytics/AnalyticsRepositoryRegressionTest.java)
 
-**HO-DTO — chờ Thiện xác nhận.** ACK có nội dung của Thiện trên #67 áp dụng cho SP-020 draft-2, `bf89da1`, tài liệu và fixture W1. Thiện cũng approve #67 tại `cdc633a`. Cả hai thuộc SP-020. Khi rà #48, #49 và #89 ngày 21/11, chưa thấy ACK cho Java query/DTO ở `c2da648`. [ACK draft-2](https://github.com/nigPeter2503/Social_Pilot/pull/67#pullrequestreview-5847811439) · [Approval tiếp theo trên #67](https://github.com/nigPeter2503/Social_Pilot/pull/67#pullrequestreview-5862180313)
+**HO-DTO hiện hành:** đã có ACK consumer đúng `2012752`/`c2da648` ở đầu tài liệu; bản PARTIAL mới và production vẫn chờ xác nhận. ACK #67 chỉ áp dụng SP-020 W1. [ACK draft-2](https://github.com/nigPeter2503/Social_Pilot/pull/67#pullrequestreview-5847811439) · [Approval tiếp theo trên #67](https://github.com/nigPeter2503/Social_Pilot/pull/67#pullrequestreview-5862180313)
 
 ## Hồ sơ thiết kế và kiểm chứng draft 0.1.0
 
@@ -120,7 +134,7 @@ Consumer stub và fake repository nằm trong [AnalyticsConsumerContractTest.jav
 - Tại `android/`, `.\gradlew.bat --offline --no-daemon --console=plain :app:assembleDebug :app:testDebugUnitTest :app:lintDebug` với Temurin 21.0.13 và Android SDK 36. **BUILD SUCCESSFUL**. APK debug đã tạo, Android UNIT **67/67** gồm stub **7/7**, lint **0 lỗi, 6 cảnh báo** ngoài tệp analytics. Lượt đầu bị chặn khóa cache Gradle trong sandbox, lượt dùng JDK 25 lỗi major version 69. Lượt đầu trên JDK 21 phát hiện `Files.readString` trong stub không có trong classpath Android. Đổi sang `Files.readAllBytes` và UTF-8 rồi chạy đạt.
 - Gốc repo, `git diff --check` và `git diff --cached --check` đạt. Kiểm thêm từng tệp draft untracked bằng `git diff --no-index --check -- /dev/null <file>`, đạt.
 
-## HO-DTO — Chờ Thiện xác nhận đúng revision
+## HO-DTO — lịch sử yêu cầu xác nhận ngày 19/11
 
 Thiện đã xác nhận draft-2 cho W1. ACK cho SP-046 (hợp đồng DTO) draft 0.1.0 vẫn chờ. GitHub issue #48/#49 chưa truy cập được trong lượt kiểm tra. [SP-020 §10](../analytics-data-contract.md#10-xác-nhận-review-và-điểm-cần-chốt) · [#48](https://github.com/nigPeter2503/Social_Pilot/issues/48) · [#49](https://github.com/nigPeter2503/Social_Pilot/issues/49)
 

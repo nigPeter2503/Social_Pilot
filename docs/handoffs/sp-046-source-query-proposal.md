@@ -1,6 +1,6 @@
 # SP-046 — Source port và query đề xuất
 
-**Local draft 0.1.0, TV4 / Tô Lãng Nghị. Chưa ACK, chưa phải Room schema/DAO.**
+**Source contract sau fix `0573ca9`, kiểm consumer tại `aa5d592`, 23/11/2026.** Java DTO/query draft 0.1.0 giữ nguyên; chưa phải Room schema/DAO. Thiện đã ACK consumer ở `2012752`/`c2da648`, chưa ACK phần source transaction/PARTIAL này. [Bằng chứng và gate](../sp-046-consumer-verification-2026-11-23.md).
 
 Triển khai độc lập dùng `domain/analytics/AnalyticsSource.java`, `AnalyticsCalculator.java`
 và `data/repository/analytics/{AnalyticsProjector,DefaultAnalyticsRepository}.java`.
@@ -20,6 +20,9 @@ DTO/AnalyticsRepository giữ nguyên byte so với SP-046 (hợp đồng DTO) d
   Coordinator ghi atomically các sample thành công cùng attempt/errors trước khi trả;
   batch trả về có thể chỉ chứa sample mới. Repository đọc lại `readCached(query)` và
   chỉ publish khi hai kết quả cùng attempt; nó không project batch attempt thiếu lịch sử.
+  Readback không available hoặc attempt không khớp trả FAILED/CACHE_READ_FAILED,
+  giữ projection tốt trước đó nếu có. So attempt không kiểm chứng tính đầy đủ của DAO:
+  integration test phải đối chiếu từng sample/ID cũ và mới trong transaction/readback.
   Lỗi một bài/metric không xóa sample tốt cũ hoặc sample mới thành công của bài/metric
   khác. Source/DAO chọn mẫu theo scope/revision, local entity, definition semantics,
   measurement window và namespace; disconnect loại revision cũ.
@@ -42,6 +45,13 @@ ENGAGEMENT_RATE pin thêm impression ở vị trí thứ tư. Không dò tên g�
 `alignmentId` phải tham chiếu bằng chứng cùng measurement window đã review; cùng
 collectionId không đủ. Provenance chỉ nhận nguồn đã che, không token/reference bí mật,
 body thô hoặc URL credential. Port không có trường credential.
+
+Mapping SP-045 tại `b6a59ee`: follower Instagram là GAUGE/COUNT/LATEST; reach là
+CUMULATIVE/COUNT/DISTINCT_TOTAL/LIFETIME theo từng media. Aggregation/window được
+pin bởi definition ID/registry; port hiện chưa có enum aggregation riêng. Không dùng
+reach cho tổng unique giữa bài hoặc mẫu số ER, không thay impression bằng views.
+Payload SP-066 `eda55ac` trên main là evidence mapping; replay không thành API_THAT
+trong history app. [Manifest reconciliation](../sp-046-reconciliation-manifest.json).
 
 ## DAO/query projection đề xuất cho SP-045 (lưu snapshot)
 
@@ -138,7 +148,7 @@ và rollback cần transaction thật của SP-045 (lưu snapshot và collector/
 
 ## Artifact còn cần người xác nhận
 
-- **Thiện:** ACK SP-046 (hợp đồng DTO) draft 0.1.0 đúng blob; review overflow reason, derived metric
+- **Thiện:** consumer đã ACK `2012752`/`c2da648`; đối chiếu bản PARTIAL `aa5d592`, review overflow reason, derived metric
   interval/definition semantics, chart daily grid, rank per scope và stale threshold.
 - **Minh:** Channel identity/scoped lookup, revision/invalidation serialization và ownership.
 - **Nghị/SP-045 (lưu snapshot) + Đạt:** DAO/schema thật, period keys/FK, slot/base/version/order,
