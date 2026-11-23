@@ -132,6 +132,26 @@ public class FollowerMetricAdapterTest {
         assertFalse(wire.getPath().contains("token"));
     }
 
+    @Test public void sp066FollowerBelongsToInstagramAccountNotLinkedPage() throws Exception {
+        FollowerRequest ig = new FollowerRequest(INSTAGRAM_PROFESSIONAL, "simulation-sp066", 7,
+                Sp066Evidence.ACCOUNT, "v27.0", "simulation-collection");
+        bind(ig);
+        FollowerResult actual = response(ig, 200, Sp066Evidence.body("IG06_followers.json"));
+        assertEquals(Status.SUCCESS, actual.status);
+        assertEquals(Long.valueOf(1), actual.sample.value);
+        assertEquals(Source.MO_PHONG, actual.sample.source);
+        assertEquals(TimeBasis.COLLECTION, actual.sample.observedAtBasis);
+        assertEquals(NOW, actual.sample.observedAt); // Not Explorer's T1 timestamp.
+        assertEquals("/v27.0/" + Sp066Evidence.ACCOUNT, server.takeRequest().getRequestUrl().encodedPath());
+        FollowerRequest wrong = new FollowerRequest(INSTAGRAM_PROFESSIONAL, ig.channelId, 7,
+                Sp066Evidence.PAGE, "v27.0", "simulation-other-collection");
+        bind(wrong);
+        FollowerResult rejected = response(wrong, 200, Sp066Evidence.body("IG13_followers_recheck.json"));
+        assertEquals(Status.REJECTED, rejected.status);
+        assertEquals(Failure.SCOPE_MISMATCH, rejected.failure);
+        assertNull(rejected.sample);
+    }
+
     @Test public void memberFixtureZeroUsesMeAndVersionHeaders() throws Exception {
         FollowerRequest r = request(LINKEDIN_MEMBER); bind(r);
         FollowerResult result = response(r, 200, fixture("linkedin-sp019").get("memberFollowers").toString());

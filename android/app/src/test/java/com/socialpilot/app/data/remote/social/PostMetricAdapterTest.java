@@ -137,6 +137,55 @@ public class PostMetricAdapterTest {
         assertEquals(0, server.getRequestCount());
     }
 
+    private PostRequest sp066Request(PostRequest.Query query) {
+        return new PostRequest(FollowerRequest.Account.INSTAGRAM_PROFESSIONAL, "simulation-sp066", 7,
+                Sp066Evidence.ACCOUNT, Sp066Evidence.MEDIA, "v27.0", "simulation-collection", query, null);
+    }
+
+    @Test public void sp066ReachPermissionErrorNeedsExactMetricScope() throws Exception {
+        PostRequest reach = sp066Request(IG_REACH);
+        bind(reach);
+        PostResult good = response(reach, 200, Sp066Evidence.body("IG12_token_A_success.json"));
+        assertEquals(Status.SUCCESS, good.status);
+        assertEquals(Long.valueOf(0), sample(good, Metric.REACH_COUNT).value);
+        String denied = Sp066Evidence.body("IG12_token_B_denied.json");
+        // HTTP status was not captured. Synthetic 200 exercises error-envelope classification.
+        connection.set(binding(reach, reach, grants(reach), new PostMetricAdapter.PermissionEvidence(
+                sp066Request(IG_IMPRESSIONS), 10, "simulation-IG12-wrong-query"),
+                SocialOperation.READ_POST_METRICS, CapabilityAvailability.AVAILABLE));
+        missing(response(reach, 200, denied), Metric.REACH_COUNT, MissingReason.UNVERIFIED);
+        connection.set(binding(reach, reach, grants(reach), new PostMetricAdapter.PermissionEvidence(
+                reach, 10, "simulation-IG12-scoped-permission"),
+                SocialOperation.READ_POST_METRICS, CapabilityAvailability.AVAILABLE));
+        PostResult blocked = response(reach, 200, denied);
+        assertEquals(Status.FAILURE, blocked.status);
+        missing(blocked, Metric.REACH_COUNT, MissingReason.PERMISSION_REQUIRED);
+        assertEquals(SocialError.NextAction.RESOLVE_PERMISSION, blocked.error.nextAction);
+    }
+
+    @Test public void sp066UnsupportedImpressionDoesNotDisableReachOrReadCredentials() throws Exception {
+        PostRequest impression = sp066Request(IG_IMPRESSIONS);
+        // IG-11 documents unsupported on this media/version. The production Channel
+        // owner must supply this scoped capability; code 100 alone is not sufficient.
+        assertEquals(100, JsonParser.parseString(Sp066Evidence.body("IG11_impressions_error.json"))
+                .getAsJsonObject().getAsJsonObject("error").get("code").getAsInt());
+        Map<Metric, ChannelCapability> metrics = grants(impression);
+        metrics.put(Metric.IMPRESSION_COUNT, new ChannelCapability(SocialOperation.READ_POST_METRICS,
+                CapabilityAvailability.UNSUPPORTED, "SP066-IG11-scoped-simulation", "2026-11-21T10:00:00Z"));
+        connection.set(binding(impression, impression, metrics, null,
+                SocialOperation.READ_POST_METRICS, CapabilityAvailability.AVAILABLE));
+        PostResult unavailable = read(impression);
+        assertEquals(Status.UNAVAILABLE, unavailable.status);
+        missing(unavailable, Metric.IMPRESSION_COUNT, MissingReason.UNSUPPORTED);
+        assertEquals(0, credentialReads.get());
+        assertEquals(0, server.getRequestCount());
+        PostRequest reach = sp066Request(IG_REACH); bind(reach);
+        PostResult available = response(reach, 200, Sp066Evidence.body("IG07_reach.json"));
+        assertEquals(Long.valueOf(0), sample(available, Metric.REACH_COUNT).value);
+        assertNotEquals(unavailable.definitions.get(0).definitionId, available.definitions.get(0).definitionId);
+        assertEquals("reach", server.takeRequest().getRequestUrl().queryParameter("metric"));
+    }
+
     @Test public void existingFacebookFixtureUsesSummaryNotArrayLength() throws Exception {
         PostRequest r = request(FB_REACTIONS); bind(r);
         JsonObject raw = fixture("/followers/facebook-sp018.json").getAsJsonObject("postResponse").getAsJsonObject("reactions");

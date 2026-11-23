@@ -121,6 +121,69 @@ public class MetricCollectionTest {
         assertNotEquals(history().attempts().get(0).attemptId(), history().attempts().get(1).attemptId());
     }
 
+    @Test public void sp066PayloadCollectionsRetainHistoryAcrossReplayAndOfflineRefresh() throws Exception {
+        scope = new Snapshot.Scope(Platform.INSTAGRAM, FollowerRequest.Account.INSTAGRAM_PROFESSIONAL,
+                "simulation-sp066", Sp066Evidence.ACCOUNT, 7);
+        configureCollection();
+        dao.own(scope, Sp066Evidence.MEDIA, "simulation-local-media");
+        MetricJob.PostTarget media = new MetricJob.PostTarget(Sp066Evidence.MEDIA, PostRequest.Query.IG_REACH, null);
+        MetricJob first = job(true, media);
+        server.enqueue(new MockResponse().setBody(Sp066Evidence.body("IG06_followers.json")));
+        server.enqueue(new MockResponse().setBody(Sp066Evidence.body("IG07_reach.json")));
+        assertEquals(COMPLETE, run(first, 0).state());
+        List<Snapshot> original = new ArrayList<>(history().snapshots());
+        assertEquals(2, original.size());
+        clock.addAndGet(60_000); // Synthetic interval, never copied from Explorer T1/T2.
+        coordinator = coordinator(provider);
+        MetricJob restored = new MetricJob(first.collectionId(), first.collectionStartedAt(), scope,
+                first.apiVersion(), first.follower(), first.posts());
+        assertEquals(COMPLETE, run(restored, 1).state());
+        assertEquals(original, history().snapshots()); // IDs, clock and provenance unchanged.
+        assertEquals(2, server.getRequestCount());
+        MetricJob second = job(true, media);
+        assertNotEquals(first.collectionId(), second.collectionId());
+        server.enqueue(new MockResponse().setBody(Sp066Evidence.body("IG13_followers_recheck.json")));
+        server.enqueue(new MockResponse().setBody(Sp066Evidence.body("IG13_reach_recheck.json")));
+        assertEquals(COMPLETE, run(second, 0).state());
+        SnapshotDao.History measured = history();
+        assertEquals(4, measured.snapshots().size());
+        assertEquals(4, measured.attempts().size());
+        Set<String> ids = new HashSet<>();
+        Map<Snapshot.Subject, MetricDefinition> definitions = new EnumMap<>(Snapshot.Subject.class);
+        for (Snapshot snapshot : measured.snapshots()) {
+            assertTrue(ids.add(snapshot.snapshotId()));
+            assertEquals(scope, snapshot.scope());
+            assertEquals(FollowerResult.Source.MO_PHONG, snapshot.source());
+            MetricSample sample = snapshot.samples().get(0);
+            assertEquals("v27.0", sample.providerApiVersion());
+            assertEquals("COLLECTION", sample.observedAtBasis());
+            assertEquals(snapshot.collectionStartedAt(), sample.observedAt());
+            assertEquals(sample.observedAt(), sample.collectedAt());
+            MetricDefinition previous = definitions.put(snapshot.key().subjectType(), sample.definition());
+            if (previous != null) assertEquals(previous, sample.definition());
+            assertNull(sample.providerPeriodStart());
+            assertNull(sample.providerPeriodEnd());
+            if (snapshot.key().subjectType() == Snapshot.Subject.CHANNEL) {
+                assertEquals(scope.channelId(), snapshot.key().subjectId());
+                assertEquals(Long.valueOf(1), sample.value());
+                assertEquals("GAUGE", sample.definition().measurementKind());
+            } else {
+                assertEquals("simulation-local-media", snapshot.key().subjectId());
+                assertEquals(Long.valueOf(0), sample.value());
+                assertEquals("LIFETIME", sample.definition().measurementWindow());
+                assertEquals("DISTINCT_TOTAL", sample.definition().aggregation());
+            }
+        }
+        clock.addAndGet(60_000);
+        online = false;
+        run(job(true, media), 0);
+        SnapshotDao.History failed = coordinator.cached(second, START, clock.get()).history();
+        assertEquals(measured.snapshots(), failed.snapshots());
+        assertEquals(measured.lastGood(), failed.lastGood());
+        assertEquals(clock.get(), failed.lastAttempt().completedAt());
+        assertEquals(4, server.getRequestCount());
+    }
+
     @Test public void retryAfterSurvivesRecreatedCoordinatorNoEarlyCall() {
         MetricJob first = job(true);
         server.enqueue(new MockResponse().setResponseCode(429).setHeader("Retry-After", "95"));
