@@ -13,7 +13,10 @@ public interface LedgerStore {
 
     void update(AttemptEntity row);
 
-    /** Settled estimates plus RESERVED/UNCERTAIN reservations; RELEASED counts zero. */
+    /** Releases known-undispatched queued attempts in the transaction that stops dispatch. */
+    void releaseQueued(long now);
+
+    /** Settled estimates plus held reservations; RELEASED counts zero. */
     long committedForDay(String dayKey, String currency);
 
     long committedForMonth(String monthKey, String currency);

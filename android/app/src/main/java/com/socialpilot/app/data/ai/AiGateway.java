@@ -5,6 +5,7 @@ import com.socialpilot.app.domain.contract.BudgetManager;
 import com.socialpilot.app.domain.contract.ai.AttemptLedger;
 import com.socialpilot.app.domain.contract.Cancelable;
 import com.socialpilot.app.domain.contract.ai.AiCostEstimate;
+import com.socialpilot.app.domain.contract.ai.AiError;
 import com.socialpilot.app.domain.contract.ai.AiEvent;
 import com.socialpilot.app.domain.contract.ai.AiRequest;
 import com.socialpilot.app.domain.contract.ai.AiTaskType;
@@ -282,6 +283,19 @@ public final class AiGateway {
                 return;
             }
             if (!state.compareAndSet(PENDING, RUNNING)) return;
+            boolean permitted;
+            try {
+                permitted = ledger.claimDispatch(request.requestId);
+            } catch (RuntimeException failed) {
+                finish(AiEvent.terminal(request, 1, AiEvent.Type.FAILED,
+                        new AiError(AiError.Code.PROVIDER_UNAVAILABLE, null), AiUsage.MISSING, false, false), true);
+                return;
+            }
+            if (!permitted) budgetStopped = true;
+            if (!permitted || cancelled) {
+                abandon(true);
+                return;
+            }
             // A cancel racing with this start is honoured by the attempt: it ends CANCELLED, not dispatched.
             attempt.run();
         }
@@ -330,9 +344,12 @@ public final class AiGateway {
                 record = null;
             }
             if (!notify) return;
-            callback.onEvent(terminal);
-            callback.onFinished(new Finished(request, terminal, text.toString(), record, budgetStopped,
-                    record == null));
+            try {
+                callback.onEvent(terminal);
+            } finally {
+                callback.onFinished(new Finished(request, terminal, text.toString(), record, budgetStopped,
+                        record == null));
+            }
         }
     }
 

@@ -12,17 +12,18 @@ Issue [#31](https://github.com/nigPeter2503/Social_Pilot/issues/31) · F8.N1, F8
 
 | Thao tác | Quy tắc |
 |---|---|
-| `reserve(request, taskType, upperBound)` | Một transaction Room: kiểm requestId chưa tồn tại → đọc trần → tính kỳ theo zone của trần → cộng đã quyết toán + đang giữ của ngày **và** tháng → chèn dòng `RESERVED`. Trả `RESERVED`, `LIMIT_REACHED` hoặc `DUPLICATE_REQUEST`. Không có trần, khác currency hoặc tràn `long` đều là `LIMIT_REACHED` |
+| `reserve(request, taskType, upperBound)` | Một transaction Room: kiểm requestId chưa tồn tại → đọc trần → tính kỳ theo zone của trần → cộng đã quyết toán + đang giữ của ngày **và** tháng → chèn dòng `QUEUED` cho lượt có scope và `RESERVED` cho API legacy. Trả `RESERVED`, `LIMIT_REACHED` hoặc `DUPLICATE_REQUEST`. Không có trần, khác currency hoặc tràn `long` đều là `LIMIT_REACHED` |
+| `claimDispatch(requestId)` | Một worker giành quyền chuyển `QUEUED` → `DISPATCHING` trong transaction. Nếu đã giải phóng vì trần thì từ chối trước khi gọi provider. |
 | Kỳ và giá | `zoneId`, `dayKey`, `monthKey`, `currency`, `priceRevision` ghim lúc reserve và không bao giờ tính lại |
-| `settle(id, estimate)` | Idempotent. Áp từ `RESERVED` hoặc `UNCERTAIN` (đối soát muộn). Bỏ qua nếu đã `SETTLED`/`RELEASED`. Currency hoặc price revision khác bản ghim → giữ ở `UNCERTAIN`, không áp số |
-| `releaseUndispatched(id)` | Chỉ từ `RESERVED`, một lần. Dòng đã `SETTLED`/`UNCERTAIN` không bao giờ được giải phóng |
-| `markUncertain(id)` | Từ `RESERVED`: có thể đã gửi nhưng thiếu usage tính được. Vẫn giữ số đã reserve |
+| `settle(id, estimate)` | Idempotent. Áp từ trạng thái đang giữ hoặc `UNCERTAIN` (đối soát muộn). Bỏ qua nếu đã `SETTLED`/`RELEASED`. Currency hoặc price revision khác bản ghim → giữ ở `UNCERTAIN`, không áp số |
+| `releaseUndispatched(id)` | Chỉ từ trạng thái đang giữ chưa quyết toán, một lần. Dòng đã `SETTLED`/`UNCERTAIN` không bao giờ được giải phóng |
+| `markUncertain(id)` | Từ trạng thái đang giữ: có thể đã gửi nhưng thiếu usage tính được. Vẫn giữ số đã reserve |
 | `record(UsageRecord)` | Ghi usage một lần theo requestId; không đổi trạng thái hay kỳ. Gateway không còn gọi riêng `settle`/`markUncertain`/`releaseUndispatched` + `record` |
-| `complete(id, mayHaveDispatched, estimate, usage)` | **Đường terminal của gateway.** Một transaction: chuyển trạng thái (release / settle / `UNCERTAIN`) **và** ghi usage cùng lúc, hoặc không ghi gì. Lỗi ghi được ném ra và rollback toàn bộ: dòng vẫn `RESERVED`, lúc khởi động lại thành `UNCERTAIN` với usage `MISSING` (không bao giờ `SETTLED` mà thiếu usage). Trả `UsageRecord` dựng từ dòng đã lưu, nên kỳ, currency và price revision trong callback đúng là bản ghim lúc reserve. Lặp lại thì không đổi gì, trả bản đã lưu |
-| `recoverInterrupted()` | Gọi khi khởi động. Dòng `RESERVED` của process cũ (khác `bootId`) → `UNCERTAIN`, `interrupted = 1`. Không bao giờ coi là chi phí 0 |
+| `complete(id, mayHaveDispatched, estimate, usage)` | **Đường terminal của gateway.** Một transaction: chuyển trạng thái (release / settle / `UNCERTAIN`) **và** ghi usage cùng lúc, hoặc không ghi gì. Lỗi ghi được ném ra và rollback toàn bộ: dòng vẫn giữ khoản đã reserve, lúc khởi động lại thành `UNCERTAIN` với usage `MISSING` (không bao giờ `SETTLED` mà thiếu usage). Trả `UsageRecord` dựng từ dòng đã lưu, nên kỳ, currency và price revision trong callback đúng là bản ghim lúc reserve. Lặp lại thì không đổi gì, trả bản đã lưu |
+| `recoverInterrupted()` | Gọi khi khởi động. Các dòng `RESERVED`, `QUEUED`, `DISPATCHING` của process cũ (khác `bootId`) → `UNCERTAIN`, `interrupted = 1`. Không bao giờ coi là chi phí 0 |
 | `forgetChannel(channelId)` | Xóa `channelId`/`sessionId`/`stepId`/`connectionRevision` của kênh, giữ chi phí, trạng thái và kỳ. Xem §5 |
 
-Tổng chi tiêu của một kỳ = `settledMicros` của dòng `SETTLED` + `reservedMicros` của dòng `RESERVED`/`UNCERTAIN`. `RELEASED` tính 0.
+Tổng chi tiêu của một kỳ = `settledMicros` của dòng `SETTLED` + `reservedMicros` của dòng `RESERVED`, `QUEUED`, `DISPATCHING` hoặc `UNCERTAIN`. `RELEASED` tính 0.
 
 **Ví dụ 100 micros:** A và B cùng reserve 60, chỉ một lượt được cấp (`twoBranchesRacingForTheLastBudgetAdmitOnlyOne`). A hủy sau dispatch và thiếu usage → `UNCERTAIN`, vẫn giữ 60. Retry/fallback tạo requestId mới và reserve lại từ phần còn lại; ID cũ bị từ chối kể cả sau khi đã settle.
 
@@ -30,10 +31,10 @@ Tổng chi tiêu của một kỳ = `settledMicros` của dòng `SETTLED` + `res
 
 - Người dùng đặt trần ngày và tháng (USD) trong màn hình AI. Zone là zone thiết bị lúc lưu. Trần ngày không được lớn hơn trần tháng; số dương, tối đa 6 chữ số thập phân (`BudgetInput`).
 - Chưa đặt trần thì gateway trả `BUDGET_NOT_SET` và không reserve, không gửi.
-- Đầy trần đúng bằng giới hạn là bình thường: lượt mới bị `BUDGET_LIMIT_REACHED`, lượt đang chạy vẫn chạy tiếp.
-- **Vượt** trần (quyết toán lớn hơn reserve, hoặc người dùng hạ trần dưới mức đã dùng) gọi `ExhaustionListener`. `AiGateway` hủy mọi lượt đang chạy hoặc đang chờ: lượt chưa gửi được release, lượt đã gửi đi theo quy tắc terminal (thường là `UNCERTAIN`). `Finished.budgetStopped = true`, text partial được giữ để consumer lưu kèm lý do.
+- Một reserve vừa khít trần hiện hành vẫn được chạy. Nếu người dùng hạ trần ngày hoặc tháng xuống bằng hoặc thấp hơn tổng đã quyết toán và đang giữ, ledger giải phóng các lượt `QUEUED` trong cùng transaction ghi trần. Quyết toán vượt trần cũng giải phóng `QUEUED` trong transaction quyết toán.
+- Worker phải giành quyền chuyển `QUEUED` → `DISPATCHING` trước khi gọi provider. Nếu transaction hạ trần thắng, worker kết thúc `budgetStopped` và giữ kết quả `RELEASED`, kể cả khi listener chưa tới gateway. Nếu worker đã giành quyền, listener hủy transport và ledger xử lý theo terminal. Listener chạy sau commit, lỗi của một listener không đổi kết quả ghi và không bỏ qua listener tiếp theo.
 - Gateway đăng ký lượt vào danh sách đang chạy **trước** khi reserve. Nếu trần bị hạ ngay sau khi reservation commit nhưng trước khi lượt được kích hoạt, lượt không được gửi, khoản giữ được release đúng một lần và `submit` trả `BUDGET_LIMIT_REACHED` (không callback).
-- Lỗi ghi ledger ở terminal: caller vẫn nhận `onFinished` với `Finished.ledgerWriteFailed = true` và `usage = null`; chi phí coi là chưa biết, khoản giữ vẫn tính vào trần.
+- Lỗi ghi ledger ở terminal trả `ledgerWriteFailed = true` và `usage = null`. Usage đã nhận nhưng tràn số khi định giá vẫn được lưu theo dữ liệu gốc, quyết toán `UNCERTAIN` và gọi `onFinished`.
 - Đổi zone sau khi đã có reservation: dòng cũ giữ kỳ đã ghim; kỳ "hiện tại" tính theo zone mới. Chuyển zone hoặc qua nửa đêm không mở thêm ngân sách cho attempt cũ.
 
 ## 4. Lưu trữ và schema

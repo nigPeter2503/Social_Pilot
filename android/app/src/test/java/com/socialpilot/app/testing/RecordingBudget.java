@@ -67,6 +67,10 @@ public final class RecordingBudget implements AttemptLedger {
         return admission;
     }
 
+    @Override public synchronized boolean claimDispatch(String requestId) {
+        return pinned.containsKey(requestId) && !usage.records.containsKey(requestId);
+    }
+
     @Override public synchronized UsageRecord complete(String requestId, boolean mayHaveDispatched,
                                                        AiCostEstimate estimate, AiUsage usage) {
         if (failNextComplete) {

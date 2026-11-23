@@ -31,6 +31,7 @@ public abstract class LedgerDatabase extends RoomDatabase {
             @Override public AttemptEntity find(String requestId) { return dao.find(requestId); }
             @Override public void insert(AttemptEntity row) { dao.insert(row); }
             @Override public void update(AttemptEntity row) { dao.update(row); }
+            @Override public void releaseQueued(long now) { dao.releaseQueued(now); }
             @Override public long committedForDay(String dayKey, String currency) { return dao.committedForDay(dayKey, currency); }
             @Override public long committedForMonth(String monthKey, String currency) { return dao.committedForMonth(monthKey, currency); }
             @Override public int uncertainForMonth(String monthKey) { return dao.uncertainForMonth(monthKey); }
