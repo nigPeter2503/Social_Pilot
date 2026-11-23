@@ -71,6 +71,16 @@ public final class MemoryLedgerStore implements LedgerStore {
         if (rows.containsKey(row.requestId)) rows.put(row.requestId, copy(row));
     }
 
+    @Override public void releaseQueued(long now) {
+        requireTransaction();
+        for (AttemptEntity row : rows.values()) {
+            if (AttemptEntity.QUEUED.equals(row.state)) {
+                row.state = AttemptEntity.RELEASED;
+                row.updatedAt = now;
+            }
+        }
+    }
+
     @Override public long committedForDay(String dayKey, String currency) {
         requireTransaction();
         long sum = 0;
@@ -87,8 +97,13 @@ public final class MemoryLedgerStore implements LedgerStore {
 
     private static long committed(AttemptEntity row) {
         if (AttemptEntity.SETTLED.equals(row.state)) return row.settledMicros;
-        if (AttemptEntity.RESERVED.equals(row.state) || AttemptEntity.UNCERTAIN.equals(row.state)) return row.reservedMicros;
+        if (retainsHold(row) || AttemptEntity.UNCERTAIN.equals(row.state)) return row.reservedMicros;
         return 0;
+    }
+
+    private static boolean retainsHold(AttemptEntity row) {
+        return AttemptEntity.RESERVED.equals(row.state) || AttemptEntity.QUEUED.equals(row.state)
+                || AttemptEntity.DISPATCHING.equals(row.state);
     }
 
     @Override public int uncertainForMonth(String monthKey) {
@@ -121,7 +136,7 @@ public final class MemoryLedgerStore implements LedgerStore {
         requireTransaction();
         int count = 0;
         for (AttemptEntity row : rows.values()) {
-            if (AttemptEntity.RESERVED.equals(row.state) && !row.bootId.equals(currentBootId)) {
+            if (retainsHold(row) && !row.bootId.equals(currentBootId)) {
                 row.state = AttemptEntity.UNCERTAIN;
                 row.interrupted = true;
                 row.updatedAt = now;

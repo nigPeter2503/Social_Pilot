@@ -43,7 +43,7 @@ public interface AttemptLedger extends BudgetManager, UsageLog {
         }
     }
 
-    /** Fired after a commit leaves the current day or month above its cap (overrun or lowered cap). */
+    /** Fired after a commit exceeds a cap or lowers it to an already reached threshold. */
     interface ExhaustionListener {
         void onBudgetExhausted();
     }
@@ -53,6 +53,9 @@ public interface AttemptLedger extends BudgetManager, UsageLog {
      * dies before a terminal event. Same atomicity and duplicate rules as {@link #reserve}.
      */
     Admission reserve(AiRequest request, AiTaskType taskType, AiCostEstimate upperBound);
+
+    /** Atomically consumes a queued reservation's dispatch permission. False means do not send. */
+    boolean claimDispatch(String requestId);
 
     /**
      * Terminal of one attempt, in one transaction: the settlement transition and the usage are
@@ -70,7 +73,7 @@ public interface AttemptLedger extends BudgetManager, UsageLog {
     /** Null when no limits are set; without limits nothing is admitted. */
     Limits limits();
 
-    /** Replaces the caps. Lowering below current spend notifies exhaustion listeners. */
+    /** Replaces the caps. Lowering to or below committed spend revokes queued dispatches. */
     void setLimits(Limits limits);
 
     /** Spend of the period containing now, in the configured zone; null without limits. */

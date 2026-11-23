@@ -1,0 +1,75 @@
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/prototypeRoot" android:layout_width="match_parent"
+    android:layout_height="match_parent" android:fillViewport="true">
+  <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:orientation="vertical" android:padding="24dp">
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="@string/prototype_title" android:textSize="26sp" android:textStyle="bold" />
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="8dp" android:text="@string/prototype_disclaimer" />
+    <TextView android:id="@+id/networkStatus" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:layout_marginTop="16dp"
+        android:text="@string/prototype_offline" android:textStyle="bold" />
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="4dp" android:text="@string/prototype_permission" />
+
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="24dp" android:text="@string/prototype_channel_a"
+        android:textSize="20sp" android:textStyle="bold" />
+    <TextView android:id="@+id/stateA" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:layout_marginTop="8dp"
+        android:text="@string/prototype_idle" />
+    <TextView android:id="@+id/resultA" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:layout_marginTop="8dp"
+        android:minHeight="48dp" android:text="@string/prototype_empty" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:layout_marginTop="8dp">
+      <com.google.android.material.button.MaterialButton android:id="@+id/startA"
+          android:layout_width="0dp" android:layout_height="wrap_content"
+          android:layout_weight="1" android:text="@string/prototype_start" />
+      <com.google.android.material.button.MaterialButton android:id="@+id/cancelA"
+          android:layout_width="0dp" android:layout_height="wrap_content"
+          android:layout_weight="1" android:text="@string/prototype_cancel" />
+      <com.google.android.material.button.MaterialButton android:id="@+id/failA"
+          android:layout_width="0dp" android:layout_height="wrap_content"
+          android:layout_weight="1" android:text="@string/prototype_fail" />
+    </LinearLayout>
+    <com.google.android.material.button.MaterialButton android:id="@+id/workA"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="8dp" android:enabled="false"
+        android:text="@string/prototype_queue_work" />
+    <TextView android:id="@+id/workStatusA" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:text="@string/prototype_work_idle" />
+    <TextView android:id="@+id/checkpointA" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:text="@string/prototype_checkpoint_empty" />
+
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="24dp" android:text="@string/prototype_channel_b"
+        android:textSize="20sp" android:textStyle="bold" />
+    <TextView android:id="@+id/stateB" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:layout_marginTop="8dp"
+        android:text="@string/prototype_idle" />
+    <TextView android:id="@+id/resultB" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:layout_marginTop="8dp"
+        android:minHeight="48dp" android:text="@string/prototype_empty" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:layout_marginTop="8dp">
+      <com.google.android.material.button.MaterialButton android:id="@+id/startB"
+          android:layout_width="0dp" android:layout_height="wrap_content"
+          android:layout_weight="1" android:text="@string/prototype_start" />
+      <com.google.android.material.button.MaterialButton android:id="@+id/cancelB"
+          android:layout_width="0dp" android:layout_height="wrap_content"
+          android:layout_weight="1" android:text="@string/prototype_cancel" />
+    </LinearLayout>
+    <com.google.android.material.button.MaterialButton android:id="@+id/workB"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="8dp" android:enabled="false"
+        android:text="@string/prototype_queue_work" />
+    <TextView android:id="@+id/workStatusB" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:text="@string/prototype_work_idle" />
+    <TextView android:id="@+id/checkpointB" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:text="@string/prototype_checkpoint_empty" />
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="24dp" android:text="@string/prototype_worker_note" />
+  </LinearLayout>
+</ScrollView>

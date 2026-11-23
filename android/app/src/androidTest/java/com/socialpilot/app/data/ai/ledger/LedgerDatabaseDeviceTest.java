@@ -7,7 +7,10 @@ import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import com.socialpilot.app.domain.contract.BudgetManager.Admission;
 import com.socialpilot.app.domain.contract.ai.AiCostEstimate;
+import com.socialpilot.app.domain.contract.ai.AiTaskType;
+import com.socialpilot.app.domain.contract.ai.AiUsage;
 import com.socialpilot.app.domain.contract.ai.AttemptLedger;
+import com.socialpilot.app.domain.contract.ai.UsageRecord;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Currency;
@@ -60,6 +63,26 @@ public final class LedgerDatabaseDeviceTest {
         assertEquals(Admission.LIMIT_REACHED, ledger.reserve("a", usd(1)));
         ledger.setLimits(new AttemptLedger.Limits("USD", 100, 1_000, "Asia/Bangkok"));
         assertEquals(Admission.RESERVED, ledger.reserve("a", usd(1)));
+    }
+
+    @Test public void loweringCapRevokesQueuedButKeepsAlreadyAuthorizedHoldAcrossLedgers() {
+        LedgerDatabase database = openDatabase();
+        BudgetLedger workerLedger = new BudgetLedger(database.store(), () -> NOW);
+        BudgetLedger settingsLedger = new BudgetLedger(database.store(), () -> NOW);
+        settingsLedger.setLimits(new AttemptLedger.Limits("USD", 120, 1_000, "Asia/Bangkok"));
+        assertEquals(Admission.RESERVED, workerLedger.reserve(request("claimed"), AiTaskType.CONTENT_TEXT, usd(60)));
+        assertTrue(workerLedger.claimDispatch("claimed"));
+        assertEquals(Admission.RESERVED, workerLedger.reserve(request("queued"), AiTaskType.CONTENT_TEXT, usd(60)));
+        assertEquals(120, workerLedger.currentSpend().dayMicros);
+
+        settingsLedger.setLimits(new AttemptLedger.Limits("USD", 119, 1_000, "Asia/Bangkok"));
+        assertFalse(workerLedger.claimDispatch("queued"));
+        assertEquals(60, workerLedger.currentSpend().dayMicros);
+        assertEquals(UsageRecord.Settlement.RELEASED,
+                workerLedger.complete("queued", false, null, AiUsage.MISSING).settlement);
+        assertEquals(UsageRecord.Settlement.UNCERTAIN,
+                workerLedger.complete("claimed", true, null, AiUsage.MISSING).settlement);
+        assertEquals(60, workerLedger.currentSpend().dayMicros);
     }
 
     @Test public void concurrentReservesFromTwoLedgersNeverPassTheCap() throws Exception {
@@ -118,6 +141,7 @@ public final class LedgerDatabaseDeviceTest {
                 throw new IllegalStateException("fixture: failure after the row was written");
             }
         }
+        @Override public void releaseQueued(long now) { delegate.releaseQueued(now); }
         @Override public long committedForDay(String dayKey, String currency) { return delegate.committedForDay(dayKey, currency); }
         @Override public long committedForMonth(String monthKey, String currency) { return delegate.committedForMonth(monthKey, currency); }
         @Override public int uncertainForMonth(String monthKey) { return delegate.uncertainForMonth(monthKey); }
@@ -150,7 +174,7 @@ public final class LedgerDatabaseDeviceTest {
             // Room rolled the transaction back.
         }
         AttemptEntity row = store.inTransaction(() -> store.find("a"));
-        assertEquals(AttemptEntity.RESERVED, row.state);
+        assertEquals(AttemptEntity.QUEUED, row.state);
         assertNull(row.usageState);
         assertNull(row.settledMicros);
         assertEquals(40, ledger.currentSpend().dayMicros);

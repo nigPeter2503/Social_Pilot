@@ -234,6 +234,7 @@ public final class BudgetLedgerTest {
     @Test public void failedCompleteStoresNothingAndRestartHoldsItAsUncertain() {
         AiRequest request = request("a", "facebook");
         ledger.reserve(request, AiTaskType.CONTENT_TEXT, usd(40));
+        assertTrue(ledger.claimDispatch("a"));
         store.failNextUpdate = true;
         try {
             ledger.complete("a", true, usd(15), new AiUsage(10L, 5L, 15L, 0L, null));
@@ -242,7 +243,7 @@ public final class BudgetLedgerTest {
             // Rolled back: neither the settlement nor the usage was stored.
         }
         AttemptEntity row = store.raw("a");
-        assertEquals(AttemptEntity.RESERVED, row.state);
+        assertEquals(AttemptEntity.DISPATCHING, row.state);
         assertNull(row.usageState);
         assertNull(row.settledMicros);
         BudgetLedger afterRestart = new BudgetLedger(store, () -> now);

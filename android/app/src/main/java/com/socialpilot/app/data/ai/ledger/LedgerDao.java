@@ -19,13 +19,16 @@ public interface LedgerDao {
     @Update
     void update(AttemptEntity row);
 
+    @Query("UPDATE ai_attempts SET state = 'RELEASED', updatedAt = :now WHERE state = 'QUEUED'")
+    void releaseQueued(long now);
+
     @Query("SELECT COALESCE(SUM(CASE WHEN state = 'SETTLED' THEN settledMicros "
-            + "WHEN state IN ('RESERVED', 'UNCERTAIN') THEN reservedMicros ELSE 0 END), 0) "
+            + "WHEN state IN ('RESERVED', 'QUEUED', 'DISPATCHING', 'UNCERTAIN') THEN reservedMicros ELSE 0 END), 0) "
             + "FROM ai_attempts WHERE dayKey = :dayKey AND currency = :currency")
     long committedForDay(String dayKey, String currency);
 
     @Query("SELECT COALESCE(SUM(CASE WHEN state = 'SETTLED' THEN settledMicros "
-            + "WHEN state IN ('RESERVED', 'UNCERTAIN') THEN reservedMicros ELSE 0 END), 0) "
+            + "WHEN state IN ('RESERVED', 'QUEUED', 'DISPATCHING', 'UNCERTAIN') THEN reservedMicros ELSE 0 END), 0) "
             + "FROM ai_attempts WHERE monthKey = :monthKey AND currency = :currency")
     long committedForMonth(String monthKey, String currency);
 
@@ -39,7 +42,7 @@ public interface LedgerDao {
     void saveSettings(BudgetSettingsEntity settings);
 
     @Query("UPDATE ai_attempts SET state = 'UNCERTAIN', interrupted = 1, updatedAt = :now "
-            + "WHERE state = 'RESERVED' AND bootId != :currentBootId")
+            + "WHERE state IN ('RESERVED', 'QUEUED', 'DISPATCHING') AND bootId != :currentBootId")
     int markInterrupted(String currentBootId, long now);
 
     @Query("UPDATE ai_attempts SET channelId = NULL, sessionId = NULL, stepId = NULL, connectionRevision = NULL, "

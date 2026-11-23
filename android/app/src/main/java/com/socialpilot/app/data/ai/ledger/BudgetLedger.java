@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.logging.Logger;
 
 /**
  * Atomic, durable AI budget. Each reserve reads committed spend and inserts the reservation in
@@ -20,6 +21,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * Methods do database I/O; call them from workers.
  */
 public final class BudgetLedger implements AttemptLedger {
+    private static final Logger LOGGER = Logger.getLogger(BudgetLedger.class.getName());
+
     public interface Clock {
         long nowMillis();
     }
@@ -87,12 +90,33 @@ public final class BudgetLedger implements AttemptLedger {
             row.currency = currency;
             row.priceRevision = upperBound.priceRevision;
             row.reservedMicros = upperBound.micros;
-            row.state = AttemptEntity.RESERVED;
+            // Legacy unscoped reservations have no dispatch gate and must remain conservative.
+            row.state = request == null ? AttemptEntity.RESERVED : AttemptEntity.QUEUED;
             row.createdAt = now;
             row.updatedAt = now;
             store.insert(row);
             return Admission.RESERVED;
         });
+    }
+
+    @Override
+    public boolean claimDispatch(String requestId) {
+        return store.inTransaction(() -> {
+            AttemptEntity row = store.find(requestId);
+            if (row == null || !AttemptEntity.QUEUED.equals(row.state) || !bootId.equals(row.bootId)) return false;
+            BudgetSettingsEntity settings = store.settings();
+            if (settings == null || !row.currency.equals(settings.currency)
+                    || !row.zoneId.equals(settings.zoneId)) return false;
+            row.state = AttemptEntity.DISPATCHING;
+            row.updatedAt = clock.nowMillis();
+            store.update(row);
+            return true;
+        });
+    }
+
+    private static boolean holdsReservation(AttemptEntity row) {
+        return AttemptEntity.RESERVED.equals(row.state) || AttemptEntity.QUEUED.equals(row.state)
+                || AttemptEntity.DISPATCHING.equals(row.state);
     }
 
     private static boolean fits(long committed, long requested, long limit) {
@@ -110,7 +134,7 @@ public final class BudgetLedger implements AttemptLedger {
     @Override
     public void settle(String requestId, AiCostEstimate estimate) {
         Objects.requireNonNull(estimate);
-        boolean changed = store.inTransaction(() -> {
+        boolean exhausted = store.inTransaction(() -> {
             AttemptEntity row = store.find(requestId);
             if (row == null || AttemptEntity.SETTLED.equals(row.state) || AttemptEntity.RELEASED.equals(row.state)) {
                 return false;
@@ -124,9 +148,10 @@ public final class BudgetLedger implements AttemptLedger {
             }
             row.updatedAt = clock.nowMillis();
             store.update(row);
-            return true;
+            return AttemptEntity.SETTLED.equals(row.state)
+                    && revokeIfExhausted(store.settings(), null, row.updatedAt);
         });
-        if (changed) notifyIfExhausted();
+        if (exhausted) notifyExhaustion();
     }
 
     /** Only a still-RESERVED attempt can be released; release never applies twice. */
@@ -143,7 +168,7 @@ public final class BudgetLedger implements AttemptLedger {
     private void transition(String requestId, String target) {
         store.inTransaction(() -> {
             AttemptEntity row = store.find(requestId);
-            if (row == null || !AttemptEntity.RESERVED.equals(row.state)) return null;
+            if (row == null || !holdsReservation(row)) return null;
             row.state = target;
             row.updatedAt = clock.nowMillis();
             store.update(row);
@@ -183,24 +208,23 @@ public final class BudgetLedger implements AttemptLedger {
                                 AiUsage usage) {
         Objects.requireNonNull(requestId);
         Objects.requireNonNull(usage);
-        boolean[] settled = new boolean[1];
+        boolean[] exhausted = new boolean[1];
         UsageRecord result = store.inTransaction(() -> {
             AttemptEntity row = store.find(requestId);
             if (row == null) return null;
             if (row.usageState != null) return toRecord(row); // Already completed: no second transition.
-            boolean held = AttemptEntity.RESERVED.equals(row.state) || AttemptEntity.UNCERTAIN.equals(row.state);
+            boolean held = holdsReservation(row);
             if (!mayHaveDispatched) {
-                if (AttemptEntity.RESERVED.equals(row.state)) row.state = AttemptEntity.RELEASED;
-            } else if (estimate != null && held) {
+                if (held) row.state = AttemptEntity.RELEASED;
+            } else if (estimate != null && (held || AttemptEntity.UNCERTAIN.equals(row.state))) {
                 if (row.currency.equals(estimate.currency.getCurrencyCode())
                         && row.priceRevision.equals(estimate.priceRevision)) {
                     row.state = AttemptEntity.SETTLED;
                     row.settledMicros = estimate.micros;
-                    settled[0] = true;
                 } else {
                     row.state = AttemptEntity.UNCERTAIN;
                 }
-            } else if (AttemptEntity.RESERVED.equals(row.state)) {
+            } else if (held) {
                 row.state = AttemptEntity.UNCERTAIN;
             }
             row.usageState = usage.state.name();
@@ -211,9 +235,12 @@ public final class BudgetLedger implements AttemptLedger {
             row.reasoningTokens = usage.reasoningTokens;
             row.updatedAt = clock.nowMillis();
             store.update(row);
+            if (AttemptEntity.SETTLED.equals(row.state)) {
+                exhausted[0] = revokeIfExhausted(store.settings(), null, row.updatedAt);
+            }
             return toRecord(row);
         });
-        if (settled[0]) notifyIfExhausted();
+        if (exhausted[0]) notifyExhaustion();
         return result;
     }
 
@@ -266,7 +293,8 @@ public final class BudgetLedger implements AttemptLedger {
     @Override
     public void setLimits(Limits limits) {
         Objects.requireNonNull(limits);
-        store.inTransaction(() -> {
+        boolean exhausted = store.inTransaction(() -> {
+            BudgetSettingsEntity previous = store.settings();
             BudgetSettingsEntity settings = new BudgetSettingsEntity();
             settings.currency = limits.currency;
             settings.dailyMicros = limits.dailyMicros;
@@ -274,9 +302,9 @@ public final class BudgetLedger implements AttemptLedger {
             settings.zoneId = limits.zoneId;
             settings.updatedAt = clock.nowMillis();
             store.saveSettings(settings);
-            return null;
+            return revokeIfExhausted(settings, previous, settings.updatedAt);
         });
-        notifyIfExhausted();
+        if (exhausted) notifyExhaustion();
     }
 
     @Override
@@ -301,13 +329,28 @@ public final class BudgetLedger implements AttemptLedger {
         listeners.remove(listener);
     }
 
-    private void notifyIfExhausted() {
-        Limits limits = limits();
-        Spend spend = currentSpend();
-        if (limits == null || spend == null) return;
-        // Strict: a fully reserved budget is normal; only spend above a cap (overrun or a lowered cap) stops work.
-        if (spend.dayMicros > limits.dailyMicros || spend.monthMicros > limits.monthlyMicros) {
-            for (ExhaustionListener listener : listeners) listener.onBudgetExhausted();
+    /** Runs in the same transaction as the cap or settlement change. */
+    private boolean revokeIfExhausted(BudgetSettingsEntity limits, BudgetSettingsEntity previous, long now) {
+        if (limits == null) return false;
+        BudgetPeriod period = BudgetPeriod.of(now, limits.zoneId);
+        long day = store.committedForDay(period.dayKey, limits.currency);
+        long month = store.committedForMonth(period.monthKey, limits.currency);
+        boolean loweredToDay = previous != null && previous.dailyMicros > limits.dailyMicros && day == limits.dailyMicros;
+        boolean loweredToMonth = previous != null && previous.monthlyMicros > limits.monthlyMicros
+                && month == limits.monthlyMicros;
+        boolean exhausted = day > limits.dailyMicros || month > limits.monthlyMicros || loweredToDay || loweredToMonth;
+        if (exhausted) store.releaseQueued(now);
+        return exhausted;
+    }
+
+    private void notifyExhaustion() {
+        for (ExhaustionListener listener : listeners) {
+            try {
+                listener.onBudgetExhausted();
+            } catch (RuntimeException failed) {
+                // Notification failure cannot change the result of the committed ledger transaction.
+                LOGGER.warning("AI budget exhaustion listener failed");
+            }
         }
     }
 }
