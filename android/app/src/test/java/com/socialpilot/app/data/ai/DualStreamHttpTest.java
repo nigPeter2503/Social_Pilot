@@ -312,6 +312,85 @@ public final class DualStreamHttpTest {
         }
     }
 
+    @Test public void sessionCancelRevokesDispatchOfBWhileCancelOfAIsStillRunning() throws Exception {
+        AtomicInteger received = new AtomicInteger();
+        server.setDispatcher(new Dispatcher() {
+            @Override public MockResponse dispatch(RecordedRequest request) {
+                received.incrementAndGet();
+                return stream().setBody(result("late ", "text"));
+            }
+        });
+        CountDownLatch aRunning = new CountDownLatch(1);
+        CountDownLatch aCancelEntered = new CountDownLatch(1);
+        CountDownLatch releaseACancel = new CountDownLatch(1);
+        CountDownLatch aStopped = new CountDownLatch(1);
+        CountDownLatch bAtCredential = new CountDownLatch(1);
+        CountDownLatch releaseCredential = new CountDownLatch(1);
+        ModelCapabilities.Support yes = ModelCapabilities.Support.SUPPORTED;
+        OpenAiProvider adapterB = new OpenAiProvider(server.url("/v1/responses"), () -> {
+            bAtCredential.countDown();
+            awaitQuietly(releaseCredential);
+            return "mock-credential";
+        }, Collections.singletonList(new ModelCapabilities(AiRequest.Provider.OPENAI, "fixture-model",
+                yes, yes, ModelCapabilities.Support.UNKNOWN, yes, 64)), 10_000);
+        AiProvider routed = (req, listener) -> {
+            if (!"A".equals(req.channelId)) return adapterB.prepare(req, listener);
+            return new AiProvider.Attempt() {
+                @Override public void run() {
+                    listener.onEvent(com.socialpilot.app.domain.contract.ai.AiEvent.started(req, 1));
+                    aRunning.countDown();
+                    awaitQuietly(aStopped);
+                    listener.onEvent(com.socialpilot.app.domain.contract.ai.AiEvent.terminal(req, 2,
+                            com.socialpilot.app.domain.contract.ai.AiEvent.Type.CANCELLED, null,
+                            com.socialpilot.app.domain.contract.ai.AiUsage.MISSING, false, true));
+                }
+
+                @Override public void cancel() {
+                    aCancelEntered.countDown();
+                    awaitQuietly(releaseACancel); // A slow transport cancel.
+                    aStopped.countDown();
+                }
+            };
+        };
+        Ledger ledger = new Ledger();
+        try (DualStreamCoordinator coordinator = new DualStreamCoordinator(id -> routed, ledger, PRICING)) {
+            coordinator.start(request("A", "a", "prompt-a"), request("B", "b", "prompt-b"));
+            assertTrue(aRunning.await(5, TimeUnit.SECONDS));
+            assertTrue(bAtCredential.await(5, TimeUnit.SECONDS));
+            Thread canceller = new Thread(coordinator::cancelSession, "cancel-session");
+            canceller.start();
+            assertTrue(aCancelEntered.await(5, TimeUnit.SECONDS)); // Cancel is stuck inside A.
+            DualStreamCoordinator.Snapshot cancelled = coordinator.snapshot();
+            assertEquals(CANCELLED, cancelled.first.phase);
+            assertEquals(CANCELLED, cancelled.second.phase);
+            assertEquals(0, received.get());
+            releaseCredential.countDown(); // B continues while A's cancel is still held.
+            long deadline = System.currentTimeMillis() + 5_000;
+            while (ledger.settlements("b") == 0 && System.currentTimeMillis() < deadline) Thread.sleep(10);
+            assertEquals(0, received.get()); // B never sent its request.
+            assertEquals(0, server.getRequestCount());
+            assertEquals("RELEASED", ledger.state("b")); // Certainly not dispatched: released once.
+            assertEquals(1, ledger.settlements("b"));
+            releaseACancel.countDown();
+            canceller.join(5_000);
+            DualStreamCoordinator.Snapshot settled = coordinator.snapshot();
+            assertEquals(CANCELLED, settled.second.phase);
+            assertEquals("", settled.second.text);
+            assertEquals(0, server.getRequestCount());
+        } finally {
+            releaseCredential.countDown();
+            releaseACancel.countDown();
+        }
+    }
+
+    private static void awaitQuietly(CountDownLatch latch) {
+        try {
+            latch.await(5, TimeUnit.SECONDS);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
     private DualStreamCoordinator coordinator(AiProvider provider) {
         return new DualStreamCoordinator(id -> provider, new Ledger(), PRICING);
     }

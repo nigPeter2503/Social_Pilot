@@ -100,6 +100,12 @@ abstract class HttpTextProvider implements AiProvider {
 
         private synchronized boolean attach(Call candidate) {
             if (cancelled) return false;
+            if (!listener.mayDispatch()) {
+                // The owner revoked dispatch first (e.g. a session cancel still stopping another
+                // branch): never send; the terminal is CANCELLED and not dispatched.
+                cancelled = true;
+                return false;
+            }
             call = candidate;
             // From this point onwards a caller must account for possible provider work.
             dispatched = true;

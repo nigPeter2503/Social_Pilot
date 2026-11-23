@@ -86,6 +86,29 @@ public final class DualStreamReviewRegressionTest {
         }
     }
 
+    @Test public void duplicateSequenceTextStillCountsAsDispatchEvidence() throws Exception {
+        Ledger ledger = new Ledger();
+        AiProvider provider = (req, listener) -> new AiProvider.Attempt() {
+            @Override public void run() {
+                listener.onEvent(AiEvent.started(req, 1));
+                listener.onEvent(AiEvent.text(req, 1, "provider output")); // Same sequence: dropped from view.
+                listener.onEvent(failed(req, 2, false)); // Claims nothing was dispatched.
+            }
+
+            @Override public void cancel() { }
+        };
+        try (DualStreamCoordinator coordinator = new DualStreamCoordinator(id -> provider, ledger, PRICING)) {
+            coordinator.start(request("A", "a", "a"), request("B", "b", "b"));
+            DualStreamCoordinator.Snapshot result = await(coordinator, s -> s.first.canRetry && s.second.canRetry);
+            assertEquals("", result.first.text);
+            assertEquals("", result.second.text);
+            assertEquals("UNCERTAIN", ledger.state("a"));
+            assertEquals(1, ledger.settlements("a"));
+            assertEquals("UNCERTAIN", ledger.state("b"));
+            assertEquals(1, ledger.settlements("b"));
+        }
+    }
+
     @Test public void validUndispatchedTerminalReleasesExactlyOnce() throws Exception {
         Ledger ledger = new Ledger();
         AiProvider provider = (req, listener) -> new AiProvider.Attempt() {

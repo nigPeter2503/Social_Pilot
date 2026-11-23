@@ -193,7 +193,15 @@ public final class DualStreamCoordinator implements AutoCloseable {
         Work work = new Work(branch);
         try {
             AiProvider provider = Objects.requireNonNull(providers.resolve(request.provider));
-            work.transport = Objects.requireNonNull(provider.prepare(request, event -> accept(work, event)));
+            work.transport = Objects.requireNonNull(provider.prepare(request, new AiProvider.Listener() {
+                @Override public void onEvent(AiEvent event) {
+                    accept(work, event);
+                }
+
+                @Override public boolean mayDispatch() {
+                    return !work.dispatchRevoked;
+                }
+            }));
         } catch (RuntimeException failure) {
             releaseUndispatched(request.requestId);
             branch.fail(Problem.PROVIDER, null);
@@ -232,15 +240,18 @@ public final class DualStreamCoordinator implements AutoCloseable {
         boolean stop = false;
         synchronized (this) {
             Branch branch = work.branch;
-            if (branch.work != work || work.settled || !matches(branch.request, event)
-                    || event.sequence <= work.sequence) return;
-            boolean sequential = event.sequence == work.sequence + 1;
-            work.sequence = event.sequence;
+            // Callbacks of a cleared attempt, of another request, or after settlement change nothing.
+            if (branch.work != work || work.settled || !matches(branch.request, event)) return;
             boolean terminal = event.type == AiEvent.Type.COMPLETED || event.type == AiEvent.Type.FAILED
                     || event.type == AiEvent.Type.CANCELLED;
+            // Dispatch evidence of this attempt counts even when the sequence below drops the event
+            // from visible state: a duplicate-sequence TEXT_DELTA still proves provider output.
             work.mayHaveDispatched |= event.mayHaveDispatched
                     || event.type == AiEvent.Type.TEXT_DELTA || event.type == AiEvent.Type.COMPLETED
                     || (terminal && (event.partial || event.usage.state != AiUsage.State.MISSING));
+            if (event.sequence <= work.sequence) return;
+            boolean sequential = event.sequence == work.sequence + 1;
+            work.sequence = event.sequence;
             boolean valid = sequential && !work.protocolFailed && recordProgress(work, event)
                     && (!terminal || event.mayHaveDispatched || !work.mayHaveDispatched);
             work.protocolFailed |= !valid;
@@ -250,6 +261,7 @@ public final class DualStreamCoordinator implements AutoCloseable {
             if (!valid) {
                 branch.fail(Problem.PROTOCOL, null);
                 stop = !terminal;
+                if (stop) work.dispatchRevoked = true;
             } else {
                 applyEvent(work, event);
             }
@@ -345,9 +357,15 @@ public final class DualStreamCoordinator implements AutoCloseable {
         }
     }
 
+    /**
+     * Holds the monitor. Revokes the attempt's right to dispatch at once, before any transport
+     * cancel runs: a session cancel closes both branches here, so B cannot attach an HTTP call
+     * while a slow cancel of A is still in progress.
+     */
     private Work cancelLocked(Branch branch) {
         if (branch == null || branch.phase != Phase.RUNNING) return null;
         Work work = branch.work;
+        work.dispatchRevoked = true;
         branch.phase = Phase.CANCELLED;
         if (!work.entered) {
             releaseUndispatched(branch.request.requestId);
@@ -449,6 +467,8 @@ public final class DualStreamCoordinator implements AutoCloseable {
         int textChars;
         boolean settled;
         long sequence;
+        /** Set under the monitor by a cancel; read by the transport before it attaches a call. */
+        volatile boolean dispatchRevoked;
 
         Work(Branch branch) {
             this.branch = branch;
