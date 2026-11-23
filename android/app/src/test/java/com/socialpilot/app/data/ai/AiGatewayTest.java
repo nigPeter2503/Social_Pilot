@@ -9,6 +9,7 @@ import com.socialpilot.app.domain.contract.ai.AiEvent;
 import com.socialpilot.app.domain.contract.ai.AiRequest;
 import com.socialpilot.app.domain.contract.ai.AiTaskType;
 import com.socialpilot.app.domain.contract.ai.AiUsage;
+import com.socialpilot.app.domain.contract.ai.AttemptLedger;
 import com.socialpilot.app.domain.contract.ai.ModelCapabilities;
 import com.socialpilot.app.domain.contract.ai.ModelEntry;
 import com.socialpilot.app.domain.contract.ai.ModelRegistry;
@@ -66,7 +67,7 @@ public final class AiGatewayTest {
         selectionFile = new MemoryPreferences();
         selections = new ModelSelectionStore(selectionFile, registry);
         budget = new RecordingBudget();
-        usage = new MemoryUsageLog();
+        usage = budget.usage;
         server = new MockWebServer();
         server.start();
     }
@@ -81,9 +82,8 @@ public final class AiGatewayTest {
                 EnumSet.of(AiTaskType.CONTENT_TEXT, AiTaskType.COMMENT_REPLY), verification, price, "fixture");
     }
 
-    private AiGateway gateway(BudgetManager ledger, Executor workers) {
-        return new AiGateway(selections, providers, usableKeys::contains, ledger, ledger == null ? null : usage,
-                workers, () -> now, () -> "Asia/Bangkok");
+    private AiGateway gateway(AttemptLedger ledger, Executor workers) {
+        return new AiGateway(selections, providers, usableKeys::contains, ledger, workers, () -> now);
     }
 
     private static AiGateway.Call call(String step) {
@@ -194,6 +194,45 @@ public final class AiGatewayTest {
         assertEquals(AiGateway.Rejection.BUDGET_LIMIT_REACHED, limited.rejection);
         assertTrue(provider.prepared.isEmpty());
         assertTrue(queued.isEmpty());
+    }
+
+    @Test public void withoutCapsNothingIsReservedOrPrepared() {
+        selections.select(AiTaskType.CONTENT_TEXT, openAi);
+        Scripted provider = new Scripted();
+        providers.put(AiRequest.Provider.OPENAI, provider);
+        budget.limits = null;
+        AiGateway.Submission submission = gateway(budget, manual).submit(call("a"), new Collector());
+        assertEquals(AiGateway.Rejection.BUDGET_NOT_SET, submission.rejection);
+        assertEquals(0, budget.count("reserve:"));
+        assertTrue(provider.prepared.isEmpty());
+    }
+
+    @Test public void exhaustionCancelsPendingAndRunningCallsKeepingTheirResults() throws Exception {
+        selections.select(AiTaskType.CONTENT_TEXT, openAi);
+        Hanging provider = new Hanging();
+        providers.put(AiRequest.Provider.OPENAI, provider);
+        ExecutorService threads = Executors.newSingleThreadExecutor();
+        try {
+            AiGateway gateway = gateway(budget, threads);
+            Collector running = new Collector();
+            AiGateway.Submission first = gateway.submit(call("a"), running);
+            assertTrue(provider.started.await(5, TimeUnit.SECONDS));
+            Collector pending = new Collector();
+            AiGateway.Submission second = gateway.submit(call("b"), pending); // Queued behind the first.
+            budget.exhaust();
+            assertTrue(running.done.await(5, TimeUnit.SECONDS));
+            assertTrue(pending.done.await(5, TimeUnit.SECONDS));
+            assertTrue(running.finished.get().budgetStopped);
+            assertEquals("partial", running.finished.get().text);
+            assertEquals(1, budget.count("uncertain:" + first.requestId)); // It may have been charged.
+            assertTrue(pending.finished.get().budgetStopped);
+            assertEquals(1, budget.count("release:" + second.requestId)); // Never sent.
+            budget.exhaust(); // Nothing left to stop; nothing settles twice.
+            assertEquals(1, budget.count("uncertain:"));
+            assertEquals(1, budget.count("release:"));
+        } finally {
+            threads.shutdownNow();
+        }
     }
 
     @Test public void fullWorkerReleasesReservationWithoutCallback() {
@@ -315,6 +354,30 @@ public final class AiGatewayTest {
 
         void finishAgain(AiRequest request) {
             last.onEvent(AiEvent.terminal(request, 99, AiEvent.Type.COMPLETED, null, usage, false, true));
+        }
+    }
+
+    /** Sends text, then waits until cancelled, like a stream the budget stops mid-flight. */
+    private static final class Hanging implements AiProvider {
+        final CountDownLatch started = new CountDownLatch(1);
+
+        @Override public Attempt prepare(AiRequest request, Listener listener) {
+            CountDownLatch cancelled = new CountDownLatch(1);
+            return new Attempt() {
+                @Override public void cancel() { cancelled.countDown(); }
+                @Override public void run() {
+                    listener.onEvent(AiEvent.started(request, 1));
+                    listener.onEvent(AiEvent.text(request, 2, "partial"));
+                    started.countDown();
+                    try {
+                        cancelled.await(5, TimeUnit.SECONDS);
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                    }
+                    listener.onEvent(AiEvent.terminal(request, 3, AiEvent.Type.CANCELLED, null,
+                            AiUsage.MISSING, false, true));
+                }
+            };
         }
     }
 
