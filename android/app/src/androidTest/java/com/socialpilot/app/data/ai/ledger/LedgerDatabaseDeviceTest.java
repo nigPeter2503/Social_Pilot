@@ -99,6 +99,71 @@ public final class LedgerDatabaseDeviceTest {
         }
     }
 
+    /** Real Room store whose next update is written to SQLite and then fails, inside the transaction. */
+    private static final class FailingAfterWrite implements LedgerStore {
+        private final LedgerStore delegate;
+        volatile boolean failNextUpdate;
+
+        FailingAfterWrite(LedgerStore delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override public <T> T inTransaction(java.util.concurrent.Callable<T> work) { return delegate.inTransaction(work); }
+        @Override public AttemptEntity find(String requestId) { return delegate.find(requestId); }
+        @Override public void insert(AttemptEntity row) { delegate.insert(row); }
+        @Override public void update(AttemptEntity row) {
+            delegate.update(row);
+            if (failNextUpdate) {
+                failNextUpdate = false;
+                throw new IllegalStateException("fixture: failure after the row was written");
+            }
+        }
+        @Override public long committedForDay(String dayKey, String currency) { return delegate.committedForDay(dayKey, currency); }
+        @Override public long committedForMonth(String monthKey, String currency) { return delegate.committedForMonth(monthKey, currency); }
+        @Override public int uncertainForMonth(String monthKey) { return delegate.uncertainForMonth(monthKey); }
+        @Override public BudgetSettingsEntity settings() { return delegate.settings(); }
+        @Override public void saveSettings(BudgetSettingsEntity settings) { delegate.saveSettings(settings); }
+        @Override public int markInterrupted(String currentBootId, long now) { return delegate.markInterrupted(currentBootId, now); }
+        @Override public int forgetChannel(String channelId, long now) { return delegate.forgetChannel(channelId, now); }
+        @Override public List<AttemptEntity> forMonth(String monthKey) { return delegate.forMonth(monthKey); }
+    }
+
+    private static com.socialpilot.app.domain.contract.ai.AiRequest request(String requestId) {
+        return new com.socialpilot.app.domain.contract.ai.AiRequest("session-1", "page-1", 2L, "draft", requestId,
+                com.socialpilot.app.domain.contract.ai.AiRequest.Provider.OPENAI, "fixture-open",
+                com.socialpilot.app.domain.contract.ai.AiRequest.Task.TEXT, "prompt", 50);
+    }
+
+    @Test public void failedCompleteRollsBackSettlementAndUsageTogether() {
+        FailingAfterWrite store = new FailingAfterWrite(openDatabase().store());
+        BudgetLedger ledger = new BudgetLedger(store, () -> NOW);
+        ledger.setLimits(new AttemptLedger.Limits("USD", 100, 1_000, "Asia/Bangkok"));
+        com.socialpilot.app.domain.contract.ai.AiUsage reported =
+                new com.socialpilot.app.domain.contract.ai.AiUsage(10L, 5L, 15L, 0L, null);
+        assertEquals(Admission.RESERVED, ledger.reserve(request("a"),
+                com.socialpilot.app.domain.contract.ai.AiTaskType.CONTENT_TEXT, usd(40)));
+        store.failNextUpdate = true;
+        try {
+            ledger.complete("a", true, usd(15), reported);
+            fail("the write failure must reach the caller");
+        } catch (IllegalStateException expected) {
+            // Room rolled the transaction back.
+        }
+        AttemptEntity row = store.inTransaction(() -> store.find("a"));
+        assertEquals(AttemptEntity.RESERVED, row.state);
+        assertNull(row.usageState);
+        assertNull(row.settledMicros);
+        assertEquals(40, ledger.currentSpend().dayMicros);
+        // The terminal can still be written once, settlement and usage together.
+        com.socialpilot.app.domain.contract.ai.UsageRecord record = ledger.complete("a", true, usd(15), reported);
+        assertEquals(com.socialpilot.app.domain.contract.ai.UsageRecord.Settlement.SETTLED, record.settlement);
+        assertEquals("2026-11-23", record.period.dayKey);
+        row = store.inTransaction(() -> store.find("a"));
+        assertEquals(AttemptEntity.SETTLED, row.state);
+        assertEquals("REPORTED", row.usageState);
+        assertEquals(15, ledger.currentSpend().dayMicros);
+    }
+
     @Test public void reopeningAfterAProcessDiedKeepsReservationsHeld() {
         BudgetLedger before = new BudgetLedger(openDatabase().store(), () -> NOW);
         before.setLimits(new AttemptLedger.Limits("USD", 100, 1_000, "Asia/Bangkok"));
