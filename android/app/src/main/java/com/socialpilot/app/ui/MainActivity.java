@@ -28,6 +28,7 @@ public final class MainActivity extends AppCompatActivity {
         String page = model.connectedPageSummary();
         if (page != null) binding.facebookPageStatus.setText(getString(R.string.facebook_connected, page));
         binding.connectFacebookButton.setOnClickListener(view -> model.connectFacebook());
+        binding.openAiKeysButton.setOnClickListener(view -> startActivity(new Intent(this, AiKeysActivity.class)));
         model.oauthState().observe(this, state -> {
             binding.connectFacebookButton.setEnabled(state.status != MainViewModel.OAuthStatus.STARTING
                     && state.status != MainViewModel.OAuthStatus.EXCHANGING);

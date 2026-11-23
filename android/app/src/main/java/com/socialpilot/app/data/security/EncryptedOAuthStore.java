@@ -2,20 +2,10 @@ package com.socialpilot.app.data.security;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.security.keystore.KeyGenParameterSpec;
-import android.security.keystore.KeyProperties;
-import android.util.Base64;
 import com.google.gson.Gson;
 import com.socialpilot.app.domain.contract.oauth.OAuthContract.OAuthExchangeResponse;
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-import java.security.KeyStore;
 import java.util.HashSet;
 import java.util.Set;
-import javax.crypto.Cipher;
-import javax.crypto.KeyGenerator;
-import javax.crypto.SecretKey;
-import javax.crypto.spec.GCMParameterSpec;
 
 /** Versioned, authenticated OAuth records. A Page and its credentials are read/written together. */
 public final class EncryptedOAuthStore {
@@ -31,7 +21,7 @@ public final class EncryptedOAuthStore {
 
     public EncryptedOAuthStore(Context context) {
         this(context.getApplicationContext().getSharedPreferences("oauth_secure_v1", Context.MODE_PRIVATE),
-                new KeystoreCipher());
+                new KeystoreRecordCipher(KEY_ALIAS, false));
     }
 
     // Injection keeps failure tests independent of a device's Keystore and disk availability.
@@ -141,48 +131,6 @@ public final class EncryptedOAuthStore {
 
     private static IllegalStateException storageUnavailable() {
         return new IllegalStateException("Secure storage unavailable");
-    }
-
-    interface RecordCipher {
-        String encrypt(String name, String plaintext) throws Exception;
-        String decrypt(String name, String ciphertext) throws Exception;
-    }
-
-    private static final class KeystoreCipher implements RecordCipher {
-        @Override public String encrypt(String name, String plaintext) throws Exception {
-            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-            cipher.init(Cipher.ENCRYPT_MODE, key());
-            cipher.updateAAD(name.getBytes(StandardCharsets.UTF_8));
-            byte[] encrypted = cipher.doFinal(plaintext.getBytes(StandardCharsets.UTF_8));
-            byte[] iv = cipher.getIV();
-            return Base64.encodeToString(ByteBuffer.allocate(iv.length + encrypted.length)
-                    .put(iv).put(encrypted).array(), Base64.NO_WRAP);
-        }
-
-        @Override public String decrypt(String name, String ciphertext) throws Exception {
-            byte[] packed = Base64.decode(ciphertext, Base64.NO_WRAP);
-            if (packed.length < 12 + 16) throw storageUnavailable();
-            ByteBuffer buffer = ByteBuffer.wrap(packed);
-            byte[] iv = new byte[12]; buffer.get(iv);
-            byte[] encrypted = new byte[buffer.remaining()]; buffer.get(encrypted);
-            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-            cipher.init(Cipher.DECRYPT_MODE, key(), new GCMParameterSpec(128, iv));
-            cipher.updateAAD(name.getBytes(StandardCharsets.UTF_8));
-            return new String(cipher.doFinal(encrypted), StandardCharsets.UTF_8);
-        }
-
-        private static SecretKey key() throws Exception {
-            KeyStore store = KeyStore.getInstance("AndroidKeyStore"); store.load(null);
-            java.security.Key existing = store.getKey(KEY_ALIAS, null);
-            if (existing instanceof SecretKey) return (SecretKey) existing;
-            KeyGenerator generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
-            generator.init(new KeyGenParameterSpec.Builder(KEY_ALIAS,
-                    KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
-                    .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                    .setKeySize(256).setRandomizedEncryptionRequired(true).build());
-            return generator.generateKey();
-        }
     }
 
     private static final class PendingRecord {

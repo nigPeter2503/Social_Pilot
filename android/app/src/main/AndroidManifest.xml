@@ -18,5 +18,7 @@
         <data android:scheme="socialpilot" android:host="oauth" android:path="/callback" />
       </intent-filter>
     </activity>
+    <activity android:name=".ui.AiKeysActivity" android:exported="false"
+        android:label="@string/ai_keys_title" />
   </application>
 </manifest>
