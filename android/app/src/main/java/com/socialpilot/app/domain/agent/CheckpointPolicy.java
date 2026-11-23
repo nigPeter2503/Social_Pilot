@@ -22,7 +22,9 @@ public final class CheckpointPolicy {
         /** Revision is not newer than the stored one: a late or duplicate write; dropped. */
         STALE,
         /** The incoming snapshot belongs to another session than the stored one. */
-        OTHER_SESSION
+        OTHER_SESSION,
+        /** The session was deleted or the snapshot has no active branches left. */
+        INVALIDATED
     }
 
     /** Why a checkpoint can no longer be restored against the current input. */
@@ -48,14 +50,21 @@ public final class CheckpointPolicy {
     public static Mismatch mismatch(PipelineInput input, PipelineSnapshot checkpoint) {
         if (!input.briefId.equals(checkpoint.briefId)) return Mismatch.BRIEF_CHANGED;
         if (input.targets.size() != checkpoint.branches.size()) return Mismatch.TARGETS_CHANGED;
-        Map<String, Long> revisions = new HashMap<>();
-        for (ChannelTarget target : input.targets) revisions.put(target.channelId, target.connectionRevision);
+        Map<String, ChannelTarget> targets = new HashMap<>();
+        for (ChannelTarget target : input.targets) targets.put(target.channelId, target);
         for (ChannelBranch branch : checkpoint.branches) {
-            Long current = revisions.get(branch.target.channelId);
-            if (current == null) return Mismatch.TARGETS_CHANGED;
-            if (current != branch.target.connectionRevision) return Mismatch.CONNECTION_CHANGED;
+            ChannelTarget current = targets.remove(branch.target.channelId);
+            if (current == null || current.platform != branch.target.platform) return Mismatch.TARGETS_CHANGED;
+            if (current.connectionRevision != branch.target.connectionRevision) return Mismatch.CONNECTION_CHANGED;
         }
         return null;
+    }
+
+    /** Validate the authoritative snapshot before replacing it with its recovered state. */
+    public static PipelineSnapshot recoverFor(PipelineInput input, PipelineSnapshot stored, long now) {
+        Mismatch mismatch = mismatch(input, stored);
+        if (mismatch != null) throw new IllegalArgumentException("checkpoint mismatch: " + mismatch);
+        return recover(stored, now);
     }
 
     /**
@@ -94,7 +103,8 @@ public final class CheckpointPolicy {
 
     /**
      * Disconnect cleanup: the snapshot without that channel's branch, or null when no branch is
-     * left (the store then deletes the session). Returns the same snapshot when the channel is absent.
+     * left (the store then deletes the session). Keeps the last runtime revision so a surviving
+     * branch can still save its next update. Returns the same snapshot when the channel is absent.
      */
     public static PipelineSnapshot withoutChannel(PipelineSnapshot stored, String channelId) {
         if (stored.branch(channelId) == null) return stored;
@@ -103,6 +113,6 @@ public final class CheckpointPolicy {
             if (!branch.target.channelId.equals(channelId)) kept.add(branch);
         }
         if (kept.isEmpty()) return null;
-        return new PipelineSnapshot(stored.sessionId, stored.briefId, stored.revision + 1, kept);
+        return new PipelineSnapshot(stored.sessionId, stored.briefId, stored.revision, kept);
     }
 }

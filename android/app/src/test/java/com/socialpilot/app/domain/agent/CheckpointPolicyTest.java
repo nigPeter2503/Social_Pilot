@@ -87,6 +87,9 @@ public final class CheckpointPolicyTest {
         ChannelTarget reconnected = new ChannelTarget("ig-1", ChannelPlatform.INSTAGRAM, 6);
         assertEquals(CheckpointPolicy.Mismatch.CONNECTION_CHANGED,
                 CheckpointPolicy.mismatch(input("brief-1", FACEBOOK, reconnected), stored));
+        ChannelTarget moved = new ChannelTarget("page-1", ChannelPlatform.INSTAGRAM, 3);
+        assertEquals(CheckpointPolicy.Mismatch.TARGETS_CHANGED,
+                CheckpointPolicy.mismatch(input("brief-1", moved), CheckpointPolicy.withoutChannel(stored, "ig-1")));
     }
 
     @Test public void disconnectDropsOnlyThatChannelAndEmptiesTheSessionLast() {
@@ -94,7 +97,7 @@ public final class CheckpointPolicyTest {
         PipelineSnapshot kept = CheckpointPolicy.withoutChannel(stored, "ig-1");
         assertEquals(1, kept.branches.size());
         assertNotNull(kept.branch("page-1"));
-        assertEquals(8, kept.revision);
+        assertEquals(stored.revision, kept.revision);
         assertSame(stored, CheckpointPolicy.withoutChannel(stored, "unknown"));
         assertNull(CheckpointPolicy.withoutChannel(kept, "page-1"));
     }

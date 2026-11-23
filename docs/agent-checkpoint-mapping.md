@@ -40,8 +40,8 @@ Một lượt có phí luôn được nhận diện bằng `requestId`. Checkpoi
 
 `ChannelPipeline.restore(input, checkpoint, observer)`:
 
-1. Từ chối (ném `IllegalArgumentException`) nếu `CheckpointPolicy.mismatch` khác null: `BRIEF_CHANGED`, `TARGETS_CHANGED`, `CONNECTION_CHANGED`. Không gọi gì.
-2. Dựng session cùng `sessionId`, publish snapshot đã khôi phục, **không lên lịch bước nào**, không reserve ngân sách.
+1. `CheckpointStore.claimRecovery` đối chiếu session và revision yêu cầu với snapshot hiện hành rồi lưu bản phục hồi trong cùng thao tác nguyên tử. Hai lượt dùng cùng revision chỉ có một lượt được nhận. Store từ chối checkpoint thiếu, cũ hoặc lệch brief, nền tảng, tập kênh hay revision kết nối.
+2. Dựng session từ snapshot đã được store xác nhận, giữ `sessionId` và công bố trạng thái phục hồi. Các bước AI chờ người dùng retry. `CheckpointStore.NONE` chỉ áp mapping lên snapshot caller cung cấp vì không giữ dữ liệu.
 3. `Session.retry(channelId)` là hành động của người dùng: chạy lại từ `resumeStage()`, `attempt + 1`, `requestId` mới, reserve mới qua gateway. Các bước đã `COMPLETED` (ví dụ outline) không gửi lại; prompt draft dùng outline trong checkpoint.
 4. `cancelBranch` trên branch `INTERRUPTED` trả `false` (không có gì đang chạy).
 
@@ -53,13 +53,13 @@ Checkpoint không quyết toán chi phí. Ledger SP-029 tự khôi phục lúc k
 
 ## 5. Kiểm revision trước khi ghi
 
-- Mọi store phải gọi `CheckpointPolicy.check(stored, incoming)` trước khi ghi: chỉ nhận khi cùng `sessionId` và `revision` lớn hơn hẳn. Bằng hoặc nhỏ hơn: `STALE`, bỏ. Khác session: `OTHER_SESSION`, bỏ.
-- Trong runtime, callback trễ của lượt cũ đã bị chặn bằng `generation` (SP-031) trước khi tạo snapshot; guard của store là lớp thứ hai khi ghi xuống đĩa không theo thứ tự.
-- `save` được gọi trong lock của session để giữ thứ tự revision. Store Room phải đẩy vào một writer tuần tự (một thread), không chặn lock bằng I/O đĩa.
+- Store chỉ nhận revision mới hơn của cùng session. Revision bằng hoặc nhỏ hơn trả `STALE`. Snapshot của session đã xóa hoặc mất toàn bộ nhánh trả `INVALIDATED`. Snapshot còn nhánh hợp lệ có thể được ghi sau khi loại nhánh đã ngắt.
+- Guard `generation` (SP-031) loại callback trễ của attempt cũ trước khi tạo snapshot.
+- Snapshot đầu được lưu trước khi session chạy. Các lượt `save` tiếp theo giữ thứ tự revision bằng session lock. Store Room cần xếp ghi I/O vào writer tuần tự, rồi thực thi `claimRecovery` cùng ranh giới thứ tự và transaction khi khởi động. Khi một lượt `save` ném lỗi, pipeline ghi cảnh báo và tiếp tục giao snapshot trong bộ nhớ. Recovery vẫn chỉ dựa trên dữ liệu đã lưu thành công.
 
 ## 6. Ngắt kênh
 
-Theo [Room contract](room-schema-contract.md) dòng AI session/checkpoint: checkpoint, partial text và log riêng của kênh được dọn khi ngắt. `CheckpointStore.forgetChannel(channelId)` bỏ branch của kênh đó khỏi mọi session (revision + 1); session không còn branch nào bị xóa. Ledger dùng `BudgetLedger.forgetChannel` riêng; quyết định giữ tổng chi phí sau ngắt vẫn chờ Minh (mục 7 Room contract). Chưa nối sự kiện ngắt kênh của SP-022 vào hai hàm này.
+Theo [Room contract](room-schema-contract.md), checkpoint, partial text và log riêng của kênh được dọn khi ngắt. `CheckpointStore.forgetChannel(channelId, retiredConnectionRevision)` ghi mốc revision đã ngắt cùng lượt dọn. Snapshot đến sau bị lọc nhánh cùng kênh ở revision đã ngắt hoặc cũ hơn. Lượt dọn giữ revision checkpoint để nhánh còn lại lưu được cập nhật kế tiếp. Session rỗng bị xóa và không nhận ghi trễ. Kết nối mới hơn vẫn được lưu. Ledger dùng `BudgetLedger.forgetChannel` riêng. Quyết định giữ tổng chi phí sau ngắt và việc nối sự kiện từ SP-022 còn chờ Minh.
 
 ## 7. Đề xuất schema Room — CHƯA ÁP DỤNG, cần chốt với Thiện
 
@@ -82,7 +82,9 @@ Chưa chọn DB (DB chính hay `ai_ledger.db`), chưa chọn số version, chưa
 | Branch đã lên lịch nhưng chưa chạy → INTERRUPTED ở OUTLINE | PASS (unit) | `CheckpointPolicyTest.branchScheduledButNotStartedIsInterruptedAtItsFirstTextStage` |
 | Guard revision: STALE / OTHER_SESSION | PASS (unit) | `CheckpointPolicyTest.writeGuardAcceptsOnlyNewerRevisionsOfTheSameSession`, `ChannelPipelineTest.storeDropsLateWritesAndForgetsDisconnectedChannels` |
 | Mismatch brief/kênh/connection revision | PASS (unit) | `CheckpointPolicyTest.mismatchDetectsBriefTargetAndConnectionChanges`, `ChannelPipelineTest.restoreRefusesACheckpointBoundToAnOldConnection` |
-| Ngắt kênh dọn branch, session rỗng bị xóa | PASS (unit) | `CheckpointPolicyTest.disconnectDropsOnlyThatChannelAndEmptiesTheSessionLast`, `ChannelPipelineTest.storeDropsLateWritesAndForgetsDisconnectedChannels` |
+| Ngắt kênh dọn branch, giữ nhánh còn lại và kết nối mới | PASS (unit) | `ChannelPipelineTest.cancellationCallbackCannotRestoreADisconnectedCheckpoint`, `ChannelPipelineTest.disconnectKeepsTheOtherBranchNextRevisionAndAllowsReconnect` |
+| Từ chối checkpoint cũ và chỉ nhận một lượt restore đồng thời từ cùng revision | PASS (unit) | `ChannelPipelineTest.staleCheckpointCannotRestoreCompletedStagesForRetry`, `ChannelPipelineTest.concurrentRecoveryClaimsFromTheSameRevisionHaveOneWinner` |
+| Writer từ chối ghi, pipeline vẫn hoàn tất và observer vẫn nhận trạng thái | PASS (unit) | `ChannelPipelineTest.checkpointWriterFailureDoesNotLeaveAnAsyncStageRunning` |
 | Checkpoint ở thay đổi cấu trúc, không ở delta; revision tăng dần | PASS (unit) | `ChannelPipelineTest.structuralChangesAreCheckpointedButStreamedDeltasAreNot` |
 | Restore không gửi, không reserve; retry dùng requestId mới, giữ outline | PASS (unit, fake provider qua gateway thật) | `ChannelPipelineTest.restoreAfterProcessDeathSendsNothingAndRetryUsesANewRequest` |
 | Store Room: ghi/đọc/guard trong transaction | NOT_RUN | Chưa có store Room |

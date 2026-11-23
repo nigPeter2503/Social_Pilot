@@ -23,6 +23,7 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.logging.Logger;
 
 /**
  * Week-3 text pipeline (SP-031): for each selected target, outline → draft → rule check. Every
@@ -43,6 +44,8 @@ import java.util.concurrent.RejectedExecutionException;
  * is merged; the snapshot shape stays the same when that swap happens.
  */
 public final class ChannelPipeline {
+    private static final Logger LOGGER = Logger.getLogger(ChannelPipeline.class.getName());
+
     public interface Observer {
         /** Serial delivery in revision order, outside the session lock. Post UI work to the main thread. */
         void onSnapshot(PipelineSnapshot snapshot);
@@ -77,8 +80,9 @@ public final class ChannelPipeline {
     public Session start(PipelineInput input, Observer observer) {
         List<ChannelBranch> branches = new ArrayList<>();
         for (ChannelTarget target : input.targets) branches.add(ChannelBranch.initial(target));
-        Session session = new Session(input, Objects.requireNonNull(observer), UUID.randomUUID().toString(),
-                branches, 0);
+        PipelineSnapshot initial = new PipelineSnapshot(UUID.randomUUID().toString(), input.briefId, 1, branches);
+        Session session = new Session(input, Objects.requireNonNull(observer), initial);
+        saveCheckpoint(initial);
         session.dispatchSnapshots();
         for (Run run : session.runs.values()) session.schedule(run, PipelineStage.OUTLINE, run.generation);
         return session;
@@ -87,14 +91,12 @@ public final class ChannelPipeline {
     /**
      * Rebuilds a session after process death from its last checkpoint. Nothing is scheduled or sent:
      * interrupted branches wait for {@link Session#retry}, which uses a new requestId and reserves
-     * again. Throws when the checkpoint no longer fits the input (see {@link CheckpointPolicy#mismatch}).
+     * again. Throws when the checkpoint is stale, missing from the configured store, or incompatible.
      */
     public Session restore(PipelineInput input, PipelineSnapshot checkpoint, Observer observer) {
-        CheckpointPolicy.Mismatch mismatch = CheckpointPolicy.mismatch(input, checkpoint);
-        if (mismatch != null) throw new IllegalArgumentException("checkpoint mismatch: " + mismatch);
-        PipelineSnapshot recovered = CheckpointPolicy.recover(checkpoint, now());
-        Session session = new Session(input, Objects.requireNonNull(observer), recovered.sessionId, recovered.branches,
-                checkpoint.revision);
+        Objects.requireNonNull(observer);
+        PipelineSnapshot recovered = checkpoints.claimRecovery(input, checkpoint, now());
+        Session session = new Session(input, observer, recovered);
         session.dispatchSnapshots();
         return session;
     }
@@ -134,16 +136,14 @@ public final class ChannelPipeline {
         private long revision;
         private PipelineSnapshot snapshot;
 
-        private Session(PipelineInput input, Observer observer, String sessionId, List<ChannelBranch> branches,
-                        long revision) {
+        private Session(PipelineInput input, Observer observer, PipelineSnapshot initial) {
             this.input = Objects.requireNonNull(input);
             this.observer = observer;
-            this.sessionId = Objects.requireNonNull(sessionId);
-            this.revision = revision;
-            for (ChannelBranch branch : branches) runs.put(branch.target.channelId, new Run(branch));
-            synchronized (lock) {
-                publish();
-            }
+            sessionId = initial.sessionId;
+            revision = initial.revision;
+            snapshot = initial;
+            for (ChannelBranch branch : initial.branches) runs.put(branch.target.channelId, new Run(branch));
+            pendingSnapshots.addLast(initial);
         }
 
         public PipelineSnapshot snapshot() {
@@ -382,7 +382,7 @@ public final class ChannelPipeline {
             List<ChannelBranch> branches = new ArrayList<>();
             for (Run run : runs.values()) branches.add(run.branch);
             snapshot = new PipelineSnapshot(sessionId, input.briefId, ++revision, branches);
-            if (checkpoint) checkpoints.save(snapshot);
+            if (checkpoint) saveCheckpoint(snapshot);
             pendingSnapshots.addLast(snapshot);
         }
 
@@ -415,6 +415,15 @@ public final class ChannelPipeline {
                     // Observer errors cannot interrupt dispatch or delivery of later revisions.
                 }
             }
+        }
+    }
+
+    private void saveCheckpoint(PipelineSnapshot snapshot) {
+        try {
+            checkpoints.save(snapshot);
+        } catch (RuntimeException failed) {
+            // A failed writer must not strand a live stage or hide its snapshot from observers.
+            LOGGER.warning("Pipeline checkpoint write failed");
         }
     }
 
