@@ -4,7 +4,11 @@ import static com.socialpilot.app.domain.contract.ai.ModelCapabilities.Support.*
 import static org.junit.Assert.*;
 
 import com.socialpilot.app.domain.contract.AiProvider;
+import com.socialpilot.app.data.ai.ledger.AttemptEntity;
+import com.socialpilot.app.data.ai.ledger.BudgetLedger;
+import com.socialpilot.app.data.ai.ledger.MemoryLedgerStore;
 import com.socialpilot.app.domain.contract.BudgetManager;
+import com.socialpilot.app.domain.contract.ai.AiCostEstimate;
 import com.socialpilot.app.domain.contract.ai.AiEvent;
 import com.socialpilot.app.domain.contract.ai.AiRequest;
 import com.socialpilot.app.domain.contract.ai.AiTaskType;
@@ -67,6 +71,7 @@ public final class AiGatewayTest {
         selectionFile = new MemoryPreferences();
         selections = new ModelSelectionStore(selectionFile, registry);
         budget = new RecordingBudget();
+        budget.clock = () -> now;
         usage = budget.usage;
         server = new MockWebServer();
         server.start();
@@ -245,6 +250,116 @@ public final class AiGatewayTest {
         assertEquals(AiGateway.Rejection.WORKER_UNAVAILABLE, submission.rejection);
         assertEquals(1, budget.count("release:"));
         assertNull(collector.finished.get());
+    }
+
+    private static final String BANGKOK = "Asia/Bangkok";
+
+    /** Real ledger; after an admitted reserve it runs a hook, like another thread changing the caps. */
+    private static final class HookedLedger implements AttemptLedger {
+        final BudgetLedger delegate;
+        Runnable afterReserve;
+        int completes;
+
+        HookedLedger(BudgetLedger delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override public Admission reserve(AiRequest request, AiTaskType taskType, AiCostEstimate upperBound) {
+            Admission admission = delegate.reserve(request, taskType, upperBound);
+            if (admission == Admission.RESERVED && afterReserve != null) afterReserve.run();
+            return admission;
+        }
+        @Override public Admission reserve(String requestId, AiCostEstimate upperBound) {
+            return delegate.reserve(requestId, upperBound);
+        }
+        @Override public UsageRecord complete(String requestId, boolean mayHaveDispatched, AiCostEstimate estimate,
+                                              AiUsage usage) {
+            completes++;
+            return delegate.complete(requestId, mayHaveDispatched, estimate, usage);
+        }
+        @Override public void settle(String requestId, AiCostEstimate estimate) { delegate.settle(requestId, estimate); }
+        @Override public void releaseUndispatched(String requestId) { delegate.releaseUndispatched(requestId); }
+        @Override public void markUncertain(String requestId) { delegate.markUncertain(requestId); }
+        @Override public boolean record(UsageRecord record) { return delegate.record(record); }
+        @Override public List<UsageRecord> forMonth(String monthKey) { return delegate.forMonth(monthKey); }
+        @Override public Limits limits() { return delegate.limits(); }
+        @Override public void setLimits(Limits limits) { delegate.setLimits(limits); }
+        @Override public Spend currentSpend() { return delegate.currentSpend(); }
+        @Override public void addExhaustionListener(ExhaustionListener listener) {
+            delegate.addExhaustionListener(listener);
+        }
+        @Override public void removeExhaustionListener(ExhaustionListener listener) {
+            delegate.removeExhaustionListener(listener);
+        }
+    }
+
+    @Test public void capLoweredBetweenReserveAndDispatchNeverSendsAndReleasesOnce() {
+        selections.select(AiTaskType.CONTENT_TEXT, openAi);
+        Scripted provider = new Scripted();
+        providers.put(AiRequest.Provider.OPENAI, provider);
+        MemoryLedgerStore store = new MemoryLedgerStore();
+        HookedLedger ledger = new HookedLedger(new BudgetLedger(store, () -> now));
+        ledger.setLimits(new AttemptLedger.Limits("USD", 1_000, 10_000, BANGKOK));
+        // The reservation (411 micros) commits, then the cap drops to 50 before the run is armed.
+        ledger.afterReserve = () -> ledger.setLimits(new AttemptLedger.Limits("USD", 50, 10_000, BANGKOK));
+        Collector collector = new Collector();
+        AiGateway.Submission submission = gateway(ledger, manual).submit(call("draft"), collector);
+        assertEquals(AiGateway.Rejection.BUDGET_LIMIT_REACHED, submission.rejection);
+        assertNotNull(submission.requestId);
+        assertTrue(provider.prepared.isEmpty());
+        assertTrue(queued.isEmpty());
+        assertNull(collector.finished.get()); // A rejected submit never also calls back.
+        assertEquals(1, ledger.completes);
+        assertEquals(AttemptEntity.RELEASED, store.raw(submission.requestId).state);
+        assertEquals(0, ledger.currentSpend().dayMicros);
+    }
+
+    @Test public void ledgerWriteFailureStillEndsTheCallClearlyAndStaysHeld() {
+        selections.select(AiTaskType.CONTENT_TEXT, openAi);
+        Scripted provider = new Scripted();
+        provider.usage = new AiUsage(10L, 5L, 15L, 0L, null);
+        providers.put(AiRequest.Provider.OPENAI, provider);
+        MemoryLedgerStore store = new MemoryLedgerStore();
+        BudgetLedger ledger = new BudgetLedger(store, () -> now);
+        ledger.setLimits(new AttemptLedger.Limits("USD", 1_000, 10_000, BANGKOK));
+        Collector collector = new Collector();
+        AiGateway.Submission submission = gateway(ledger, manual).submit(call("draft"), collector);
+        store.failNextUpdate = true; // The terminal write fails after the provider answered.
+        queued.get(0).run();
+        AiGateway.Finished finished = collector.finished.get();
+        assertNotNull(finished);
+        assertTrue(finished.ledgerWriteFailed);
+        assertNull(finished.usage);
+        assertEquals(AiEvent.Type.COMPLETED, finished.terminal.type);
+        AttemptEntity row = store.raw(submission.requestId);
+        assertEquals(AttemptEntity.RESERVED, row.state); // Settlement and usage were rolled back together.
+        assertNull(row.usageState);
+        BudgetLedger afterRestart = new BudgetLedger(store, () -> now);
+        assertEquals(1, afterRestart.recoverInterrupted());
+        UsageRecord recovered = afterRestart.forMonth("2026-11").get(0);
+        assertEquals(UsageRecord.Settlement.UNCERTAIN, recovered.settlement);
+        assertEquals(AiUsage.State.MISSING, recovered.usage.state);
+        assertEquals(row.reservedMicros, afterRestart.currentSpend().dayMicros); // Still held, never free.
+    }
+
+    @Test public void callbackUsesThePeriodTheLedgerPinnedAcrossMidnight() {
+        selections.select(AiTaskType.CONTENT_TEXT, openAi);
+        Scripted provider = new Scripted();
+        provider.usage = new AiUsage(10L, 5L, 15L, 0L, null);
+        providers.put(AiRequest.Provider.OPENAI, provider);
+        now = NOV_23_2330_BANGKOK + TimeUnit.MINUTES.toMillis(30) - 1; // Gateway: 23:59:59.999 on 23/11.
+        long[] ledgerNow = {now + 2}; // Ledger reserves at 00:00:00.001 on 24/11.
+        BudgetLedger ledger = new BudgetLedger(new MemoryLedgerStore(), () -> ledgerNow[0]);
+        ledger.setLimits(new AttemptLedger.Limits("USD", 1_000, 10_000, BANGKOK));
+        Collector collector = new Collector();
+        gateway(ledger, manual).submit(call("draft"), collector);
+        queued.get(0).run();
+        UsageRecord reported = collector.finished.get().usage;
+        assertEquals("2026-11-24", reported.period.dayKey);
+        UsageRecord stored = ledger.forMonth("2026-11").get(0);
+        assertEquals(stored.period.dayKey, reported.period.dayKey);
+        assertEquals(stored.period.monthKey, reported.period.monthKey);
+        assertEquals(UsageRecord.Settlement.SETTLED, reported.settlement);
     }
 
     @Test public void switchingProviderKeepsRecordedUsageAndUsesNewProvider() {

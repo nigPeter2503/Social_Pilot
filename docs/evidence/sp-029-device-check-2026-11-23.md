@@ -14,6 +14,7 @@
 | `freshInstallHasNoLimitsAndAdmitsNothing` | Pass |
 | `concurrentReservesFromTwoLedgersNeverPassTheCap` | Pass |
 | `reopeningAfterAProcessDiedKeepsReservationsHeld` | Pass |
+| `failedCompleteRollsBackSettlementAndUsageTogether` (thêm sau review PR #100, chạy lại cả lớp: 4/4) | Pass |
 
 ## Kiểm tra tay màn hình AI
 

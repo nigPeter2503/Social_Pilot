@@ -9,7 +9,6 @@ import com.socialpilot.app.domain.contract.ai.AiEvent;
 import com.socialpilot.app.domain.contract.ai.AiRequest;
 import com.socialpilot.app.domain.contract.ai.AiTaskType;
 import com.socialpilot.app.domain.contract.ai.AiUsage;
-import com.socialpilot.app.domain.contract.ai.BudgetPeriod;
 import com.socialpilot.app.domain.contract.ai.ModelEntry;
 import com.socialpilot.app.domain.contract.ai.UsageRecord;
 import java.util.Collections;
@@ -122,16 +121,24 @@ public final class AiGateway {
         public final AiRequest request;
         public final AiEvent terminal;
         public final String text;
+        /** The ledger's stored record (period pinned at reserve); null when {@link #ledgerWriteFailed}. */
         public final UsageRecord usage;
         /** True when the call was cancelled because spend went above a cap; text is partial. */
         public final boolean budgetStopped;
+        /**
+         * The terminal could not be written to the ledger. Cost is unknown and the reservation stays
+         * held (recovered as UNCERTAIN at next start); never treat it as free or settled.
+         */
+        public final boolean ledgerWriteFailed;
 
-        Finished(AiRequest request, AiEvent terminal, String text, UsageRecord usage, boolean budgetStopped) {
+        Finished(AiRequest request, AiEvent terminal, String text, UsageRecord usage, boolean budgetStopped,
+                 boolean ledgerWriteFailed) {
             this.request = request;
             this.terminal = terminal;
             this.text = text;
             this.usage = usage;
             this.budgetStopped = budgetStopped;
+            this.ledgerWriteFailed = ledgerWriteFailed;
         }
     }
 
@@ -195,22 +202,35 @@ public final class AiGateway {
         AttemptLedger.Limits limits = ledger.limits();
         if (limits == null) return new Submission(null, Rejection.BUDGET_NOT_SET, null, null);
         AiRequest request = resolution.request;
-        // Display copy only; the ledger pins the authoritative period inside the reserve transaction.
-        BudgetPeriod period = BudgetPeriod.of(clock.nowMillis(), limits.zoneId);
-        BudgetManager.Admission admission = ledger.reserve(request, call.taskType,
-                resolution.entry.price.upperBound(request));
+        // Registered before reserve: a cap lowered right after the reservation commits must find
+        // this run. The period is pinned by the ledger inside reserve; the gateway never derives one.
+        Run run = new Run(request, resolution.entry, callback);
+        active.add(run);
+        BudgetManager.Admission admission;
+        try {
+            admission = ledger.reserve(request, call.taskType, resolution.entry.price.upperBound(request));
+        } catch (RuntimeException failure) {
+            active.remove(run);
+            throw failure;
+        }
         if (admission == BudgetManager.Admission.LIMIT_REACHED) {
+            active.remove(run);
             return new Submission(request.requestId, Rejection.BUDGET_LIMIT_REACHED, null, null);
         }
         if (admission != BudgetManager.Admission.RESERVED) {
+            active.remove(run);
             return new Submission(request.requestId, Rejection.DUPLICATE_REQUEST, null, null);
         }
-        Run run = new Run(call.taskType, request, resolution.entry, period, callback);
+        if (!run.arm()) {
+            // Budget stopped between reserve and dispatch: never sent; release the hold once.
+            run.abandon(false);
+            return new Submission(request.requestId, Rejection.BUDGET_LIMIT_REACHED, null, null);
+        }
         run.attempt = providers.get(request.provider).prepare(request, run);
-        active.add(run);
         try {
             workers.execute(run::execute);
         } catch (RejectedExecutionException full) {
+            if (!run.disarm()) return new Submission(request.requestId, null, null, run); // Already finished.
             run.abandon(false);
             return new Submission(request.requestId, Rejection.WORKER_UNAVAILABLE, null, null);
         }
@@ -218,24 +238,36 @@ public final class AiGateway {
     }
 
     private final class Run implements AiProvider.Listener {
-        private static final int PENDING = 0, RUNNING = 1, ABANDONED = 2;
-        private final AiTaskType taskType;
+        /** NEW until the reservation is admitted and armed; only PENDING can be finalized by cancel. */
+        private static final int NEW = 0, PENDING = 1, RUNNING = 2, ABANDONED = 3;
         private final AiRequest request;
         private final ModelEntry entry;
-        private final BudgetPeriod period;
         private final Callback callback;
-        private final AtomicInteger state = new AtomicInteger(PENDING);
+        private final AtomicInteger state = new AtomicInteger(NEW);
         private final AtomicBoolean finished = new AtomicBoolean();
         private final StringBuilder text = new StringBuilder();
+        private volatile boolean cancelled;
         private volatile boolean budgetStopped;
-        private AiProvider.Attempt attempt;
+        private volatile AiProvider.Attempt attempt;
 
-        Run(AiTaskType taskType, AiRequest request, ModelEntry entry, BudgetPeriod period, Callback callback) {
-            this.taskType = taskType;
+        Run(AiRequest request, ModelEntry entry, Callback callback) {
             this.request = request;
             this.entry = entry;
-            this.period = period;
             this.callback = callback;
+        }
+
+        /**
+         * After an admitted reserve. False when a cancel (budget stop) arrived first; the caller then
+         * finalizes without callback. Exactly one of arm and a concurrent cancel finalizes.
+         */
+        boolean arm() {
+            if (!state.compareAndSet(NEW, PENDING)) return false;
+            return !(cancelled && state.compareAndSet(PENDING, ABANDONED));
+        }
+
+        /** Worker refused the job: true when this call, not a concurrent cancel, must finalize. */
+        boolean disarm() {
+            return state.compareAndSet(PENDING, ABANDONED);
         }
 
         void execute() {
@@ -244,7 +276,9 @@ public final class AiGateway {
         }
 
         void cancel() {
-            attempt.cancel();
+            cancelled = true;
+            AiProvider.Attempt current = attempt;
+            if (current != null) current.cancel();
             // Never started: finalize here, because the worker will skip it.
             if (state.compareAndSet(PENDING, ABANDONED)) abandon(true);
         }
@@ -275,32 +309,20 @@ public final class AiGateway {
         private void finish(AiEvent terminal, boolean notify) {
             if (!finished.compareAndSet(false, true)) return;
             active.remove(this);
-            UsageRecord.Settlement settlement;
-            Long micros = null;
-            if (!terminal.mayHaveDispatched) {
-                ledger.releaseUndispatched(request.requestId);
-                settlement = UsageRecord.Settlement.RELEASED;
-            } else {
-                // Only a final provider report is priced; partial snapshots keep the reservation.
-                AiCostEstimate estimate = terminal.usage.state == AiUsage.State.REPORTED
-                        ? entry.price.fromUsage(request.provider, terminal.usage) : null;
-                if (estimate != null) {
-                    ledger.settle(request.requestId, estimate);
-                    settlement = UsageRecord.Settlement.SETTLED;
-                    micros = estimate.micros;
-                } else {
-                    ledger.markUncertain(request.requestId);
-                    settlement = UsageRecord.Settlement.UNCERTAIN;
-                }
+            // Only a final provider report is priced; partial snapshots keep the reservation.
+            AiCostEstimate estimate = terminal.mayHaveDispatched && terminal.usage.state == AiUsage.State.REPORTED
+                    ? entry.price.fromUsage(request.provider, terminal.usage) : null;
+            UsageRecord record;
+            try {
+                record = ledger.complete(request.requestId, terminal.mayHaveDispatched, estimate, terminal.usage);
+            } catch (RuntimeException failure) {
+                // Nothing of the terminal was stored: the hold stays and is recovered as UNCERTAIN.
+                record = null;
             }
-            UsageRecord record = new UsageRecord(request.requestId, request.sessionId, request.channelId,
-                    request.stepId, taskType, request.provider, request.model, period, clock.nowMillis(),
-                    terminal.usage, settlement, micros, entry.price.currency.getCurrencyCode(),
-                    entry.price.priceRevision);
-            ledger.record(record);
             if (!notify) return;
             callback.onEvent(terminal);
-            callback.onFinished(new Finished(request, terminal, text.toString(), record, budgetStopped));
+            callback.onFinished(new Finished(request, terminal, text.toString(), record, budgetStopped,
+                    record == null));
         }
     }
 

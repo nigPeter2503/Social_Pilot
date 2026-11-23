@@ -14,8 +14,8 @@ AiGateway.Call(session, channel+revision | shared, step, taskType, prompt, maxOu
   → AiRequest mới với requestId UUID mới
   → AttemptLedger.limits() phải có trần ngày/tháng
   → AttemptLedger.reserve(request, taskType, upper bound) trong một transaction, ghim kỳ và price revision
-  → một Attempt trên worker → settle | markUncertain | releaseUndispatched đúng một lần
-  → AttemptLedger.record(UsageRecord) idempotent theo requestId (cùng bảng với reservation)
+  → một Attempt trên worker → AttemptLedger.complete(...) đúng một lần: quyết toán (settle / uncertain / release) và usage trong cùng transaction
+  → callback nhận UsageRecord do ledger trả (kỳ, currency, price revision ghim lúc reserve); lỗi ghi → Finished.ledgerWriteFailed
 ```
 
 - `submit()` làm I/O (đọc trạng thái key), gọi từ worker. Callback chạy tuần tự trên worker của attempt; consumer tự chuyển về main thread.
