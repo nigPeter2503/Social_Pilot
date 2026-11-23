@@ -8,6 +8,8 @@ import com.socialpilot.app.domain.contract.Cancelable;
 import com.socialpilot.app.domain.contract.social.*;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
@@ -20,7 +22,7 @@ import static com.socialpilot.app.data.remote.social.CommentPageRequest.*;
 import static com.socialpilot.app.data.remote.social.CommentPageResult.*;
 import static com.socialpilot.app.data.remote.social.CommentRecord.*;
 
-/** MO_PHONG only. JSON fixtures copied byte-for-byte from SP-018/SP-019; mutations are synthetic. */
+/** MO_PHONG only. Includes sanitized SP-018/SP-019/SP-066 evidence; mutations are synthetic. */
 public class CommentAdapterTest {
     private static final List<Account> LEGACY_FIXTURE_ACCOUNTS =
             Arrays.asList(Account.FACEBOOK_PAGE, Account.LINKEDIN_MEMBER, Account.LINKEDIN_ORGANIZATION);
@@ -187,6 +189,113 @@ public class CommentAdapterTest {
         CommentPageResult limited = read(adapter(r), r);
         assertEquals(SocialError.Code.RATE_LIMITED, limited.error.code);
         assertEquals(Long.valueOf(NOW + 3000), limited.retryAfterAt);
+    }
+
+    private JsonObject instagramEvidence(String name) throws Exception {
+        return JsonParser.parseString(new String(Files.readAllBytes(Paths.get(
+                "../../docs/api-verification/instagram/evidence/responses", name)),
+                StandardCharsets.UTF_8)).getAsJsonObject();
+    }
+
+    private CommentPageRequest evidenceQuery(Target target) {
+        return new CommentPageRequest(Account.INSTAGRAM_PROFESSIONAL, "simulation-sp066", 7,
+                "17841459976957663", "18111630677338097", target,
+                target == Target.POST ? "18111630677338097" : "18105580130575258",
+                null, Query.IG_COMMENTS, 2, null, "v27.0", null);
+    }
+
+    // Redacted provider cursors cannot establish continuity. Only the item payloads
+    // are evidence-derived; paging, grants, receipt time and Channel are synthetic.
+    private JsonObject simulatedContinuation(String file, String after) throws Exception {
+        JsonObject body = instagramEvidence(file);
+        JsonObject paging = new JsonObject();
+        JsonObject cursors = new JsonObject();
+        cursors.addProperty("after", after);
+        paging.add("cursors", cursors);
+        paging.addProperty("next", "https://example.invalid/synthetic-continuation");
+        body.add("paging", paging);
+        return body;
+    }
+
+    @Test public void sp066PagesRollbackResumeAndRefreshKeepOpaqueIds() throws Exception {
+        CommentPageRequest q = evidenceQuery(Target.POST); bind(q);
+        SimulatedCommentStore store = new SimulatedCommentStore();
+        store.seed(new PublishedPostScope(q.platform, q.account.type, q.channelId,
+                q.connectionRevision, q.externalAccountId), q.postId);
+        CommentPageWriter writer = CommentPageWriter.forSimulation(store, codec);
+        CommentPageWriter.Attempt first = writer.prepare(q);
+        CommentPageResult a = response(first.request,
+                simulatedContinuation("IG-03_page1_response.json", "simulation-page-two"));
+        assertEquals(Status.SUCCESS, a.status);
+        writer.commit(first, new CommentPageReceipt(first.request, a));
+        String localPostId = store.row(q.platform, q.channelId, "18105580130575258").localPostId;
+        // Reconstruct the writer/codec against the same RAM store; this is not process death or Room readback.
+        codec = new CommentCursorCodec(new SecretKeySpec(new byte[32], "AES"));
+        writer = CommentPageWriter.forSimulation(store, codec);
+        CommentPageWriter.Attempt next = writer.prepare(q);
+        JsonObject overlap = simulatedContinuation("IG-03_page2_response.json", "simulation-terminal");
+        overlap.getAsJsonArray("data").add(instagramEvidence("IG-03_page1_response.json")
+                .getAsJsonArray("data").get(0));
+        CommentPageResult b = response(next.request, overlap);
+        assertEquals(Status.SUCCESS, b.status);
+        server.takeRequest();
+        assertEquals("simulation-page-two", server.takeRequest().getRequestUrl().queryParameter("after"));
+        store.failCheckpoint = true;
+        try {
+            writer.commit(next, new CommentPageReceipt(next.request, b));
+            fail("checkpoint failure must roll back the new comment");
+        } catch (CommentPageWriter.Rejected expected) {
+            assertEquals(CommentPageWriter.Failure.STORAGE, expected.reason);
+        }
+        assertEquals(1, store.size());
+        assertSame(next.previous, writer.prepare(q).previous);
+        store.failCheckpoint = false;
+        writer.commit(next, new CommentPageReceipt(next.request, b));
+        assertEquals(2, store.size());
+        CommentPageWriter.Attempt terminal = writer.prepare(q);
+        CommentPageResult c = response(terminal.request, instagramEvidence("IG-03_terminal_page_response.json"));
+        assertEquals(Boolean.FALSE, c.page.hasMore);
+        assertNull(c.page.nextCursor);
+        writer.commit(terminal, new CommentPageReceipt(terminal.request, c));
+        CommentPageWriter.Attempt refresh = writer.prepare(q);
+        assertNull(refresh.request.cursor);
+        CommentPageResult d = response(refresh.request,
+                simulatedContinuation("IG-03_refresh_page1_response.json", "simulation-page-two"));
+        writer.commit(refresh, new CommentPageReceipt(refresh.request, d));
+        assertEquals(3, store.size()); // Only observed pages: no invented missing C02 page.
+        assertEquals(localPostId, store.row(q.platform, q.channelId, "18133111096696939").localPostId);
+        assertEquals(localPostId, store.row(q.platform, q.channelId, "18105580130575258").localPostId);
+        assertEquals(Source.MO_PHONG, store.row(q.platform, q.channelId, "18105580130575258").observation.source);
+    }
+
+    @Test public void sp066ReplyReadbackUsesBoundParentAndNeverPosts() throws Exception {
+        CommentPageRequest q = evidenceQuery(Target.COMMENT); bind(q);
+        CommentPageResult before = response(q, instagramEvidence("IG-04_replies_before_response.json"));
+        assertEquals(Status.SUCCESS, before.status);
+        assertTrue(before.page.items.isEmpty());
+        assertEquals(Boolean.FALSE, before.page.hasMore);
+        CommentPageResult after = response(q, instagramEvidence("IG05_get_replies_readback.json"));
+        assertEquals(Status.SUCCESS, after.status);
+        CommentRecord reply = after.page.items.get(0);
+        assertEquals("18120004997517397", reply.commentId);
+        assertEquals(q.targetId, reply.parentCommentId);
+        assertEquals(ParentState.KNOWN, reply.parentState);
+        assertEquals(q.postId, reply.postId);
+        assertNull(reply.authorDisplayName); // username was not captured by Explorer.
+        for (int i = 0; i < 2; i++) {
+            RecordedRequest wire = server.takeRequest();
+            assertEquals("GET", wire.getMethod());
+            assertEquals("/v27.0/18105580130575258/replies", wire.getRequestUrl().encodedPath());
+        }
+    }
+
+    @Test public void sp066InsightPermissionEvidenceDoesNotGrantCommentPermission() throws Exception {
+        CommentPageRequest q = evidenceQuery(Target.POST); bind(q);
+        // IG-12 is an insights response. It is not scoped READ_COMMENTS evidence.
+        // HTTP 200 here is synthetic and proves a Graph error envelope is never an empty success.
+        CommentPageResult denied = response(q, instagramEvidence("IG12_token_B_denied.json"));
+        failure(denied, Failure.PROVIDER_ERROR);
+        assertNull(denied.error);
     }
 
     private void linkedinTwoPages(Account account) throws Exception {
