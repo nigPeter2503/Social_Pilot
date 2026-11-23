@@ -133,4 +133,6 @@ Kiểm tra cục bộ cho bản sửa với JDK 21 và Android SDK 36:
 
 Ngày 23/11/2026 lúc 22:02 (UTC+07:00), AndroidJUnitRunner chạy toàn bộ bộ test trên Samsung SM-G990E, Android 16 / API 36, revision `a6c29ea`. **14/14 ca đạt**, gồm 11 ca repository, 2 ca Keystore và 1 ca ViewModel. Kết quả của A bị bỏ khi lưu phiên B cho cùng tài khoản hoặc tài khoản khác. Ca ViewModel xác nhận callback A đã xếp hàng không phát lại kết quả cũ. Nguồn permalink của nút **Mở bài gốc** chỉ trả link của B sau lần đối soát của B. Các ca dùng transport kiểm soát và credential giả. Hai APK gốc được khôi phục và đối chiếu SHA-256 sau lượt chạy. [Kết quả AndroidJUnitRunner và hash APK](evidence/sp-065-p2-device-tests-2026-11-23.txt)
 
+Sau khi ghép `main` tại `a351435`, bản tích hợp `73a7bc5` build app và APK kiểm thử, đạt **66/66 Android unit test**, lint **0 lỗi** và backend `test bootJar` thành công. Lúc 22:11 (UTC+07:00), AndroidJUnitRunner trên cùng Samsung đạt **24/24 ca**, gồm 14 ca SP-065/Keystore và 10 ca prototype SP-017. Hai gói kiểm thử có ID riêng và đã được gỡ sau khi chạy. [Kết quả kiểm thử bản tích hợp](evidence/sp-065-p2-main-integration-device-tests-2026-11-23.txt)
+
 Các góp ý về pending OAuth theo provider và kiểm tra credential chưa rõ hạn trước thao tác ghi production được bàn giao cho SP-022. [Issue SP-022](https://github.com/nigPeter2503/Social_Pilot/issues/24)
