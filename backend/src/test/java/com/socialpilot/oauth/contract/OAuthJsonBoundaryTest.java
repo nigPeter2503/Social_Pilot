@@ -15,7 +15,7 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest
+@SpringBootTest(properties = {"socialpilot.facebook.app-id=1650819950076669","socialpilot.facebook.app-secret=test-only-placeholder","socialpilot.facebook.redirect-uri=https://test-tunnel.example/api/oauth/facebook/callback","socialpilot.facebook.target-page-id=1234567890","socialpilot.facebook.graph-api-version=v27.0"})
 class OAuthJsonBoundaryTest {
     @Autowired private ObjectMapper mapper;
     @Autowired private RequestMappingHandlerAdapter handlerAdapter;

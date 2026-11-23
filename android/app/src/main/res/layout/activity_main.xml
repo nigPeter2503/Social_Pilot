@@ -22,6 +22,12 @@
         android:layout_marginTop="24dp" android:text="@string/drafts" android:textSize="20sp" android:textStyle="bold" />
     <TextView android:id="@+id/draftList" android:layout_width="match_parent" android:layout_height="wrap_content"
         android:layout_marginTop="12dp" android:text="@string/empty" android:textSize="16sp" />
+    <com.google.android.material.button.MaterialButton android:id="@+id/connectFacebookButton"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="24dp" android:text="@string/connect_facebook" />
+    <TextView android:id="@+id/facebookPageStatus" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:layout_marginTop="8dp"
+        android:text="@string/facebook_not_connected" />
     <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
         android:layout_marginTop="32dp" android:text="@string/integration_status" />
   </LinearLayout>
