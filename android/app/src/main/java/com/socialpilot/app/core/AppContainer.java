@@ -8,19 +8,28 @@ import com.socialpilot.app.data.ai.AiKeyRepository;
 import com.socialpilot.app.data.ai.ByokKeyVerifier;
 import com.socialpilot.app.data.ai.ModelRegistryParser;
 import com.socialpilot.app.data.ai.ModelSelectionStore;
+import com.socialpilot.app.data.ai.image.BitmapTemplateRenderer;
+import com.socialpilot.app.data.ai.image.ImageProvider;
+import com.socialpilot.app.data.ai.image.ImageService;
+import com.socialpilot.app.data.ai.image.ImageStore;
+import com.socialpilot.app.data.ai.image.OpenAiImageProvider;
 import com.socialpilot.app.data.ai.ledger.BudgetLedger;
 import com.socialpilot.app.data.ai.ledger.LedgerDatabase;
 import com.socialpilot.app.data.ai.pipeline.ChannelPipeline;
 import com.socialpilot.app.data.local.AppDatabase;
 import com.socialpilot.app.data.repository.DraftRepository;
 import com.socialpilot.app.data.security.EncryptedSecretStore;
+import com.socialpilot.app.domain.contract.ai.AiRequest;
 import com.socialpilot.app.domain.contract.ai.AttemptLedger;
 import com.socialpilot.app.domain.contract.ai.ModelRegistry;
 import com.socialpilot.app.domain.contract.secret.SecretNamespace;
 import com.socialpilot.app.domain.contract.secret.SecretStore;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.EnumMap;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -39,6 +48,10 @@ public final class AppContainer {
     public final AiGateway ai;
     /** Week-3 text pipeline (SP-031); every stage goes through {@link #ai}. */
     public final ChannelPipeline pipeline;
+    /** Private image files ({@code files/ai_images}, excluded from backup). */
+    public final ImageStore imageStore;
+    /** Channel images and template fallback (SP-032); same selection, BYOK and ledger as text. */
+    public final ImageService images;
 
     public AppContainer(Context context) {
         Context app = context.getApplicationContext();
@@ -60,6 +73,14 @@ public final class AppContainer {
         ai = new AiGateway(modelSelections, AiGateway.adapters(aiKeys, modelRegistry),
                 provider -> aiKeys.status(provider).usable(), ledger, io, System::currentTimeMillis);
         pipeline = new ChannelPipeline(ai, io, System::currentTimeMillis);
+        imageStore = new ImageStore(new File(app.getFilesDir(), "ai_images"));
+        Map<AiRequest.Provider, ImageProvider> imageProviders = new EnumMap<>(AiRequest.Provider.class);
+        imageProviders.put(AiRequest.Provider.OPENAI,
+                new OpenAiImageProvider(aiKeys.credentialSource(AiRequest.Provider.OPENAI)));
+        // Channel connection revisions are wired with SP-022; until then the caller's revision is trusted.
+        images = new ImageService(modelSelections, imageProviders, provider -> aiKeys.status(provider).usable(),
+                ledger, imageStore, new BitmapTemplateRenderer(), ImageService.CALLER_REVISION, io,
+                System::currentTimeMillis);
     }
 
     private static ModelRegistry loadRegistry(Context context) {

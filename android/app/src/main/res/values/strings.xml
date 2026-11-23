@@ -55,6 +55,7 @@
   <string name="ai_task_comment_classification">Phân loại bình luận</string>
   <string name="ai_task_comment_reply">Gợi ý trả lời bình luận</string>
   <string name="ai_task_analytics_report">Báo cáo phân tích</string>
+  <string name="ai_task_image">Ảnh theo kênh (không dùng được thì dùng template cục bộ)</string>
   <string name="ai_model_none">— Chưa chọn —</string>
   <string name="ai_model_option">%1$s · %2$s</string>
   <string name="ai_model_not_selected">Chưa chọn model cho tác vụ này.</string>

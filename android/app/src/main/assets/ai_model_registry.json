@@ -1,5 +1,5 @@
 {
-  "registryRevision": "2026-11-23-candidates-unverified",
+  "registryRevision": "2026-11-23-candidates-unverified-image",
   "note": "Candidate rows proposed for SP-028 live checks. Capability, output cap and price are NOT confirmed: every row stays blocked until the owner records evidence and sets VERIFIED with a sourced price sheet. See docs/ai-model-usage-contract.md.",
   "models": [
     {
@@ -27,6 +27,19 @@
       "tasks": ["CONTENT_TEXT", "COMMENT_CLASSIFICATION", "COMMENT_REPLY", "ANALYTICS_REPORT"],
       "price": null,
       "source": "To verify: https://ai.google.dev/gemini-api/docs/models and https://ai.google.dev/gemini-api/docs/pricing"
+    },
+    {
+      "provider": "OPENAI",
+      "model": "gpt-image-1",
+      "verification": "UNVERIFIED",
+      "text": "UNSUPPORTED",
+      "streamingText": "UNSUPPORTED",
+      "image": "UNKNOWN",
+      "usage": "UNKNOWN",
+      "maxOutputTokens": 1,
+      "tasks": ["IMAGE"],
+      "price": null,
+      "source": "Image candidate for SP-032. To verify: https://platform.openai.com/docs/guides/image-generation and https://openai.com/api/pricing (per-image price, sizes, response format)"
     }
   ]
 }

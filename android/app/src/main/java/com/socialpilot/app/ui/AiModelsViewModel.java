@@ -147,7 +147,6 @@ public final class AiModelsViewModel extends AndroidViewModel {
     private void load(boolean saveFailed, BudgetNotice notice) {
         List<TaskRow> rows = new ArrayList<>();
         for (AiTaskType task : AiTaskType.values()) {
-            if (task == AiTaskType.IMAGE) continue; // Image configuration belongs to SP-032.
             rows.add(new TaskRow(task, registry.forTask(task), selections.selected(task)));
         }
         List<UsageSummary.Row> today = null;
