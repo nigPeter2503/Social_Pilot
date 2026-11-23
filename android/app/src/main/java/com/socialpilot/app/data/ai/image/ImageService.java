@@ -13,7 +13,6 @@ import com.socialpilot.app.domain.contract.ai.AiRequest;
 import com.socialpilot.app.domain.contract.ai.AiTaskType;
 import com.socialpilot.app.domain.contract.ai.AiUsage;
 import com.socialpilot.app.domain.contract.ai.AttemptLedger;
-import com.socialpilot.app.domain.contract.ai.BudgetPeriod;
 import com.socialpilot.app.domain.contract.ai.ModelEntry;
 import com.socialpilot.app.domain.contract.ai.UsageRecord;
 import java.io.IOException;
@@ -22,7 +21,6 @@ import java.util.EnumMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -82,12 +80,21 @@ public final class ImageService {
         public final AiError error;
         /** Pre-dispatch reason (template fallback) or STORAGE_FAILED / INVALID_IMAGE. */
         public final String reason;
+        /** From the ledger's stored row; null when nothing was reserved or {@link #ledgerWriteFailed}. */
         public final UsageRecord.Settlement settlement;
         public final Long estimateMicros;
         public final boolean budgetStopped;
+        /** The terminal could not be written: cost unknown, the reservation stays held (UNCERTAIN at next start). */
+        public final boolean ledgerWriteFailed;
 
         Result(Status status, ImageAsset asset, String requestId, AiError error, String reason,
                UsageRecord.Settlement settlement, Long estimateMicros, boolean budgetStopped) {
+            this(status, asset, requestId, error, reason, settlement, estimateMicros, budgetStopped, false);
+        }
+
+        private Result(Status status, ImageAsset asset, String requestId, AiError error, String reason,
+                       UsageRecord.Settlement settlement, Long estimateMicros, boolean budgetStopped,
+                       boolean ledgerWriteFailed) {
             this.status = status;
             this.asset = asset;
             this.requestId = requestId;
@@ -96,6 +103,11 @@ public final class ImageService {
             this.settlement = settlement;
             this.estimateMicros = estimateMicros;
             this.budgetStopped = budgetStopped;
+            this.ledgerWriteFailed = ledgerWriteFailed;
+        }
+
+        Result withLedgerWriteFailed() {
+            return new Result(status, asset, requestId, error, reason, null, null, budgetStopped, true);
         }
     }
 
@@ -155,6 +167,7 @@ public final class ImageService {
         private volatile boolean cancelled;
         private volatile boolean budgetStopped;
         private volatile ImageProvider.Attempt attempt;
+        private volatile boolean ledgerWriteFailed;
         private boolean finished;
 
         Job(Request request, Callback callback, boolean generate) {
@@ -194,42 +207,48 @@ public final class ImageService {
                     request.stepId, UUID.randomUUID().toString(), entry.provider(), entry.model(),
                     AiRequest.Task.IMAGE, prompt(), 1);
             AiCostEstimate bound = entry.price.imageCost(1);
-            BudgetManager.Admission admission = ledger.reserve(ai, AiTaskType.IMAGE, bound);
+            // Registered before reserve: a cap lowered right after the reservation commits must stop this job.
+            active.add(this);
+            BudgetManager.Admission admission;
+            try {
+                admission = ledger.reserve(ai, AiTaskType.IMAGE, bound);
+            } catch (RuntimeException failure) {
+                active.remove(this);
+                finish(new Result(Result.Status.FAILED, null, null, null, "LEDGER_WRITE_FAILED", null, null, false));
+                return;
+            }
             if (admission != BudgetManager.Admission.RESERVED) {
+                active.remove(this);
                 renderTemplate(admission == BudgetManager.Admission.LIMIT_REACHED
                         ? AiGateway.Rejection.BUDGET_LIMIT_REACHED.name() : AiGateway.Rejection.DUPLICATE_REQUEST.name());
+                return;
+            }
+            if (cancelled) {
+                // Stopped between reserve and dispatch: never sent; release the hold once.
+                active.remove(this);
+                UsageRecord released = complete(ai, false, null, AiUsage.MISSING);
+                UsageRecord.Settlement settlement = released == null ? null : released.settlement;
+                finish(budgetStopped
+                        ? new Result(Result.Status.FAILED, null, ai.requestId, null,
+                                AiGateway.Rejection.BUDGET_LIMIT_REACHED.name(), settlement, null, true)
+                        : new Result(Result.Status.CANCELLED, null, ai.requestId, null, null, settlement, null, false));
                 return;
             }
             ImageProvider.Response response;
             ImageProvider.Attempt prepared = providers.get(entry.provider()).prepare(ai, request.spec.providerSize);
             attempt = prepared;
-            active.add(this);
             try {
                 if (cancelled) prepared.cancel();
                 response = prepared.run();
             } finally {
                 active.remove(this);
             }
-            UsageRecord.Settlement settlement;
-            Long micros = null;
-            if (response.outcome == ImageProvider.Response.Outcome.SUCCEEDED) {
-                // Billed per image: a produced image is charged even if the user cancelled meanwhile.
-                ledger.settle(ai.requestId, bound);
-                settlement = UsageRecord.Settlement.SETTLED;
-                micros = bound.micros;
-            } else if (!response.mayHaveDispatched) {
-                ledger.releaseUndispatched(ai.requestId);
-                settlement = UsageRecord.Settlement.RELEASED;
-            } else {
-                ledger.markUncertain(ai.requestId);
-                settlement = UsageRecord.Settlement.UNCERTAIN;
-            }
-            AttemptLedger.Limits limits = ledger.limits();
-            String zone = limits == null ? TimeZone.getDefault().getID() : limits.zoneId;
-            ledger.record(new UsageRecord(ai.requestId, ai.sessionId, ai.channelId, ai.stepId, AiTaskType.IMAGE,
-                    ai.provider, ai.model, BudgetPeriod.of(clock.nowMillis(), zone), clock.nowMillis(),
-                    response.usage == null ? AiUsage.MISSING : response.usage, settlement, micros,
-                    bound.currency.getCurrencyCode(), bound.priceRevision));
+            boolean succeeded = response.outcome == ImageProvider.Response.Outcome.SUCCEEDED;
+            // Billed per image: a produced image is charged even if the user cancelled meanwhile.
+            UsageRecord record = complete(ai, succeeded || response.mayHaveDispatched, succeeded ? bound : null,
+                    response.usage == null ? AiUsage.MISSING : response.usage);
+            UsageRecord.Settlement settlement = record == null ? null : record.settlement;
+            Long micros = record == null ? null : record.estimateMicros;
             if (response.outcome != ImageProvider.Response.Outcome.SUCCEEDED || cancelled) {
                 Result.Status status = budgetStopped ? Result.Status.FAILED
                         : cancelled || response.outcome == ImageProvider.Response.Outcome.CANCELLED
@@ -309,10 +328,25 @@ public final class ImageService {
             finish(new Result(Result.Status.READY, asset, requestId, null, fallbackReason, settlement, micros, false));
         }
 
+        /**
+         * Settlement and usage in one ledger transaction; the record carries the period pinned at
+         * reserve. Null when the write failed: the hold stays and the result says so.
+         */
+        private UsageRecord complete(AiRequest ai, boolean mayHaveDispatched, AiCostEstimate estimate, AiUsage usage) {
+            try {
+                UsageRecord record = ledger.complete(ai.requestId, mayHaveDispatched, estimate, usage);
+                if (record == null) ledgerWriteFailed = true;
+                return record;
+            } catch (RuntimeException failure) {
+                ledgerWriteFailed = true;
+                return null;
+            }
+        }
+
         synchronized void finish(Result result) {
             if (finished) return;
             finished = true;
-            callback.onFinished(result);
+            callback.onFinished(ledgerWriteFailed ? result.withLedgerWriteFailed() : result);
         }
     }
 }

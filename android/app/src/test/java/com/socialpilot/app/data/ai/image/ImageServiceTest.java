@@ -254,6 +254,43 @@ public final class ImageServiceTest {
         assertEquals(UsageRecord.Settlement.UNCERTAIN, result.get().settlement);
     }
 
+    @Test public void budgetStopBetweenReserveAndDispatchSendsNothingAndReleasesOnce() {
+        selections.select(AiTaskType.IMAGE, verified);
+        provider.image = png(1024, 1024);
+        budget.afterReserve = budget::exhaust; // Cap lowered right after the reservation committed.
+        ImageService.Result result = run(service(Runnable::run), true, request(FACEBOOK, sized(ChannelPlatform.FACEBOOK)));
+        assertTrue(provider.requests.isEmpty());
+        assertEquals(1, budget.count("release:"));
+        assertEquals(0, budget.count("settle:"));
+        assertEquals(ImageService.Result.Status.FAILED, result.status);
+        assertTrue(result.budgetStopped);
+        assertEquals("BUDGET_LIMIT_REACHED", result.reason);
+        assertEquals(UsageRecord.Settlement.RELEASED, result.settlement);
+        assertNull(result.asset);
+    }
+
+    @Test public void ledgerWriteFailureIsReportedAndNeverShownAsSettled() {
+        selections.select(AiTaskType.IMAGE, verified);
+        provider.image = png(1024, 1024);
+        budget.failNextComplete = true;
+        ImageService.Result result = run(service(Runnable::run), true, request(FACEBOOK, sized(ChannelPlatform.FACEBOOK)));
+        assertNotNull(result);
+        assertTrue(result.ledgerWriteFailed);
+        assertNull(result.settlement);
+        assertNull(result.estimateMicros);
+        assertNull(budget.usage.records.get(result.requestId)); // Nothing half-written.
+    }
+
+    @Test public void usageUsesThePeriodTheLedgerPinnedAcrossMidnight() {
+        selections.select(AiTaskType.IMAGE, verified);
+        provider.image = png(1024, 1024);
+        // Service clock is 23:30 on 23/11 in Bangkok; the ledger reserves after midnight.
+        budget.clock = () -> 1795451400000L + TimeUnit.HOURS.toMillis(1);
+        ImageService.Result result = run(service(Runnable::run), true, request(FACEBOOK, sized(ChannelPlatform.FACEBOOK)));
+        assertEquals("2026-11-24", budget.usage.records.get(result.requestId).period.dayKey);
+        assertEquals(UsageRecord.Settlement.SETTLED, result.settlement);
+    }
+
     @Test public void staleRevisionNeverAddsAnImage() {
         revisionCurrent = false;
         ImageService.Result result = run(service(Runnable::run), false, request(FACEBOOK, sized(ChannelPlatform.FACEBOOK)));

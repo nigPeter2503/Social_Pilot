@@ -19,7 +19,8 @@ Issue [#34](https://github.com/nigPeter2503/Social_Pilot/issues/34) · F2.B3, F8
 ```text
 generate(request) → model IMAGE đã chọn → blockFor(IMAGE): capability image SUPPORTED, VERIFIED, có giá perImage
   → provider có adapter → key BYOK usable → spec có providerSize → ledger có trần
-  → reserve(perImage × 1) → một lần gọi API → settle | markUncertain | releaseUndispatched → record usage
+  → đăng ký job đang chạy → reserve(perImage × 1) → nếu bị dừng vì vượt trần ngay sau reserve thì không gửi, release một lần, FAILED + budgetStopped
+  → một lần gọi API → AttemptLedger.complete(...): quyết toán và usage trong cùng transaction, kỳ ghim lúc reserve; lỗi ghi → Result.ledgerWriteFailed, settlement null, khoản giữ vẫn tính
   → PNG hợp lệ → kiểm revision kênh → lưu file → kiểm revision lại → ImageAsset(GENERATED)
 ```
 
@@ -47,7 +48,7 @@ generate(request) → model IMAGE đã chọn → blockFor(IMAGE): capability im
 
 | Test | Nội dung | Kết quả |
 |---|---|---|
-| `ImageServiceTest` (provider/renderer giả có nhãn, store thật trên thư mục tạm, `RecordingBudget`) | Template khi chưa có model/bị chặn (không reserve); capability UNKNOWN/thiếu giá ảnh bị chặn; sinh ảnh reserve 40 000 micros, settle một lần, chỉ lưu ref; lỗi sau dispatch giữ uncertain và không tự fallback; lỗi trước dispatch release; hết trần/thiếu size/chưa đặt trần → template; hủy giữa chừng vẫn tính phí nhưng không file; vượt trần dừng job; revision cũ → `STALE` không file; hai kênh khác spec; template hỏng không lưu | Pass |
+| `ImageServiceTest` (provider/renderer giả có nhãn, store thật trên thư mục tạm, `RecordingBudget`) | Template khi chưa có model/bị chặn (không reserve); capability UNKNOWN/thiếu giá ảnh bị chặn; sinh ảnh reserve 40 000 micros, settle một lần, chỉ lưu ref; lỗi sau dispatch giữ uncertain và không tự fallback; lỗi trước dispatch release; hết trần/thiếu size/chưa đặt trần → template; hủy giữa chừng vẫn tính phí nhưng không file; vượt trần dừng job; revision cũ → `STALE` không file; hai kênh khác spec; template hỏng không lưu; dừng vì trần giữa reserve và dispatch không gửi và release một lần; lỗi ghi ledger báo `ledgerWriteFailed`, không hiện là đã quyết toán; usage dùng kỳ ledger ghim qua nửa đêm | Pass |
 | `ImageStoreAndProviderTest` | Commit nguyên tử, cleanup giữ ref đang dùng, từ chối path lạ; PNG header; layout co chữ/xuống dòng/cắt "…"; MockWebServer: request đúng size/n/model/Bearer, base64 → bytes, URL-only/malformed → `PROTOCOL_ERROR`, HTTP 401/403/429/500/400, key sai không gửi, hủy Call | Pass |
 | `TemplateRendererDeviceTest` (emulator) | Canvas thật: hai kênh đúng kích thước và màu; template qua service lưu ref trong thư mục riêng | Pass, xem [evidence](evidence/sp-032-device-check-2026-11-23.md) |
 | API ảnh thật | **NOT_RUN**: chưa có model ảnh đã xác minh, size, giá theo ảnh, key/quota/trần thử | — |
