@@ -1,0 +1,11 @@
+SP-015 device check
+Time (Asia/Ho_Chi_Minh): 2026-11-10 23:51:14 +07:00
+Commit: 342dded1904a48e65fbbe6559c8c1c0f061a54cf
+APK SHA-256: 0DA8DAB0234A8A0311E087FA113F46BA73764F9FF19D53674853CA4DC812BCF8
+Device: SM-A356E; Android API: 36
+Install: Performing Streamed Install Success
+Launch: Starting: Intent { cmp=com.socialpilot.app/.ui.MainActivity }
+Test: save topic SP015_20261110_test_topic, force-stop, reopen, reinstall, force-stop, reopen
+Result: PASS - test topic visible in recent drafts after reopen
+ADB UI check: draftList contains test topic = True
+Other user drafts omitted from this log.
