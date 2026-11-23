@@ -60,10 +60,25 @@ public interface AnalyticsSource {
         }
     }
 
-    /** Blocking local IO. Failures must throw, never return empty success. */
+    /**
+     * One consistent, durable projection for the exact query. Include every retained good
+     * sample, even when the latest refresh failed for another operation or entity, plus
+     * the latest attempt/errors. Exclude disconnected or older connection revisions.
+     * A successful read with no rows differs from a failed read; failures must throw.
+     */
     Batch readCached(DashboardQuery query) throws SourceFailure;
 
-    /** Delegate to a future sync coordinator; this module contains no network/collector. */
+    /**
+     * Delegate to a future sync coordinator; this module contains no network/collector.
+     * Commit successful samples and the attempt atomically before returning. The returned
+     * batch identifies that attempt; it may contain only samples read during this attempt.
+     * The immediately following readCached(query) must return the committed attempt and
+     * the full retained good history for that query. An operation error must not remove
+     * successful samples from another entity or the earlier good samples it could not read.
+     * Sample identity includes scope/revision, entity, definition semantics and window;
+     * never carry samples across a changed identity. The repository publishes only the
+     * full readCached projection, never this possibly incomplete attempt batch.
+     */
     Batch refreshProjection(DashboardQuery query) throws SourceFailure;
 
     /** Notify after local projection/connection changes. Registration does not refresh. */

@@ -10,12 +10,19 @@ DTO/AnalyticsRepository giữ nguyên byte so với SP-046 (hợp đồng DTO) d
 ## API cần nối khi mở gate
 
 - `readCached(query) -> Batch`: một snapshot đọc nhất quán của registry, Channel,
-  metadata PublishedPost theo **local ID**, normalized samples và attempt state.
+  metadata PublishedPost theo **local ID**, toàn bộ normalized samples tốt còn hiệu lực
+  cho đúng query/revision/window và attempt state mới nhất. Kết quả này phải tồn tại
+  qua lần tạo repository mới; không được chỉ chứa phần vừa đọc của attempt `PARTIAL`.
   Query thành công không có hàng khác với lỗi đọc; lỗi trả `SourceFailure` có
   `DashboardError` đã chuẩn hóa. `available=false` chưa có projection dùng được.
 - `refreshProjection(query) -> Batch`: chạy trên IO executor, bàn giao cho coordinator
   collector/Worker của SP-045 khi tích hợp; không có HTTP, lịch thu hoặc Worker trong phần repository/query của SP-046.
-  Coordinator chịu trách nhiệm lưu attempt/success trước trả. Partial có dữ liệu và errors.
+  Coordinator ghi atomically các sample thành công cùng attempt/errors trước khi trả;
+  batch trả về có thể chỉ chứa sample mới. Repository đọc lại `readCached(query)` và
+  chỉ publish khi hai kết quả cùng attempt; nó không project batch attempt thiếu lịch sử.
+  Lỗi một bài/metric không xóa sample tốt cũ hoặc sample mới thành công của bài/metric
+  khác. Source/DAO chọn mẫu theo scope/revision, local entity, definition semantics,
+  measurement window và namespace; disconnect loại revision cũ.
 - `watch(invalidated) -> Cancelable`: đăng ký nhanh, không IO/refresh; báo sau commit
   thay đổi projection hoặc Channel. Repository reload đúng query đang observe.
 - `withCurrentScopes(scopes, action) -> boolean`: kiểm Channel hiện CONNECTED, đúng

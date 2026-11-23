@@ -84,19 +84,22 @@ public final class DefaultAnalyticsRepository implements AnalyticsRepository, Au
         FutureTask<Void> work = new FutureTask<>(() -> {
             if (ticket.canceled()) return null;
             try {
-                Batch batch = source.refreshProjection(query);
+                Batch attempt = source.refreshProjection(query);
+                if (!attempt.available() || attempt.source() != namespace) throw localFailure();
+                // The committed cache read contains successful history across all operations.
+                Batch batch = source.readCached(query);
+                if (!batch.available() || !batch.attempt().equals(attempt.attempt())) throw localFailure();
                 DashboardData result = projector.project(query, batch, namespace, clock.nowMillis());
-                if (!batch.available()) throw localFailure();
                 deliverTerminal(ticket, () -> guarded(query, () -> {
                     if (!isCurrent(query, generation)) return;
+                    DashboardData finalData = state(result, attempt.attempt().errors().isEmpty() ? SyncState.IDLE : SyncState.ERROR,
+                            attemptAt, attempt.attempt().offline(), attempt.attempt().errors());
                     synchronized (this) { goodBatches.put(query, batch); }
-                    DashboardData finalData = state(result, batch.attempt().errors().isEmpty() ? SyncState.IDLE : SyncState.ERROR,
-                            attemptAt, batch.attempt().offline(), batch.attempt().errors());
                     publish(finalData);
                     ticket.deliver(() -> guarded(query, () -> {
                         if (isCurrent(query, generation)) callback.onComplete(new RefreshResult(query,
-                                batch.attempt().errors().isEmpty() ? RefreshOutcome.SUCCESS : RefreshOutcome.PARTIAL,
-                                batch.attempt().errors()));
+                                attempt.attempt().errors().isEmpty() ? RefreshOutcome.SUCCESS : RefreshOutcome.PARTIAL,
+                                attempt.attempt().errors()));
                     }));
                 }));
             } catch (SourceFailure failure) {
@@ -153,11 +156,11 @@ public final class DefaultAnalyticsRepository implements AnalyticsRepository, Au
                 DashboardData result = projector.project(q, batch, namespace, clock.nowMillis());
                 delivery.execute(() -> ticket.deliver(() -> guarded(q, () -> {
                     if (!isCurrent(q, generation) || !samePublication(q, publication)) return;
-                    synchronized (this) { if (batch.available()) goodBatches.put(q, batch); }
                     DashboardData previous = current(q);
                     DashboardData merged = previous.lastAttemptAt() != null
                             && (result.lastAttemptAt() == null || previous.lastAttemptAt() > result.lastAttemptAt())
                             ? state(result, previous.syncState(), previous.lastAttemptAt(), previous.offline(), previous.errors()) : result;
+                    synchronized (this) { if (batch.available()) goodBatches.put(q, batch); }
                     publish(merged);
                 })));
             } catch (SourceFailure failure) {
