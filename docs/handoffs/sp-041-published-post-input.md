@@ -1,5 +1,7 @@
 # SP-041 · Mở inbox, lọc cache và chọn comment để reply
 
+**Cập nhật 23/11/2026:** mã `f57cf55`, base main `a351435`, chạy mới **244/244** JVM, assemble/lint đạt (0 lỗi, 6 cảnh báo). Đã nhận payload SP-066 từ `eda55ac` và kiểm replay comment/parent/terminal/rollback. Store vẫn RAM; AppDatabase production v1. **Chưa có PublishedPost local ID production để SP-045 ghi snapshot POST.** Minh giao Channel DAO/revision/grant và policy SP-024; Đạt giao slot sau khi đối chiếu v2/v3 của Thiện. [Báo cáo/gate](../sp-041-production-readiness-2026-11-23.md) · [Manifest live NOT_RUN](../sp-041-live-manifest.json). Các kết quả 239 test bên dưới là lịch sử của revision cũ.
+
 Nghị bàn giao API cho SP-042/043 và Thiện/SP-051. Các chữ ký và ca kiểm bên dưới áp dụng cho mã `a192d58003b2f7f6886587ac2adcfd7c133e24d1` của PR #87. JVM và thiết bị dùng store giao dịch **trong RAM** (`MO_PHONG`). Ứng dụng còn chờ Channel/DAO, Room và manifest đối chiếu provider thật để nghiệm thu dữ liệu. [Evidence Worker/cache](../sp-041-worker-cache-ig-fb.md)
 
 ## Chọn bài và tạo query
