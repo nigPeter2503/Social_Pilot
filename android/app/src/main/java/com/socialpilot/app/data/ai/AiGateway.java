@@ -216,7 +216,8 @@ public final class AiGateway {
         private final AtomicInteger state = new AtomicInteger(PENDING);
         private final AtomicBoolean finished = new AtomicBoolean();
         private final StringBuilder text = new StringBuilder();
-        private AiProvider.Attempt attempt;
+        private volatile boolean cancelled;
+        private volatile AiProvider.Attempt attempt;
 
         Run(AiTaskType taskType, AiRequest request, ModelEntry entry, BudgetPeriod period, Callback callback) {
             this.taskType = taskType;
@@ -226,15 +227,26 @@ public final class AiGateway {
             this.callback = callback;
         }
 
+        /**
+         * Worker thread. A run cancelled while still queued is finalized here, never on the thread
+         * that called {@link #cancel}: release, usage and the callback are ledger I/O and must not run
+         * on the UI thread or throw into it.
+         */
         void execute() {
+            if (cancelled && state.compareAndSet(PENDING, ABANDONED)) {
+                abandon(true);
+                return;
+            }
             if (!state.compareAndSet(PENDING, RUNNING)) return;
+            // A cancel racing with this start is honoured by the attempt: it ends CANCELLED, not dispatched.
             attempt.run();
         }
 
+        /** Safe on any thread, including the UI thread: it only flags and forwards; it does no I/O. */
         void cancel() {
-            attempt.cancel();
-            // Never started: finalize here, because the worker will skip it.
-            if (state.compareAndSet(PENDING, ABANDONED)) abandon(true);
+            cancelled = true;
+            AiProvider.Attempt current = attempt;
+            if (current != null) current.cancel();
         }
 
         /** Never dispatched: release once. A rejected submit does not also call back. */

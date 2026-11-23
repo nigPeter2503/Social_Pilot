@@ -20,7 +20,7 @@ AiGateway.Call(session, channel+revision | shared, step, taskType, prompt, maxOu
 - `submit()` làm I/O (đọc trạng thái key), gọi từ worker. Callback chạy tuần tự trên worker của attempt; consumer tự chuyển về main thread.
 - Mỗi lần `submit` là một dispatch với requestId mới. Gateway **không** tự retry, fallback hay đổi provider. Retry do consumer quyết định và lại đi qua `submit` (reserve mới).
 - `resolve(call)` trả `AiRequest` typed hoặc lý do bị chặn, không reserve. SP-031 dùng nó để dựng request cho coordinator hai nhánh, coordinator tự reserve qua cùng `BudgetManager`.
-- `Submission.cancel()`: hủy HTTP Call; nếu worker chưa chạy thì release đúng một lần và trả terminal `CANCELLED` với `mayHaveDispatched=false`.
+- `Submission.cancel()`: an toàn trên mọi luồng, kể cả luồng UI. Hàm chỉ đánh dấu hủy và hủy HTTP Call; không đọc ghi ledger/usage, không gọi callback trên luồng gọi. Nếu lượt còn trong hàng đợi, chính job worker đã xếp sẽ kết thúc nó: không gọi provider, release đúng một lần và trả đúng một terminal `CANCELLED` với `mayHaveDispatched=false` trên worker. Nếu cancel trùng lúc worker vừa bắt đầu, attempt tự kết thúc `CANCELLED` chưa dispatch.
 
 | Rejection | Ý nghĩa | Có gọi BudgetManager/mạng không |
 |---|---|---|
@@ -76,7 +76,7 @@ Sau khi được nhận, lỗi provider đi theo `AiError.Code` của SP-013 tro
 |---|---|
 | `ModelPricingTest` (9): block reasons, ảnh tách capability, registry trùng/không có, upper bound, bucket OpenAI/Gemini, usage thiếu ≠ 0, provenance giá, kỳ Bangkok qua nửa đêm/cuối tháng, zone lạ | JVM, đạt |
 | `UsageSummaryTest` (4): uncertain/missing không cộng 0, tách provider/kỳ/currency, trùng requestId, ràng buộc estimate | JVM, đạt |
-| `AiGatewayTest` (11): không ledger → không prepare/gửi; chặn trước reserve; requestId mới mỗi lần; scope/step/cap đúng; settle một lần dù terminal lặp; kỳ ghim lúc reserve khi terminal sau nửa đêm; missing/partial → uncertain; hủy trước worker release một lần; limit; worker đầy; đổi provider giữ usage; selection bền và quên model bị gỡ; adapter OpenAI thật qua MockWebServer (header, `max_output_tokens`, usage REPORTED); asset registry đều bị chặn | JVM, đạt |
+| `AiGatewayTest` (12): không ledger → không prepare/gửi; chặn trước reserve; requestId mới mỗi lần; scope/step/cap đúng; settle một lần dù terminal lặp; kỳ ghim lúc reserve khi terminal sau nửa đêm; missing/partial → uncertain; hủy trước worker release một lần; hủy từ luồng UI (kho từ chối I/O trên luồng đó) không ném lỗi, kết thúc trên worker, không gọi provider, đúng một callback `CANCELLED`; limit; worker đầy; đổi provider giữ usage; selection bền và quên model bị gỡ; adapter OpenAI thật qua MockWebServer (header, `max_output_tokens`, usage REPORTED); asset registry đều bị chặn | JVM, đạt |
 | UI chọn model trên emulator API 37 | Đạt, xem [bằng chứng](evidence/sp-028-device-check-2026-11-23.md) |
 | OpenAI text thật, Gemini text thật qua Android | **NOT_RUN** — chưa có key/model/quota/số lượt/trần chi được cấp; dispatch production còn khóa tới SP-029 |
 

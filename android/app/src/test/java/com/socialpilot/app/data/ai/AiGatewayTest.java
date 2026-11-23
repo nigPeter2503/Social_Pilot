@@ -178,11 +178,85 @@ public final class AiGatewayTest {
         AiGateway.Submission submission = gateway.submit(call("a"), collector);
         submission.cancel();
         submission.cancel();
-        queued.get(0).run(); // Worker eventually runs and must skip.
+        assertEquals(0, budget.count("release:")); // Nothing is finalized on the cancelling thread.
+        queued.get(0).run(); // The queued worker job finalizes it without starting the attempt.
         assertEquals(1, budget.count("release:"));
         assertEquals(0, provider.runs);
         assertEquals(UsageRecord.Settlement.RELEASED, usage.records.get(submission.requestId).settlement);
         assertEquals(AiEvent.Type.CANCELLED, collector.finished.get().terminal.type);
+    }
+
+    /** Refuses every call made on {@link #forbidden}, like Room on the main thread. */
+    private static final class ThreadGuard {
+        volatile Thread forbidden;
+
+        void check() {
+            if (Thread.currentThread() == forbidden) {
+                throw new IllegalStateException("fixture: storage access on the UI thread");
+            }
+        }
+    }
+
+    @Test public void cancelFromTheUiThreadBeforeStartFinalizesOnTheWorkerExactlyOnce() throws Exception {
+        selections.select(AiTaskType.CONTENT_TEXT, openAi);
+        Scripted provider = new Scripted();
+        providers.put(AiRequest.Provider.OPENAI, provider);
+        ThreadGuard guard = new ThreadGuard();
+        BudgetManager guardedBudget = new BudgetManager() {
+            @Override public Admission reserve(String requestId, com.socialpilot.app.domain.contract.ai.AiCostEstimate upperBound) {
+                guard.check();
+                return budget.reserve(requestId, upperBound);
+            }
+            @Override public void settle(String requestId, com.socialpilot.app.domain.contract.ai.AiCostEstimate estimate) {
+                guard.check();
+                budget.settle(requestId, estimate);
+            }
+            @Override public void releaseUndispatched(String requestId) {
+                guard.check();
+                budget.releaseUndispatched(requestId);
+            }
+            @Override public void markUncertain(String requestId) {
+                guard.check();
+                budget.markUncertain(requestId);
+            }
+        };
+        com.socialpilot.app.domain.contract.ai.UsageLog guardedUsage = new com.socialpilot.app.domain.contract.ai.UsageLog() {
+            @Override public boolean record(UsageRecord record) {
+                guard.check();
+                return usage.record(record);
+            }
+            @Override public List<UsageRecord> forMonth(String monthKey) {
+                guard.check();
+                return usage.forMonth(monthKey);
+            }
+        };
+        AiGateway gateway = new AiGateway(selections, providers, usableKeys::contains, guardedBudget, guardedUsage,
+                manual, () -> now, () -> "Asia/Bangkok");
+        java.util.concurrent.atomic.AtomicInteger finishes = new java.util.concurrent.atomic.AtomicInteger();
+        AtomicReference<Thread> finishedOn = new AtomicReference<>();
+        Collector collector = new Collector() {
+            @Override public void onFinished(AiGateway.Finished result) {
+                finishes.incrementAndGet();
+                finishedOn.set(Thread.currentThread());
+                super.onFinished(result);
+            }
+        };
+        AiGateway.Submission submission = gateway.submit(call("a"), collector); // Submitted from a worker in the app.
+        guard.forbidden = Thread.currentThread(); // From here on this thread acts as the UI thread.
+        submission.cancel(); // Must neither throw nor touch storage here.
+        submission.cancel();
+        assertEquals(0, budget.count("release:"));
+        assertNull(collector.finished.get());
+        Thread worker = new Thread(queued.get(0), "ai-worker");
+        worker.start();
+        worker.join(5_000);
+        assertEquals(0, provider.runs); // The provider is never called.
+        assertEquals(1, budget.count("release:"));
+        assertEquals(1, finishes.get());
+        assertSame(worker, finishedOn.get());
+        assertEquals(AiEvent.Type.CANCELLED, collector.finished.get().terminal.type);
+        assertFalse(collector.finished.get().terminal.mayHaveDispatched);
+        assertEquals(UsageRecord.Settlement.RELEASED, usage.records.get(submission.requestId).settlement);
     }
 
     @Test public void budgetLimitAndDuplicateAdmissionNeverDispatch() {
@@ -318,7 +392,7 @@ public final class AiGatewayTest {
         }
     }
 
-    private static final class Collector implements AiGateway.Callback {
+    private static class Collector implements AiGateway.Callback {
         final List<AiEvent> events = new ArrayList<>();
         final AtomicReference<AiGateway.Finished> finished = new AtomicReference<>();
         final CountDownLatch done = new CountDownLatch(1);
