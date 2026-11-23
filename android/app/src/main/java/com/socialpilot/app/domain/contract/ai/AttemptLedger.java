@@ -54,6 +54,19 @@ public interface AttemptLedger extends BudgetManager, UsageLog {
      */
     Admission reserve(AiRequest request, AiTaskType taskType, AiCostEstimate upperBound);
 
+    /**
+     * Terminal of one attempt, in one transaction: the settlement transition and the usage are
+     * written together or not at all. Not dispatched releases a still-RESERVED hold; an estimate
+     * settles (a pinned currency/price mismatch stays UNCERTAIN); otherwise the hold becomes
+     * UNCERTAIN. Idempotent: a repeat changes nothing and returns the stored record.
+     *
+     * @param estimate priced from a final provider report, or null when usage cannot be priced
+     * @return the authoritative record built from the stored row (period, currency and price
+     *     revision pinned at reserve), or null when the attempt is unknown or has no scope metadata
+     * @throws RuntimeException when the write fails; nothing of the terminal is then stored
+     */
+    UsageRecord complete(String requestId, boolean mayHaveDispatched, AiCostEstimate estimate, AiUsage usage);
+
     /** Null when no limits are set; without limits nothing is admitted. */
     Limits limits();
 

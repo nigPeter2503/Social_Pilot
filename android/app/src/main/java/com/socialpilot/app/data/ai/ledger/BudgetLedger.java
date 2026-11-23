@@ -178,28 +178,73 @@ public final class BudgetLedger implements AttemptLedger {
         });
     }
 
+    @Override
+    public UsageRecord complete(String requestId, boolean mayHaveDispatched, AiCostEstimate estimate,
+                                AiUsage usage) {
+        Objects.requireNonNull(requestId);
+        Objects.requireNonNull(usage);
+        boolean[] settled = new boolean[1];
+        UsageRecord result = store.inTransaction(() -> {
+            AttemptEntity row = store.find(requestId);
+            if (row == null) return null;
+            if (row.usageState != null) return toRecord(row); // Already completed: no second transition.
+            boolean held = AttemptEntity.RESERVED.equals(row.state) || AttemptEntity.UNCERTAIN.equals(row.state);
+            if (!mayHaveDispatched) {
+                if (AttemptEntity.RESERVED.equals(row.state)) row.state = AttemptEntity.RELEASED;
+            } else if (estimate != null && held) {
+                if (row.currency.equals(estimate.currency.getCurrencyCode())
+                        && row.priceRevision.equals(estimate.priceRevision)) {
+                    row.state = AttemptEntity.SETTLED;
+                    row.settledMicros = estimate.micros;
+                    settled[0] = true;
+                } else {
+                    row.state = AttemptEntity.UNCERTAIN;
+                }
+            } else if (AttemptEntity.RESERVED.equals(row.state)) {
+                row.state = AttemptEntity.UNCERTAIN;
+            }
+            row.usageState = usage.state.name();
+            row.inputTokens = usage.inputTokens;
+            row.outputTokens = usage.outputTokens;
+            row.totalTokens = usage.totalTokens;
+            row.cachedInputTokens = usage.cachedInputTokens;
+            row.reasoningTokens = usage.reasoningTokens;
+            row.updatedAt = clock.nowMillis();
+            store.update(row);
+            return toRecord(row);
+        });
+        if (settled[0]) notifyIfExhausted();
+        return result;
+    }
+
     /** Attempts with scope metadata; in-flight and interrupted ones read as UNCERTAIN. */
     @Override
     public List<UsageRecord> forMonth(String monthKey) {
         List<AttemptEntity> rows = store.inTransaction(() -> store.forMonth(monthKey));
         List<UsageRecord> result = new ArrayList<>();
         for (AttemptEntity row : rows) {
-            if (row.provider == null) continue;
-            UsageRecord.Settlement settlement = AttemptEntity.SETTLED.equals(row.state) ? UsageRecord.Settlement.SETTLED
-                    : AttemptEntity.RELEASED.equals(row.state) ? UsageRecord.Settlement.RELEASED
-                    : UsageRecord.Settlement.UNCERTAIN;
-            AiUsage usage = row.usageState == null ? AiUsage.MISSING
-                    : new AiUsage(row.inputTokens, row.outputTokens, row.totalTokens, row.cachedInputTokens,
-                    row.reasoningTokens);
-            if (AiUsage.State.PARTIAL.name().equals(row.usageState)) usage = usage.asPartial();
-            result.add(new UsageRecord(row.requestId, row.sessionId == null ? FORGOTTEN : row.sessionId,
-                    row.channelId, row.stepId == null ? FORGOTTEN : row.stepId,
-                    AiTaskType.valueOf(row.taskType), AiRequest.Provider.valueOf(row.provider), row.model,
-                    BudgetPeriod.pinned(row.zoneId, row.dayKey, row.monthKey), row.updatedAt, usage, settlement,
-                    settlement == UsageRecord.Settlement.SETTLED ? row.settledMicros : null,
-                    row.currency, row.priceRevision));
+            UsageRecord record = toRecord(row);
+            if (record != null) result.add(record);
         }
         return result;
+    }
+
+    /** The stored row as a record; null without scope metadata (plain {@link #reserve(String, AiCostEstimate)}). */
+    private static UsageRecord toRecord(AttemptEntity row) {
+        if (row.provider == null) return null;
+        UsageRecord.Settlement settlement = AttemptEntity.SETTLED.equals(row.state) ? UsageRecord.Settlement.SETTLED
+                : AttemptEntity.RELEASED.equals(row.state) ? UsageRecord.Settlement.RELEASED
+                : UsageRecord.Settlement.UNCERTAIN;
+        AiUsage usage = row.usageState == null ? AiUsage.MISSING
+                : new AiUsage(row.inputTokens, row.outputTokens, row.totalTokens, row.cachedInputTokens,
+                row.reasoningTokens);
+        if (AiUsage.State.PARTIAL.name().equals(row.usageState)) usage = usage.asPartial();
+        return new UsageRecord(row.requestId, row.sessionId == null ? FORGOTTEN : row.sessionId,
+                row.channelId, row.stepId == null ? FORGOTTEN : row.stepId,
+                AiTaskType.valueOf(row.taskType), AiRequest.Provider.valueOf(row.provider), row.model,
+                BudgetPeriod.pinned(row.zoneId, row.dayKey, row.monthKey), row.updatedAt, usage, settlement,
+                settlement == UsageRecord.Settlement.SETTLED ? row.settledMicros : null,
+                row.currency, row.priceRevision);
     }
 
     /**
