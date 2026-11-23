@@ -129,6 +129,8 @@ Kiểm tra cục bộ cho bản sửa với JDK 21 và Android SDK 36:
 | Lệnh từ `android/` | Kết quả |
 | --- | --- |
 | `gradlew.bat :app:assembleDebug :app:testDebugUnitTest :app:lintDebug :app:assembleDebugAndroidTest --offline` | Đạt. Build hai APK, 64/64 unit test, lint 0 lỗi và 11 cảnh báo. |
-| `gradlew.bat :app:connectedDebugAndroidTest --offline` | Dừng trước khi chạy ca test. Gradle báo `No connected devices!`. |
+| `gradlew.bat :app:connectedDebugAndroidTest --offline` | Lượt đầu dừng khi chưa có thiết bị. Lượt kiểm sau chạy bằng ADB như bên dưới. |
+
+Ngày 23/11/2026 lúc 22:02 (UTC+07:00), AndroidJUnitRunner chạy toàn bộ bộ test trên Samsung SM-G990E, Android 16 / API 36, revision `a6c29ea`. **14/14 ca đạt**, gồm 11 ca repository, 2 ca Keystore và 1 ca ViewModel. Kết quả của A bị bỏ khi lưu phiên B cho cùng tài khoản hoặc tài khoản khác. Ca ViewModel xác nhận callback A đã xếp hàng không phát lại kết quả cũ. Nguồn permalink của nút **Mở bài gốc** chỉ trả link của B sau lần đối soát của B. Các ca dùng transport kiểm soát và credential giả. Hai APK gốc được khôi phục và đối chiếu SHA-256 sau lượt chạy. [Kết quả AndroidJUnitRunner và hash APK](evidence/sp-065-p2-device-tests-2026-11-23.txt)
 
 Các góp ý về pending OAuth theo provider và kiểm tra credential chưa rõ hạn trước thao tác ghi production được bàn giao cho SP-022. [Issue SP-022](https://github.com/nigPeter2503/Social_Pilot/issues/24)
