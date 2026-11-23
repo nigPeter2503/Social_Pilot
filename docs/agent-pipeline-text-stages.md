@@ -30,16 +30,17 @@ session.cancelBranch(channelId); session.cancel(); session.retry(channelId); ses
 
 - Mọi bước đi qua `AppContainer.ai`, nên chung lựa chọn model, BYOK, reserve trước dispatch, hủy và usage của SP-028/SP-029. Bị từ chối (`NO_MODEL_SELECTED`, `MODEL_BLOCKED`, `KEY_NOT_USABLE`, `BUDGET_NOT_SET`, `BUDGET_LIMIT_REACHED`...) ghi vào đúng bước (`StageResult.Status.REJECTED`, `rejection`, `block`), nhánh `FAILED` với `failedStage`.
 - Lỗi provider ghi `AiError.Code` ở đúng bước. Bước `COMPLETED` nhưng không có text là `FAILED`/`INCOMPLETE`, không chạy tiếp trên dữ liệu rỗng.
-- Hủy giữ text partial và usage theo contract (thường `UNCERTAIN` nếu có thể đã gửi). Vượt trần ngân sách giữa chừng → nhánh `FAILED`, `budgetStopped = true`, giữ partial.
+- Khi hủy thắng trước terminal, nhánh giữ text đã nhận, chặn delta và kết quả đến sau. Gateway vẫn quyết toán usage từ terminal theo contract. Vượt trần ngân sách giữa chừng → nhánh `FAILED`, `budgetStopped = true`, giữ partial.
 - **Không tự retry.** `retry(channelId)` là thao tác của người dùng: chạy lại từ bước text đầu tiên chưa xong, attempt mới, requestId mới, reservation mới; các bước đã xong giữ nguyên. Callback của attempt cũ không ghi đè (generation guard).
 - Session nằm trong bộ nhớ. Sau khi process chết, không tự gửi lại; checkpoint thuộc SP-033.
-- Observer được gọi trên worker theo thứ tự `revision` tăng dần, kể cả khi đang stream (`TEXT_DELTA` cập nhật text của bước đang chạy). Observer chỉ nên post về main thread.
+- Snapshot được xếp hàng theo `revision` và giao tuần tự ngoài khóa của session, kể cả khi đang stream. Observer đưa cập nhật giao diện về main thread. Nếu executor từ chối lượt giao, callback chạy trên luồng gọi để vẫn giao được trạng thái. Lỗi runtime của observer không dừng pipeline. Lỗi runtime ở bước admission được ghi `SUBMISSION_FAILED` để người dùng có thể retry. Nếu adapter ném lỗi trong `prepare()`, gateway ghi `PROVIDER_PREPARE_FAILED` và giải phóng khoản giữ. Ngoại lệ sau khi vào `run()` giữ partial và quyết toán `UNCERTAIN`.
 
 ## 4. Prompt và quy tắc
 
 - `PromptBuilder` rào brief và nguồn bằng `<<<DATA … DATA>>>`, vô hiệu marker nằm trong dữ liệu. Mọi chỉ dẫn trong dữ liệu (URL, comment, "duyệt/đăng") bị bỏ qua; model chỉ tạo bản nháp, người dùng duyệt trước khi đăng. Ngôn ngữ nội dung theo `brief.language` (vi/en), không theo ngôn ngữ UI.
 - Không nêu giới hạn ký tự nào vì chưa có số đã xác minh. `RuleCheck` luôn có `LENGTH_LIMIT_UNVERIFIED`.
 - `RuleCheck` = verdict của model (`PASS`/`REVISE`/`UNPARSED`, danh sách issue) cộng kiểm tra cục bộ: `EMPTY_DRAFT`, `LINK_NOT_IN_SOURCES` (link trong nháp không có trong nguồn).
+- `RuleCheck` so URL đầy đủ trước, rồi thử bỏ dấu câu ở cuối từ trong nháp khi phần còn lại khớp một URL nguồn. Host và scheme không phân biệt hoa thường, còn path, query và fragment giữ nguyên hoa thường. Nguồn được đánh dấu URL có thể dùng host/path thiếu scheme để khớp cả HTTP và HTTPS. Nguồn ghi scheme tường minh chỉ khớp scheme đó. Bản tự rà có issue đã trích xuất luôn cần xem lại, kể cả khi verdict là `PASS`.
 - Output cap mỗi bước: outline 400, draft 1000, rule check 300 token; registry vẫn chặn model có cap thấp hơn.
 
 ## 5. Bàn giao cho Thiện (SP-036)

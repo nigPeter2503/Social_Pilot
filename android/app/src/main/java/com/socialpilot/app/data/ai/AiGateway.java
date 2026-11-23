@@ -5,6 +5,7 @@ import com.socialpilot.app.domain.contract.BudgetManager;
 import com.socialpilot.app.domain.contract.ai.AttemptLedger;
 import com.socialpilot.app.domain.contract.Cancelable;
 import com.socialpilot.app.domain.contract.ai.AiCostEstimate;
+import com.socialpilot.app.domain.contract.ai.AiError;
 import com.socialpilot.app.domain.contract.ai.AiEvent;
 import com.socialpilot.app.domain.contract.ai.AiRequest;
 import com.socialpilot.app.domain.contract.ai.AiTaskType;
@@ -35,7 +36,7 @@ public final class AiGateway {
         BUDGET_NOT_CONFIGURED,
         /** Ledger exists but no daily/monthly caps are set; nothing is admitted without caps. */
         BUDGET_NOT_SET,
-        BUDGET_LIMIT_REACHED, DUPLICATE_REQUEST, WORKER_UNAVAILABLE
+        BUDGET_LIMIT_REACHED, DUPLICATE_REQUEST, WORKER_UNAVAILABLE, PROVIDER_PREPARE_FAILED
     }
 
     public interface Selections {
@@ -226,7 +227,12 @@ public final class AiGateway {
             run.abandon(false);
             return new Submission(request.requestId, Rejection.BUDGET_LIMIT_REACHED, null, null);
         }
-        run.attempt = providers.get(request.provider).prepare(request, run);
+        try {
+            run.attempt = Objects.requireNonNull(providers.get(request.provider).prepare(request, run));
+        } catch (RuntimeException failed) {
+            run.abandon(false); // prepare() does not dispatch.
+            return new Submission(request.requestId, Rejection.PROVIDER_PREPARE_FAILED, null, null);
+        }
         try {
             workers.execute(run::execute);
         } catch (RejectedExecutionException full) {
@@ -246,6 +252,7 @@ public final class AiGateway {
         private final AtomicInteger state = new AtomicInteger(NEW);
         private final AtomicBoolean finished = new AtomicBoolean();
         private final StringBuilder text = new StringBuilder();
+        private long lastSequence;
         private volatile boolean cancelled;
         private volatile boolean budgetStopped;
         private volatile AiProvider.Attempt attempt;
@@ -283,7 +290,17 @@ public final class AiGateway {
             }
             if (!state.compareAndSet(PENDING, RUNNING)) return;
             // A cancel racing with this start is honoured by the attempt: it ends CANCELLED, not dispatched.
-            attempt.run();
+            try {
+                attempt.run();
+            } catch (RuntimeException failed) {
+                if (finished.get()) throw failed;
+                // After run() starts, an exception cannot prove that the provider was not called.
+                AiEvent.Type type = cancelled ? AiEvent.Type.CANCELLED : AiEvent.Type.FAILED;
+                AiError error = cancelled ? null : new AiError(AiError.Code.PROVIDER_UNAVAILABLE, null);
+                long sequence = lastSequence == Long.MAX_VALUE ? lastSequence : lastSequence + 1;
+                finish(AiEvent.terminal(request, sequence, type, error, AiUsage.MISSING,
+                        text.length() > 0, true), true);
+            }
         }
 
         /** Safe on any thread, including the UI thread: it only flags and forwards; it does no I/O. */
@@ -307,6 +324,7 @@ public final class AiGateway {
         @Override
         public void onEvent(AiEvent event) {
             if (!request.requestId.equals(event.requestId) || finished.get()) return;
+            lastSequence = Math.max(lastSequence, event.sequence);
             if (event.type == AiEvent.Type.TEXT_DELTA) text.append(event.delta);
             if (event.type == AiEvent.Type.COMPLETED || event.type == AiEvent.Type.FAILED
                     || event.type == AiEvent.Type.CANCELLED) {

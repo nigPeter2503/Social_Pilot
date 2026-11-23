@@ -1,5 +1,7 @@
 package com.socialpilot.app.domain.agent;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -38,7 +40,7 @@ public final class RuleCheck {
 
     /** True when nothing needs attention beyond the always-present unverified-limit note. */
     public boolean clean() {
-        return verdict == Verdict.PASS && localIssues.size() == 1
+        return verdict == Verdict.PASS && modelIssues.isEmpty() && localIssues.size() == 1
                 && localIssues.get(0) == LocalIssue.LENGTH_LIMIT_UNVERIFIED;
     }
 
@@ -51,9 +53,9 @@ public final class RuleCheck {
                 String upper = line.toUpperCase(Locale.ROOT);
                 if (verdict == Verdict.UNPARSED && upper.startsWith("VERDICT:")) {
                     String value = upper.substring("VERDICT:".length()).trim();
-                    if (value.startsWith("PASS")) verdict = Verdict.PASS;
-                    else if (value.startsWith("REVISE")) verdict = Verdict.REVISE;
-                } else if (line.startsWith("- ") && line.length() > 2) {
+                    if (value.equals("PASS")) verdict = Verdict.PASS;
+                    else if (value.equals("REVISE")) verdict = Verdict.REVISE;
+                } else if (line.startsWith("- ") || line.startsWith("* ")) {
                     issues.add(line.substring(2).trim());
                 }
             }
@@ -66,12 +68,20 @@ public final class RuleCheck {
             Set<String> known = new LinkedHashSet<>();
             for (PipelineInput.Source source : sources) {
                 Matcher inSource = LINK.matcher(source.value);
-                while (inSource.find()) known.add(normalize(inSource.group()));
+                boolean hasLink = false;
+                while (inSource.find()) {
+                    known.add(normalize(inSource.group()));
+                    hasLink = true;
+                }
+                if (source.url && !hasLink && !source.value.contains("://") && !source.value.matches(".*\\s.*")) {
+                    String bare = source.value.startsWith("//") ? source.value.substring(2) : source.value;
+                    addBareSource(known, bare);
+                }
             }
             Matcher inDraft = LINK.matcher(draft);
             while (inDraft.find()) {
                 String link = inDraft.group();
-                if (!known.contains(normalize(link)) && !unknown.contains(link)) unknown.add(link);
+                if (!matchesSource(link, known) && !unknown.contains(link)) unknown.add(link);
             }
             if (!unknown.isEmpty()) local.add(LocalIssue.LINK_NOT_IN_SOURCES);
         }
@@ -79,11 +89,44 @@ public final class RuleCheck {
         return new RuleCheck(verdict, issues, local, unknown);
     }
 
-    private static String normalize(String link) {
-        String value = link.toLowerCase(Locale.ROOT);
-        while (value.endsWith("/") || value.endsWith(".") || value.endsWith(",")) {
-            value = value.substring(0, value.length() - 1);
+    private static boolean matchesSource(String link, Set<String> known) {
+        // An exact URL ending in punctuation wins. Strip a prose suffix only to match a known source.
+        String candidate = link;
+        while (!candidate.isEmpty()) {
+            if (known.contains(normalize(candidate))) return true;
+            if (".,!?:;…".indexOf(candidate.charAt(candidate.length() - 1)) < 0) break;
+            candidate = candidate.substring(0, candidate.length() - 1);
         }
-        return value;
+        return false;
+    }
+
+    private static void addBareSource(Set<String> known, String source) {
+        String https = "https://" + source;
+        URI address = parse(https);
+        if (address == null || address.getHost() == null || address.getRawUserInfo() != null) return;
+        known.add(normalize(https));
+        known.add(normalize("http://" + source));
+    }
+
+    private static String normalize(String link) {
+        URI address = parse(link);
+        if (address == null || address.getHost() == null) return link;
+        String path = address.getRawPath();
+        if (path.endsWith("/")) path = path.substring(0, path.length() - 1);
+        String userInfo = address.getRawUserInfo();
+        String query = address.getRawQuery();
+        String fragment = address.getRawFragment();
+        return address.getScheme().toLowerCase(Locale.ROOT) + "://"
+                + (userInfo == null ? "" : userInfo + "@") + address.getHost().toLowerCase(Locale.ROOT)
+                + (address.getPort() < 0 ? "" : ":" + address.getPort()) + path
+                + (query == null ? "" : "?" + query) + (fragment == null ? "" : "#" + fragment);
+    }
+
+    private static URI parse(String url) {
+        try {
+            return new URI(url);
+        } catch (URISyntaxException invalid) {
+            return null;
+        }
     }
 }
