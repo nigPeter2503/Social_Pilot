@@ -264,8 +264,17 @@ public final class AiGatewayTest {
         Hanging provider = new Hanging();
         providers.put(AiRequest.Provider.OPENAI, provider);
         ExecutorService threads = Executors.newSingleThreadExecutor();
+        // The first job runs at once; later jobs wait here until released, so the second call is
+        // certainly still queued when the budget stops. (A single-thread pool alone races: its
+        // worker may start the second job before exhaust() reaches it, which is then UNCERTAIN.)
+        List<Runnable> held = new java.util.concurrent.CopyOnWriteArrayList<>();
+        java.util.concurrent.atomic.AtomicBoolean firstJob = new java.util.concurrent.atomic.AtomicBoolean(true);
+        Executor workers = command -> {
+            if (firstJob.getAndSet(false)) threads.execute(command);
+            else held.add(command);
+        };
         try {
-            AiGateway gateway = gateway(budget, threads);
+            AiGateway gateway = gateway(budget, workers);
             Collector running = new Collector();
             AiGateway.Submission first = gateway.submit(call("a"), running);
             assertTrue(provider.started.await(5, TimeUnit.SECONDS));
@@ -273,6 +282,9 @@ public final class AiGatewayTest {
             AiGateway.Submission second = gateway.submit(call("b"), pending); // Queued behind the first.
             budget.exhaust();
             assertTrue(running.done.await(5, TimeUnit.SECONDS));
+            assertNull(pending.finished.get()); // Finalized by its own worker job, not by exhaust().
+            assertEquals(1, held.size());
+            threads.execute(held.get(0)); // The worker now reaches the queued job.
             assertTrue(pending.done.await(5, TimeUnit.SECONDS));
             assertTrue(running.finished.get().budgetStopped);
             assertEquals("partial", running.finished.get().text);
