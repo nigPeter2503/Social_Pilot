@@ -14,6 +14,7 @@ import com.socialpilot.app.domain.contract.Cancelable;
 import com.socialpilot.app.domain.contract.ai.AiError;
 import com.socialpilot.app.domain.contract.ai.AiEvent;
 import com.socialpilot.app.domain.contract.ai.AiTaskType;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -43,7 +44,7 @@ import java.util.concurrent.RejectedExecutionException;
  */
 public final class ChannelPipeline {
     public interface Observer {
-        /** Called on a worker thread in revision order; post to the main thread, never block. */
+        /** Serial delivery in revision order, outside the session lock. Post UI work to the main thread. */
         void onSnapshot(PipelineSnapshot snapshot);
     }
 
@@ -78,6 +79,7 @@ public final class ChannelPipeline {
         for (ChannelTarget target : input.targets) branches.add(ChannelBranch.initial(target));
         Session session = new Session(input, Objects.requireNonNull(observer), UUID.randomUUID().toString(),
                 branches, 0);
+        session.dispatchSnapshots();
         for (Run run : session.runs.values()) session.schedule(run, PipelineStage.OUTLINE, run.generation);
         return session;
     }
@@ -91,8 +93,10 @@ public final class ChannelPipeline {
         CheckpointPolicy.Mismatch mismatch = CheckpointPolicy.mismatch(input, checkpoint);
         if (mismatch != null) throw new IllegalArgumentException("checkpoint mismatch: " + mismatch);
         PipelineSnapshot recovered = CheckpointPolicy.recover(checkpoint, now());
-        return new Session(input, Objects.requireNonNull(observer), recovered.sessionId, recovered.branches,
+        Session session = new Session(input, Objects.requireNonNull(observer), recovered.sessionId, recovered.branches,
                 checkpoint.revision);
+        session.dispatchSnapshots();
+        return session;
     }
 
     static int tokensFor(PipelineStage stage) {
@@ -125,6 +129,8 @@ public final class ChannelPipeline {
         private final Observer observer;
         private final Object lock = new Object();
         private final Map<String, Run> runs = new LinkedHashMap<>();
+        private final ArrayDeque<PipelineSnapshot> pendingSnapshots = new ArrayDeque<>();
+        private boolean delivering;
         private long revision;
         private PipelineSnapshot snapshot;
 
@@ -185,6 +191,7 @@ public final class ChannelPipeline {
                 run.branch = run.branch.withStatus(run.branch.stage(stage), ChannelBranch.Status.RUNNING, null);
                 publish();
             }
+            dispatchSnapshots();
             schedule(run, stage, generation);
             return true;
         }
@@ -200,40 +207,73 @@ public final class ChannelPipeline {
                     run.branch = run.branch.withStatus(result, ChannelBranch.Status.FAILED, stage);
                     publish();
                 }
+                dispatchSnapshots();
             }
         }
 
         /** Worker thread: builds the prompt from earlier stages and submits one attempt. */
         private void runStage(Run run, PipelineStage stage, int generation) {
-            AiGateway.Call call;
+            AiGateway.Call call = null;
             synchronized (lock) {
                 if (run.generation != generation || run.branch.status != ChannelBranch.Status.RUNNING) return;
                 if (run.cancelled) {
                     run.branch = run.branch.withStatus(run.branch.stage(stage), ChannelBranch.Status.CANCELLED, stage);
-                    publish();
-                    return;
+                } else {
+                    StageResult running = run.branch.stage(stage).running(run.branch.stage(stage).attempt + 1, now());
+                    run.branch = run.branch.withStage(running);
+                    run.streamed.setLength(0);
+                    call = new AiGateway.Call(sessionId, run.target.channelId, run.target.connectionRevision,
+                            stage.stepId, AiTaskType.CONTENT_TEXT, prompt(run, stage), tokensFor(stage));
                 }
-                StageResult running = run.branch.stage(stage).running(run.branch.stage(stage).attempt + 1, now());
-                run.branch = run.branch.withStage(running);
-                run.streamed.setLength(0);
-                call = new AiGateway.Call(sessionId, run.target.channelId, run.target.connectionRevision,
-                        stage.stepId, AiTaskType.CONTENT_TEXT, prompt(run, stage), tokensFor(stage));
                 publish();
             }
-            AiGateway.Submission submission = gateway.submit(call, new StageCallback(run, stage, generation));
+            dispatchSnapshots();
+            if (call == null) return;
+            synchronized (lock) {
+                if (run.cancelled) {
+                    StageResult stopped = run.branch.stage(stage).finished(StageResult.Status.CANCELLED, null,
+                            null, null, null, false, now());
+                    run.branch = run.branch.withStatus(stopped, ChannelBranch.Status.CANCELLED, stage);
+                    publish();
+                    call = null;
+                }
+            }
+            if (call == null) {
+                dispatchSnapshots();
+                return;
+            }
+
+            AiGateway.Submission submission;
+            try {
+                submission = gateway.submit(call, new StageCallback(run, stage, generation));
+            } catch (RuntimeException failure) {
+                synchronized (lock) {
+                    StageResult result = run.branch.stage(stage);
+                    if (run.generation != generation || result.status != StageResult.Status.RUNNING) return;
+                    if (run.cancelled) {
+                        result = result.finished(StageResult.Status.CANCELLED, null, null, null, null, false, now());
+                        run.branch = run.branch.withStatus(result, ChannelBranch.Status.CANCELLED, stage);
+                    } else {
+                        result = result.rejected(null, "SUBMISSION_FAILED", null, now());
+                        run.branch = run.branch.withStatus(result, ChannelBranch.Status.FAILED, stage);
+                    }
+                    publish();
+                }
+                dispatchSnapshots();
+                return;
+            }
             boolean cancelNow = false;
             synchronized (lock) {
                 if (run.generation != generation) return;
                 StageResult result = run.branch.stage(stage);
+                // A terminal may already have arrived before submit() returned.
+                if (result.status != StageResult.Status.RUNNING) return;
                 if (!submission.accepted()) {
                     result = result.rejected(submission.requestId, submission.rejection.name(),
                             submission.block == null ? null : submission.block.name(), now());
                     run.branch = run.branch.withStatus(result, ChannelBranch.Status.FAILED, stage);
                     publish();
-                    return;
-                }
-                // The terminal may already have arrived on another thread; then nothing is left to do.
-                if (result.status == StageResult.Status.RUNNING && result.requestId == null) {
+                } else if (result.requestId == null) {
                     run.current = submission;
                     run.branch = run.branch.withStage(result.accepted(submission.requestId));
                     cancelNow = run.cancelled;
@@ -241,6 +281,7 @@ public final class ChannelPipeline {
                 }
             }
             if (cancelNow) submission.cancel();
+            dispatchSnapshots();
         }
 
         private String prompt(Run run, PipelineStage stage) {
@@ -269,13 +310,14 @@ public final class ChannelPipeline {
             public void onEvent(AiEvent event) {
                 if (event.type != AiEvent.Type.TEXT_DELTA) return;
                 synchronized (lock) {
-                    if (run.generation != generation) return;
+                    if (run.generation != generation || run.cancelled) return;
                     StageResult result = run.branch.stage(stage);
                     if (result.status != StageResult.Status.RUNNING) return;
                     run.streamed.append(event.delta);
                     run.branch = run.branch.withStage(result.streaming(run.streamed.toString()));
                     publish(false);
                 }
+                dispatchSnapshots();
             }
 
             @Override
@@ -289,7 +331,16 @@ public final class ChannelPipeline {
                     if (result.status != StageResult.Status.RUNNING) return;
                     String requestId = finished.request.requestId;
                     AiEvent terminal = finished.terminal;
-                    if (terminal.type == AiEvent.Type.COMPLETED && !finished.text.trim().isEmpty()) {
+                    if (run.cancelled || finished.budgetStopped) {
+                        ChannelBranch.Status branchStatus = finished.budgetStopped
+                                ? ChannelBranch.Status.FAILED : ChannelBranch.Status.CANCELLED;
+                        StageResult.Status stageStatus = finished.budgetStopped
+                                ? StageResult.Status.FAILED : StageResult.Status.CANCELLED;
+                        String partial = run.cancelled ? result.text : finished.text;
+                        result = result.finished(stageStatus, requestId, partial, terminal.error,
+                                finished.usage, finished.budgetStopped, now());
+                        run.branch = run.branch.withStatus(result, branchStatus, stage);
+                    } else if (terminal.type == AiEvent.Type.COMPLETED && !finished.text.trim().isEmpty()) {
                         result = result.finished(StageResult.Status.COMPLETED, requestId, finished.text, null,
                                 finished.usage, false, now());
                         if (stage == PipelineStage.RULE_CHECK) {
@@ -312,17 +363,11 @@ public final class ChannelPipeline {
                         }
                         result = result.finished(status, requestId, finished.text, error, finished.usage,
                                 finished.budgetStopped, now());
-                        ChannelBranch.Status branchStatus = run.cancelled && !finished.budgetStopped
-                                ? ChannelBranch.Status.CANCELLED : ChannelBranch.Status.FAILED;
-                        run.branch = run.branch.withStatus(result, branchStatus, stage);
+                        run.branch = run.branch.withStatus(result, ChannelBranch.Status.FAILED, stage);
                     }
                     publish();
-                    if (next != null && run.cancelled) {
-                        run.branch = run.branch.withStatus(run.branch.stage(next), ChannelBranch.Status.CANCELLED, next);
-                        publish();
-                        next = null;
-                    }
                 }
+                dispatchSnapshots();
                 if (next != null) schedule(run, next, generation);
             }
         }
@@ -338,7 +383,38 @@ public final class ChannelPipeline {
             for (Run run : runs.values()) branches.add(run.branch);
             snapshot = new PipelineSnapshot(sessionId, input.briefId, ++revision, branches);
             if (checkpoint) checkpoints.save(snapshot);
-            observer.onSnapshot(snapshot);
+            pendingSnapshots.addLast(snapshot);
+        }
+
+        private void dispatchSnapshots() {
+            synchronized (lock) {
+                if (delivering || pendingSnapshots.isEmpty()) return;
+                delivering = true;
+            }
+            try {
+                workers.execute(this::drainSnapshots);
+            } catch (RejectedExecutionException unavailable) {
+                // Deliver even the terminal snapshot reporting a rejected worker.
+                drainSnapshots();
+            }
+        }
+
+        private void drainSnapshots() {
+            while (true) {
+                PipelineSnapshot next;
+                synchronized (lock) {
+                    next = pendingSnapshots.pollFirst();
+                    if (next == null) {
+                        delivering = false;
+                        return;
+                    }
+                }
+                try {
+                    observer.onSnapshot(next);
+                } catch (RuntimeException ignored) {
+                    // Observer errors cannot interrupt dispatch or delivery of later revisions.
+                }
+            }
         }
     }
 
