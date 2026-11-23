@@ -117,3 +117,18 @@ thành công nhưng chưa xác định được tuổi thọ thực tế trướ
 Page token có `pageExpiresAtEpoch=0` và hạn quyền truy cập dữ liệu
 `2027-02-18T14:52:23Z`, khớp thời hạn hiển thị trên thiết bị.
 [Log chỉ chứa metadata](evidence/sp-065-instagram-token-exchange-2026-11-20.txt) · [App sau khi kết nối lại và đối soát](evidence/sp-065-instagram-token-exchanged-2026-11-20.png)
+
+## Hồi quy kết quả đối soát khi đổi phiên Instagram
+
+Android ràng buộc yêu cầu và kết quả với phiên OAuth và tài khoản Instagram tại lúc bắt đầu thao tác. Nếu kết nối thay đổi khi Graph trả lời, phép đối soát cũ dừng trước khi ghi/xóa attempt hoặc cập nhật giao diện. Nút **Mở bài gốc** kiểm lại scope của permalink ở thời điểm bấm. Nếu POST đã gửi trước khi đổi phiên, app giữ container và media ID đã nhận trên đúng attempt gốc để phiên sau có thể đối soát bằng GET.
+
+`InstagramPublishRepositoryDeviceTest` dùng transport mô phỏng để đổi sang phiên B trước khi GET của A trả về. Các ca bao gồm cùng tài khoản và khác tài khoản, ghi permalink, xóa attempt, lỗi thu hồi token, lỗi I/O và POST đã gửi trước khi reconnect. `MainViewModelInstagramDeviceTest` giữ main thread đến khi worker đã xếp callback A, lưu B rồi kiểm LiveData và nguồn permalink mà nút mở bài sử dụng. [Nhận xét P2](https://github.com/nigPeter2503/Social_Pilot/pull/94#pullrequestreview-6021001092)
+
+Kiểm tra cục bộ cho bản sửa với JDK 21 và Android SDK 36:
+
+| Lệnh từ `android/` | Kết quả |
+| --- | --- |
+| `gradlew.bat :app:assembleDebug :app:testDebugUnitTest :app:lintDebug :app:assembleDebugAndroidTest --offline` | Đạt. Build hai APK, 64/64 unit test, lint 0 lỗi và 11 cảnh báo. |
+| `gradlew.bat :app:connectedDebugAndroidTest --offline` | Dừng trước khi chạy ca test. Gradle báo `No connected devices!`. |
+
+Các góp ý về pending OAuth theo provider và kiểm tra credential chưa rõ hạn trước thao tác ghi production được bàn giao cho SP-022. [Issue SP-022](https://github.com/nigPeter2503/Social_Pilot/issues/24)

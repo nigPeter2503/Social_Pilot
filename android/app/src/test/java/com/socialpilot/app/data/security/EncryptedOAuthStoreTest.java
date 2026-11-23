@@ -56,6 +56,21 @@ public class EncryptedOAuthStoreTest {
         assertEquals("test-facebook-token", reloaded.accessToken());
     }
 
+    @Test public void disconnectedSnapshotDoesNotMatchAfterAnInterveningReconnect() {
+        EncryptedOAuthStore.InstagramSession original = store.instagramSession();
+        store.saveConnected(new OAuthExchangeResponse("instagram-session", "INSTAGRAM", "9876543210",
+                "PROFESSIONAL", "demo_user", "test-instagram-token", null, "bearer", null, "1234567890",
+                java.util.Collections.singletonList("instagram_basic"), "v27.0"));
+        EncryptedOAuthStore.InstagramSession connected = store.instagramSession();
+        assertTrue(store.isCurrentInstagramSession(connected));
+        store.invalidateInstagram(connected.sessionId);
+
+        assertNull(store.instagramConnection());
+        assertFalse(store.isCurrentInstagramSession(original));
+        assertFalse(store.isCurrentInstagramSession(connected));
+        assertTrue(store.isCurrentInstagramSession(store.instagramSession()));
+    }
+
     @Test public void reconnectEncryptionFailurePreservesWholeOldRecord() {
         store.saveConnected(connection("old-page", "fake-old-token"));
         cipher.failEncryption = true;

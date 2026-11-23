@@ -11,6 +11,7 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.lifecycle.ViewModelProvider;
 import com.socialpilot.app.R;
+import com.socialpilot.app.core.FacebookOAuthCoordinator;
 import com.socialpilot.app.databinding.ActivityMainBinding;
 import com.socialpilot.app.data.repository.InstagramPublishRepository;
 import com.socialpilot.app.domain.DraftValidator;
@@ -107,9 +108,9 @@ public final class MainActivity extends AppCompatActivity {
         binding.instagramPublish.setOnClickListener(view -> model.publishInstagram());
         binding.instagramReconcile.setOnClickListener(view -> model.reconcileInstagram());
         binding.instagramOpen.setOnClickListener(view -> {
-            InstagramPublishRepository.Result result = model.instagramResult().getValue();
-            if (result != null && result.permalink != null) {
-                try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(result.permalink))); }
+            String permalink = model.instagramPermalink();
+            if (permalink != null) {
+                try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(permalink))); }
                 catch (RuntimeException failure) { binding.instagramPublishStatus.setText(R.string.instagram_open_error); }
             }
         });
@@ -124,9 +125,9 @@ public final class MainActivity extends AppCompatActivity {
         boolean oauthBusy = oauth != null && (oauth.status == MainViewModel.OAuthStatus.STARTING
                 || oauth.status == MainViewModel.OAuthStatus.EXCHANGING);
         boolean busy = Boolean.TRUE.equals(model.instagramBusy().getValue());
-        boolean approved = Boolean.TRUE.equals(model.instagramApproved().getValue());
         OAuthExchangeResponse connection = model.instagramConnection();
         boolean connected = connection != null;
+        boolean approved = model.isInstagramApprovedFor(connection);
         binding.connectFacebookButton.setEnabled(!oauthBusy && !busy);
         binding.connectInstagramButton.setEnabled(!oauthBusy && !busy);
         binding.instagramImageUrl.setEnabled(connected && !busy && !oauthBusy);
@@ -134,13 +135,14 @@ public final class MainActivity extends AppCompatActivity {
         binding.instagramApprove.setEnabled(connected && !busy && !oauthBusy);
         binding.instagramPublish.setEnabled(connected && approved && !busy && !oauthBusy);
         binding.instagramReconcile.setEnabled(connected && !busy && !oauthBusy);
-        InstagramPublishRepository.Result result = model.instagramResult().getValue();
+        InstagramPublishRepository.Result result = model.instagramResultFor(connection);
         binding.instagramOpen.setEnabled(result != null && result.permalink != null && !busy);
         if (connected) {
             String scopes = android.text.TextUtils.join(", ", connection.grantedScopes);
             String expiry = connection.expiresAt == null ? getString(R.string.instagram_expiry_unknown) : connection.expiresAt;
+            String summary = FacebookOAuthCoordinator.instagramSummary(connection.displayName, connection.externalAccountId);
             binding.instagramAccountStatus.setText(getString(R.string.instagram_connected,
-                    model.connectedInstagramSummary(), connection.linkedPageId, scopes, expiry, connection.graphApiVersion));
+                    summary, connection.linkedPageId, scopes, expiry, connection.graphApiVersion));
         } else {
             binding.instagramAccountStatus.setText(R.string.instagram_not_connected);
         }

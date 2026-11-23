@@ -31,10 +31,13 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import static com.socialpilot.app.data.repository.InstagramPublishRepository.Status.CHECK_REQUIRED;
+import static com.socialpilot.app.data.repository.InstagramPublishRepository.Status.CANCELLED;
+import static com.socialpilot.app.data.repository.InstagramPublishRepository.Status.PUBLISHED;
 import static com.socialpilot.app.data.repository.InstagramPublishRepository.Status.PUBLISHED_ID_UNKNOWN;
 import static com.socialpilot.app.data.repository.InstagramPublishRepository.Status.READY;
 import static com.socialpilot.app.data.repository.InstagramPublishRepository.Status.RECONNECT;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -72,7 +75,9 @@ public final class InstagramPublishRepositoryDeviceTest {
             throw new AssertionError("An expired connection must not make a Graph request");
         }));
 
-        assertEquals(RECONNECT, repository.reconcile().status);
+        InstagramPublishRepository.Result result = reconcile(repository);
+        assertEquals(RECONNECT, result.status);
+        assertTrue(result.isCurrent(connections));
         assertNull(connections.instagramConnection());
         assertEquals(FACEBOOK_TOKEN, connections.accessToken());
     }
@@ -92,11 +97,11 @@ public final class InstagramPublishRepositoryDeviceTest {
             return json(request, 200, "{\"id\":\"" + INSTAGRAM_ID + "\"}");
         }));
 
-        assertEquals(RECONNECT, repository.reconcile().status);
+        assertEquals(RECONNECT, reconcile(repository).status);
         assertNull(connections.instagramConnection());
         assertEquals(FACEBOOK_TOKEN, connections.accessToken());
         saveInstagram("new-test-session", "new-ig-token", null);
-        assertEquals(READY, repository.reconcile().status);
+        assertEquals(READY, reconcile(repository).status);
         assertEquals(FACEBOOK_TOKEN, connections.accessToken());
     }
 
@@ -113,7 +118,9 @@ public final class InstagramPublishRepositoryDeviceTest {
             Uri callback = Uri.parse("socialpilot://oauth/callback?sessionId=denied-instagram-session&error=ACCESS_DENIED");
             coordinator.handleCallback(callback, new FacebookOAuthCoordinator.Listener() {
                 @Override public void onAuthorizationUrl(String url) { finish("UNEXPECTED_AUTHORIZATION"); }
-                @Override public void onConnected(String provider, String name, String id) { finish("UNEXPECTED_CONNECTION"); }
+                @Override public void onConnected(String provider, String name, String id, String session) {
+                    finish("UNEXPECTED_CONNECTION");
+                }
                 @Override public void onFailure(String code) { finish(code); }
 
                 private void finish(String value) {
@@ -156,15 +163,149 @@ public final class InstagramPublishRepositoryDeviceTest {
         ContentVersion version = new ContentVersion("test-version", "test-brief", INSTAGRAM_ID,
                 null, "Test caption", "https://example.test/image.jpg", 1L);
 
-        assertEquals(CHECK_REQUIRED, repository(graph).publish(version, "publish-test-session").status);
+        assertEquals(CHECK_REQUIRED, repository(graph).publish(version, connections.instagramSession()).status);
         InstagramPublishRepository reloaded = repository(graph);
-        assertEquals(PUBLISHED_ID_UNKNOWN, reloaded.reconcile().status);
-        assertEquals(CHECK_REQUIRED, reloaded.publish(version, "publish-test-session").status);
+        assertEquals(PUBLISHED_ID_UNKNOWN, reconcile(reloaded).status);
+        assertEquals(CHECK_REQUIRED, reloaded.publish(version, connections.instagramSession()).status);
         assertEquals(3, requests.get());
     }
 
+    @Test public void lateReadyIsDiscardedAfterSameAccountReconnect() {
+        lateReadyIsDiscarded(INSTAGRAM_ID);
+    }
+
+    @Test public void lateReadyIsDiscardedAfterSwitchingAccounts() {
+        lateReadyIsDiscarded("2222222222");
+    }
+
+    private void lateReadyIsDiscarded(String nextAccount) {
+        saveInstagram("session-a", "token-a", null);
+        InstagramPublishRepository repository = repository(ControlledInstagramGraph.withResponse(chain -> {
+            Request request = chain.request();
+            assertEquals("GET", request.method());
+            if ("Bearer token-a".equals(request.header("Authorization"))) {
+                saveInstagram(nextAccount, "session-b", "token-b", null);
+                return json(request, 200, "{\"id\":\"" + INSTAGRAM_ID + "\"}");
+            }
+            assertEquals("/v27.0/" + nextAccount, request.url().encodedPath());
+            return json(request, 200, "{\"id\":\"" + nextAccount + "\"}");
+        }));
+
+        InstagramPublishRepository.Result stale = reconcile(repository);
+        assertEquals(CANCELLED, stale.status);
+        assertEquals("session-a", stale.session.sessionId);
+        assertFalse(stale.isCurrent(connections));
+        assertEquals("session-b", connections.instagramConnection().sessionId);
+        assertEquals(READY, reconcile(repository).status);
+    }
+
+    @Test public void staleContainerExpiryCannotRemoveAttemptForReconnectedAccount() {
+        saveInstagram("session-a", "token-a", null);
+        saveAttempt("{\"versionId\":\"v1\",\"containerId\":\"5678901234\"}");
+        InstagramPublishRepository repository = repository(ControlledInstagramGraph.withResponse(chain -> {
+            Request request = chain.request();
+            assertEquals("/v27.0/5678901234", request.url().encodedPath());
+            if ("Bearer token-a".equals(request.header("Authorization"))) {
+                saveInstagram("session-b", "token-b", null);
+                return json(request, 200, "{\"status_code\":\"EXPIRED\"}");
+            }
+            return json(request, 200, "{\"status_code\":\"PUBLISHED\"}");
+        }));
+
+        assertEquals(CANCELLED, reconcile(repository).status);
+        assertEquals(PUBLISHED_ID_UNKNOWN, reconcile(repository).status);
+    }
+
+    @Test public void stalePermalinkIsDiscardedAndCanBeReadAgainWithNewSession() {
+        saveInstagram("session-a", "token-a", null);
+        saveAttempt("{\"versionId\":\"v1\",\"containerId\":\"5678901234\",\"mediaId\":\"6789012345\"}");
+        InstagramPublishRepository repository = repository(ControlledInstagramGraph.withResponse(chain -> {
+            Request request = chain.request();
+            assertEquals("/v27.0/6789012345", request.url().encodedPath());
+            String path = "new";
+            if ("Bearer token-a".equals(request.header("Authorization"))) {
+                saveInstagram("session-b", "token-b", null);
+                path = "old";
+            }
+            return json(request, 200, "{\"id\":\"6789012345\",\"permalink\":\"https://www.instagram.com/p/" + path + "/\"}");
+        }));
+
+        assertNull(reconcile(repository).permalink);
+        assertEquals("https://www.instagram.com/p/new/", reconcile(repository).permalink);
+    }
+
+    @Test public void staleAuthorizationFailureCannotInvalidateNewSession() {
+        saveInstagram("session-a", "token-a", null);
+        InstagramPublishRepository repository = repository(ControlledInstagramGraph.withResponse(chain -> {
+            saveInstagram("session-b", "token-b", null);
+            return json(chain.request(), 400, "{\"error\":{\"code\":190}}");
+        }));
+
+        assertEquals(CANCELLED, reconcile(repository).status);
+        assertEquals("session-b", connections.instagramConnection().sessionId);
+        assertEquals(FACEBOOK_TOKEN, connections.accessToken());
+    }
+
+    @Test public void staleIoFailureIsDiscardedAfterReconnect() {
+        saveInstagram("session-a", "token-a", null);
+        InstagramPublishRepository repository = repository(ControlledInstagramGraph.withResponse(chain -> {
+            saveInstagram("session-b", "token-b", null);
+            throw new IOException("Controlled connection failure");
+        }));
+
+        assertEquals(CANCELLED, reconcile(repository).status);
+        assertEquals("session-b", connections.instagramConnection().sessionId);
+    }
+
+    @Test public void publishResponseAfterReconnectKeepsMediaForReadOnlyReconciliation() {
+        saveInstagram("session-a", "token-a", null);
+        AtomicInteger requests = new AtomicInteger();
+        InstagramPublishRepository repository = repository(ControlledInstagramGraph.withResponse(chain -> {
+            Request request = chain.request();
+            int number = requests.incrementAndGet();
+            if (number == 1) {
+                assertEquals("POST", request.method());
+                assertEquals("/v27.0/" + INSTAGRAM_ID + "/media", request.url().encodedPath());
+                return json(request, 200, "{\"id\":\"5678901234\"}");
+            }
+            if (number == 2) {
+                assertEquals("POST", request.method());
+                assertEquals("/v27.0/" + INSTAGRAM_ID + "/media_publish", request.url().encodedPath());
+                saveInstagram("session-b", "token-b", null);
+                return json(request, 200, "{\"id\":\"6789012345\"}");
+            }
+            assertEquals(3, number);
+            assertEquals("GET", request.method());
+            assertEquals("Bearer token-b", request.header("Authorization"));
+            assertEquals("/v27.0/6789012345", request.url().encodedPath());
+            return json(request, 200, "{\"id\":\"6789012345\",\"permalink\":\"https://www.instagram.com/p/new/\"}");
+        }));
+        ContentVersion version = new ContentVersion("test-version", "test-brief", INSTAGRAM_ID,
+                null, "Test caption", "https://example.test/image.jpg", 1L);
+
+        assertEquals(CANCELLED, repository.publish(version, connections.instagramSession()).status);
+        assertEquals(CHECK_REQUIRED, repository.publish(version, connections.instagramSession()).status);
+        InstagramPublishRepository.Result reconciled = reconcile(repository);
+        assertEquals(PUBLISHED, reconciled.status);
+        assertEquals("6789012345", reconciled.mediaId);
+        assertEquals(3, requests.get());
+    }
+
+    private InstagramPublishRepository.Result reconcile(InstagramPublishRepository repository) {
+        return repository.reconcile(connections.instagramSession());
+    }
+
+    private void saveAttempt(String json) {
+        assertTrue(isolatedContext.getSharedPreferences("instagram_feed_spike", Context.MODE_PRIVATE)
+                .edit().putString(INSTAGRAM_ID, json).commit());
+    }
+
     private void saveInstagram(String session, String token, String expiresAt) {
-        connections.saveConnected(new OAuthExchangeResponse(session, "INSTAGRAM", INSTAGRAM_ID,
+        saveInstagram(INSTAGRAM_ID, session, token, expiresAt);
+    }
+
+    private void saveInstagram(String accountId, String session, String token, String expiresAt) {
+        connections.saveConnected(new OAuthExchangeResponse(session, "INSTAGRAM", accountId,
                 "PROFESSIONAL", "test_ig", token, null, "bearer", expiresAt, FACEBOOK_ID,
                 Collections.singletonList("instagram_basic"), "v27.0"));
     }

@@ -30,6 +30,7 @@ public final class EncryptedOAuthStore {
     private final RecordCipher cipher;
     private final Gson gson = new Gson();
     private final Set<String> unavailable = new HashSet<>();
+    private long instagramGeneration;
 
     public EncryptedOAuthStore(Context context) {
         this(context.getApplicationContext().getSharedPreferences("oauth_secure_v1", Context.MODE_PRIVATE),
@@ -74,6 +75,7 @@ public final class EncryptedOAuthStore {
         record.validate(instagram ? "INSTAGRAM" : "FACEBOOK");
         write(instagram ? INSTAGRAM_CONNECTED : CONNECTED, record,
                 instagram ? NO_LEGACY_KEYS : LEGACY_CONNECTED);
+        if (instagram) instagramGeneration++;
     }
 
     public synchronized String pageSummary() {
@@ -90,6 +92,21 @@ public final class EncryptedOAuthStore {
     public synchronized OAuthExchangeResponse instagramConnection() {
         ConnectedRecord record = connected("INSTAGRAM");
         return record == null ? null : record.connection;
+    }
+
+    public synchronized InstagramSession instagramSession() {
+        OAuthExchangeResponse current = instagramConnection();
+        return new InstagramSession(current, instagramGeneration);
+    }
+
+    public synchronized boolean isCurrentInstagramSession(InstagramSession session) {
+        OAuthExchangeResponse current = instagramConnection();
+        return session.matches(current) && session.generation == instagramGeneration;
+    }
+
+    public synchronized OAuthExchangeResponse instagramConnection(InstagramSession session) {
+        OAuthExchangeResponse current = instagramConnection();
+        return session.matches(current) && session.generation == instagramGeneration ? current : null;
     }
 
     public synchronized void invalidateInstagram(String sessionId) {
@@ -156,12 +173,34 @@ public final class EncryptedOAuthStore {
 
     private void invalidate(String name, String[] legacy) {
         unavailable.add(name);
+        if (INSTAGRAM_CONNECTED.equals(name)) instagramGeneration++;
         try {
             SharedPreferences.Editor editor = preferences.edit().remove(name);
             for (String key : legacy) editor.remove(key);
             // Remain unavailable even if cleanup cannot reach disk; a successful save restores access.
             editor.commit();
         } catch (RuntimeException ignored) { }
+    }
+
+    /** In-process identity for a connected or disconnected state, without OAuth credentials. */
+    public static final class InstagramSession {
+        public final String sessionId;
+        public final String accountId;
+        private final long generation;
+
+        private InstagramSession(OAuthExchangeResponse connection, long generation) {
+            sessionId = connection == null ? null : connection.sessionId;
+            accountId = connection == null ? null : connection.externalAccountId;
+            this.generation = generation;
+        }
+
+        public boolean matches(OAuthExchangeResponse connection) {
+            return connection == null ? sessionId == null : matches(connection.sessionId, connection.externalAccountId);
+        }
+
+        public boolean matches(String expectedSessionId, String expectedAccountId) {
+            return sessionId != null && sessionId.equals(expectedSessionId) && accountId.equals(expectedAccountId);
+        }
     }
 
     private static IllegalStateException storageUnavailable() {

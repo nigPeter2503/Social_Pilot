@@ -28,7 +28,7 @@ import retrofit2.converter.gson.GsonConverterFactory;
 public final class FacebookOAuthCoordinator {
     public interface Listener {
         void onAuthorizationUrl(String url);
-        void onConnected(String provider, String displayName, String accountId);
+        void onConnected(String provider, String displayName, String accountId, String sessionId);
         void onFailure(String code);
     }
 
@@ -112,7 +112,8 @@ public final class FacebookOAuthCoordinator {
                 }
                 store.saveConnected(result);
                 main.post(() -> {
-                    busy.set(false); listener.onConnected(result.provider, result.displayName, result.externalAccountId);
+                    busy.set(false);
+                    listener.onConnected(result.provider, result.displayName, result.externalAccountId, result.sessionId);
                 });
             } catch (Exception exception) {
                 busy.set(false); postFailure(listener, exception instanceof OAuthRequestException
@@ -122,11 +123,6 @@ public final class FacebookOAuthCoordinator {
     }
 
     public String connectedPageSummary() { return store.pageSummary(); }
-
-    public String connectedInstagramSummary() {
-        OAuthExchangeResponse connection = store.instagramConnection();
-        return connection == null ? null : instagramSummary(connection.displayName, connection.externalAccountId);
-    }
 
     public static String instagramSummary(String username, String accountId) {
         return "@" + username + " (" + accountId + ")";
