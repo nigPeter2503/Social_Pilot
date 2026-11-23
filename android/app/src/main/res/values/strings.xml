@@ -46,4 +46,31 @@
   <string name="ai_key_store_error">Chưa lưu được key vào kho bảo mật. Vui lòng thử lại.</string>
   <string name="ai_key_delete_error">Chưa xóa được key. Vui lòng thử lại.</string>
   <string name="ai_key_deleted">Đã xóa key của nhà cung cấp này.</string>
+
+  <string name="ai_models_title">Model theo tác vụ</string>
+  <string name="ai_dispatch_locked">Gọi AI đang tạm khóa cho đến khi bật kiểm soát ngân sách dùng chung. Có thể chọn trước model cho từng tác vụ.</string>
+  <string name="ai_dispatch_enabled">Gọi AI đi qua kiểm soát ngân sách dùng chung.</string>
+  <string name="ai_registry_revision">Registry model: %1$s</string>
+  <string name="ai_task_content_text">Viết và chỉnh nội dung</string>
+  <string name="ai_task_comment_classification">Phân loại bình luận</string>
+  <string name="ai_task_comment_reply">Gợi ý trả lời bình luận</string>
+  <string name="ai_task_analytics_report">Báo cáo phân tích</string>
+  <string name="ai_model_none">— Chưa chọn —</string>
+  <string name="ai_model_option">%1$s · %2$s</string>
+  <string name="ai_model_not_selected">Chưa chọn model cho tác vụ này.</string>
+  <string name="ai_model_no_options">Registry chưa có model cho tác vụ này.</string>
+  <string name="ai_model_ready">Model sẵn sàng (đã xác nhận capability và bảng giá %1$s).</string>
+  <string name="ai_model_block_unverified">Model chưa được xác minh; chưa dùng được.</string>
+  <string name="ai_model_block_capability_unknown">Chưa xác nhận model hỗ trợ văn bản dạng stream; chưa dùng được.</string>
+  <string name="ai_model_block_capability_unsupported">Model không hỗ trợ tác vụ này.</string>
+  <string name="ai_model_block_task">Model không được phép cho tác vụ này.</string>
+  <string name="ai_model_block_output_cap">Giới hạn output vượt mức model cho phép.</string>
+  <string name="ai_model_block_price">Chưa có bảng giá có nguồn; không ước tính được chi phí nên chưa dùng được.</string>
+  <string name="ai_model_save_error">Chưa lưu được lựa chọn model. Vui lòng thử lại.</string>
+  <string name="ai_usage_title">Chi phí ước tính</string>
+  <string name="ai_usage_unavailable">Chưa có sổ ghi usage. Chưa có lượt gọi AI nào được thực hiện.</string>
+  <string name="ai_usage_empty">Chưa có lượt gọi AI trong kỳ này.</string>
+  <string name="ai_usage_row">%1$s · %2$s: ước tính %3$s %4$s; đã quyết toán: %5$d, chưa xác định chi phí: %6$d, không gửi: %7$d</string>
+  <string name="ai_dispatch_status">%1$s\n%2$s</string>
+  <string name="ai_usage_note">Đây là ước tính của ứng dụng theo bảng giá đã ghim, không phải hóa đơn nhà cung cấp. Lượt thiếu usage không được tính là 0.</string>
 </resources>
