@@ -29,7 +29,10 @@ public final class OAuthController {
 
     @PostMapping("/{provider}/start")
     public ResponseEntity<OAuthStartResponse> start(@PathVariable String provider, @RequestBody OAuthStartRequest request) {
-        if (!"facebook".equalsIgnoreCase(provider)) throw OAuthFlowException.invalidRedirect();
+        if ((!"facebook".equalsIgnoreCase(provider) && !"instagram".equalsIgnoreCase(provider))
+                || request.provider == null || !provider.equalsIgnoreCase(request.provider)) {
+            throw OAuthFlowException.invalidRedirect();
+        }
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(sessions.start(request));
     }
 
