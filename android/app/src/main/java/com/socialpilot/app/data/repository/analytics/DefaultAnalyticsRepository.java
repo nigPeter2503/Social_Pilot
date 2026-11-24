@@ -8,6 +8,9 @@ import com.socialpilot.app.domain.contract.analytics.AnalyticsTypes.*;
 import com.socialpilot.app.domain.contract.analytics.DashboardData;
 import com.socialpilot.app.domain.contract.analytics.DashboardData.ContentState;
 import com.socialpilot.app.domain.contract.analytics.DashboardQuery;
+import com.socialpilot.app.domain.contract.analytics.DashboardQuery.ChannelScope;
+import com.socialpilot.app.domain.contract.social.SocialError;
+import com.socialpilot.app.domain.contract.social.SocialOperation;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -88,7 +91,7 @@ public final class DefaultAnalyticsRepository implements AnalyticsRepository, Au
                 if (!attempt.available() || attempt.source() != namespace) throw localFailure();
                 // The committed cache read contains successful history across all operations.
                 Batch batch = source.readCached(query);
-                if (!batch.available() || !batch.attempt().equals(attempt.attempt())) throw localFailure();
+                if (!batch.available() || !sameAttempt(attempt.attempt(), batch.attempt())) throw localFailure();
                 DashboardData result = projector.project(query, batch, namespace, clock.nowMillis());
                 deliverTerminal(ticket, () -> guarded(query, () -> {
                     if (!isCurrent(query, generation)) return;
@@ -257,6 +260,30 @@ public final class DefaultAnalyticsRepository implements AnalyticsRepository, Au
     }
     private static SourceFailure localFailure() {
         return new SourceFailure(List.of(new DashboardError(null, null, null, LocalFailure.CACHE_READ_FAILED, null)), false);
+    }
+    private record ErrorValue(ChannelScope scope, SocialOperation operation, LocalFailure localFailure,
+                              Long retryAfterAt, SocialError.Code code, SocialError.NextAction nextAction) {
+        private ErrorValue(DashboardError error) {
+            this(error.scope(), error.operation(), error.localFailure(), error.retryAfterAt(),
+                    error.error() == null ? null : error.error().code,
+                    error.error() == null ? null : error.error().nextAction);
+        }
+    }
+    private static boolean sameAttempt(Attempt expected, Attempt readback) {
+        return Objects.equals(expected.lastSuccessAt(), readback.lastSuccessAt())
+                && Objects.equals(expected.lastAttemptAt(), readback.lastAttemptAt())
+                && expected.state() == readback.state()
+                && expected.offline() == readback.offline()
+                && errorCounts(expected.errors()).equals(errorCounts(readback.errors()));
+    }
+    private static Map<ErrorValue, Integer> errorCounts(List<DashboardError> errors) {
+        Map<ErrorValue, Integer> counts = new HashMap<>();
+        for (DashboardError error : errors) {
+            ErrorValue value = new ErrorValue(error);
+            Integer count = counts.get(value);
+            counts.put(value, count == null ? 1 : count + 1);
+        }
+        return counts;
     }
     @Override public void close() {
         List<Ticket> copy;

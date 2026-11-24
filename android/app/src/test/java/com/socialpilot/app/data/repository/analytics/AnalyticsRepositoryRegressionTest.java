@@ -398,6 +398,55 @@ public final class AnalyticsRepositoryRegressionTest {
         assertEquals(Long.valueOf(20), last().weeklyEngagement().get(0).metric().value());
         assertEquals(LocalFailure.CACHE_READ_FAILED, last().errors().get(0).localFailure());
     }
+    @Test public void deserializedCommittedAttemptPublishesFullPartialProjectionBeforeCallback() {
+        source.raw.cached = contentWithFollower(20, 10);
+        repo.observeCachedDashboard(q, states::add); drain();
+        var originalMetric = last().weeklyEngagement().get(0).metric();
+        DashboardError error = new DashboardError(SCOPE, SocialOperation.READ_POST_METRICS,
+                new SocialError(SocialError.Code.NETWORK_ERROR, SocialError.NextAction.RETRY_WHEN_SAFE), null, null);
+        source.raw.refreshed = new Batch(true, EvidenceSource.MO_PHONG, DEFINITIONS,
+                List.of(new Channel(SCOPE, "MO_PHONG", FOLLOWER.id())), List.of(),
+                List.of(sample(FOLLOWER, SCOPE.channelId(), END, 15L)),
+                new Attempt(END + 7, now, SyncState.ERROR, false, List.of(error)));
+        source.rehydrateReadback = true;
+        AtomicReference<DashboardData> beforeCallback = new AtomicReference<>();
+
+        repo.refresh(q, result -> { beforeCallback.set(last()); results.add(result); });
+        drain();
+
+        assertNotSame(error.error(), source.readbackError);
+        assertEquals(1, results.size());
+        assertEquals(RefreshOutcome.PARTIAL, results.get(0).outcome());
+        assertNotNull(beforeCallback.get());
+        assertEquals(Long.valueOf(15), beforeCallback.get().channelCards().get(0).follower().value());
+        assertEquals(ContentState.CONTENT, last().contentState());
+        assertEquals(SyncState.ERROR, last().syncState());
+        assertEquals(Long.valueOf(15), last().channelCards().get(0).follower().value());
+        var metric = last().weeklyEngagement().get(0).metric();
+        assertEquals(Long.valueOf(20), metric.value());
+        assertEquals(originalMetric.provenance(), metric.provenance());
+        assertEquals(originalMetric.sourceSnapshotIds(), metric.sourceSnapshotIds());
+    }
+    @Test public void changedReadbackErrorCodeCannotPublishAttempt() {
+        source.raw.cached = contentWithFollower(20, 10);
+        repo.observeCachedDashboard(q, states::add); drain();
+        DashboardError error = new DashboardError(SCOPE, SocialOperation.READ_POST_METRICS,
+                new SocialError(SocialError.Code.NETWORK_ERROR, SocialError.NextAction.RETRY_WHEN_SAFE), null, null);
+        source.raw.refreshed = new Batch(true, EvidenceSource.MO_PHONG, DEFINITIONS,
+                List.of(new Channel(SCOPE, "MO_PHONG", FOLLOWER.id())), List.of(),
+                List.of(sample(FOLLOWER, SCOPE.channelId(), END, 15L)),
+                new Attempt(END + 7, now, SyncState.ERROR, false, List.of(error)));
+        source.rehydrateReadback = true;
+        source.changeReadbackCode = true;
+
+        repo.refresh(q, results::add); drain();
+
+        assertEquals(1, results.size());
+        assertEquals(RefreshOutcome.FAILED, results.get(0).outcome());
+        assertEquals(LocalFailure.CACHE_READ_FAILED, results.get(0).errors().get(0).localFailure());
+        assertEquals(Long.valueOf(10), last().channelCards().get(0).follower().value());
+        assertEquals(Long.valueOf(20), last().weeklyEngagement().get(0).metric().value());
+    }
     private static final class Manual implements Executor {
         final Queue<Runnable> tasks = new ArrayDeque<>();
         @Override public void execute(Runnable task) { tasks.add(task); }
@@ -407,9 +456,28 @@ public final class AnalyticsRepositoryRegressionTest {
         final SimulatedAnalyticsSource raw = new SimulatedAnalyticsSource();
         boolean storageFailure;
         Batch cacheOverride;
+        boolean rehydrateReadback;
+        boolean changeReadbackCode;
+        SocialError readbackError;
         Runnable beforeRefresh = () -> {};
         @Override public Batch readCached(DashboardQuery q) throws SourceFailure {
-            return cacheOverride == null ? raw.readCached(q) : cacheOverride;
+            Batch committed = raw.readCached(q);
+            if (cacheOverride != null) return cacheOverride;
+            if (!rehydrateReadback) return committed;
+            List<DashboardError> errors = new ArrayList<>();
+            for (DashboardError error : committed.attempt().errors()) {
+                SocialError social = error.error();
+                SocialError copy = social == null ? null : new SocialError(
+                        changeReadbackCode ? SocialError.Code.RATE_LIMITED : social.code, social.nextAction);
+                readbackError = copy;
+                errors.add(new DashboardError(error.scope(), error.operation(), copy,
+                        error.localFailure(), error.retryAfterAt()));
+            }
+            Attempt attempt = committed.attempt();
+            Attempt copy = new Attempt(attempt.lastSuccessAt(), attempt.lastAttemptAt(),
+                    attempt.state(), attempt.offline(), errors);
+            return new Batch(committed.available(), committed.source(), committed.definitions(),
+                    committed.channels(), committed.posts(), committed.samples(), copy);
         }
         @Override public Batch refreshProjection(DashboardQuery q) throws SourceFailure {
             beforeRefresh.run();
