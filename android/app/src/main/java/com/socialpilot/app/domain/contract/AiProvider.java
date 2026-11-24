@@ -6,6 +6,15 @@ import com.socialpilot.app.domain.contract.ai.AiRequest;
 public interface AiProvider {
     interface Listener {
         void onEvent(AiEvent event);
+
+        /**
+         * Asked by the attempt right before it attaches a provider call, under its own lock. False
+         * means the owner already revoked dispatch (for example a session cancel): the attempt
+         * must not send and ends CANCELLED without dispatch. Must be fast and must not block.
+         */
+        default boolean mayDispatch() {
+            return true;
+        }
     }
 
     /**
