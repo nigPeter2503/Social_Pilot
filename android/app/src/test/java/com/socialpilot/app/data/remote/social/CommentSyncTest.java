@@ -715,6 +715,105 @@ public final class CommentSyncTest {
         assertEquals(3, server.getRequestCount());
     }
 
+    @Test public void nextPage503WithRetryAfterZeroDoesNotAutoRetryAndHonorsCoordinatorBackoff() throws Exception {
+        // Page 1 succeeds with cursor "fixture-position"
+        respond(page(row("c1"), true));
+        // Page 2 hits HTTP 503 with Retry-After: 0
+        server.enqueue(new MockResponse().setResponseCode(503).setHeader("Retry-After", "0").setBody("{}"));
+        // Page 3 queued returning 200
+        respond(page(row("c1") + "," + row("c2"), false));
+
+        Result waitResult = pull(q);
+        assertEquals(WAIT, waitResult.state());
+        assertEquals(SocialError.Code.RATE_LIMITED, waitResult.error().code);
+        // OkHttp must NOT auto-retry on Retry-After: 0; exactly 2 requests sent on first pull
+        assertEquals(2, server.getRequestCount());
+
+        // Checkpoint preserved at MORE with row c1 cached, no lastCompleteSyncAt yet
+        CommentCheckpoint cp = writer.prepare(q).previous;
+        assertNotNull(cp);
+        assertEquals(CommentCheckpoint.State.MORE, cp.state);
+        assertNull(cp.lastCompleteSyncAt);
+        assertEquals(1, view(q).rows().size());
+        assertEquals("c1", view(q).rows().get(0).observation.commentId);
+
+        // Before coordinator backoff deadline: pulls return WAIT without issuing additional HTTP
+        repo = repository(3);
+        clock.set(10_000 + CommentSyncCoordinator.BACKOFF_MS - 1);
+        assertEquals(WAIT, pull(q).state());
+        assertEquals(2, server.getRequestCount());
+
+        // After coordinator backoff deadline: pull issues request 3
+        clock.set(10_000 + CommentSyncCoordinator.BACKOFF_MS);
+        assertEquals(COMPLETE, pull(q).state());
+
+        // Verify cursors across all three requests
+        assertNull(position());                       // request 1: first page, no after param
+        assertEquals("fixture-position", position()); // request 2: 503 page, used cursor from page 1
+        assertEquals("fixture-position", position()); // request 3: retry reuses same cursor from checkpoint
+
+        // Verify dedup and final data
+        var cached = view(q);
+        assertEquals(CommentCheckpoint.State.COMPLETE, cached.paging());
+        assertEquals(2, cached.rows().size());
+        assertEquals(Long.valueOf(10_000 + CommentSyncCoordinator.BACKOFF_MS), cached.lastCompleteSyncAt());
+        assertNull(cached.error());
+        assertEquals(3, server.getRequestCount());
+    }
+
+    @Test public void nextPage503WithSlowBodyPreservesRetryAfterAndResumesAfterDeadline() throws Exception {
+        // Configure OkHttpClient with short read timeout
+        client = client.newBuilder().readTimeout(250, TimeUnit.MILLISECONDS).build();
+        repo = repository(3);
+
+        // Page 1 succeeds with cursor "fixture-position"
+        respond(page(row("c1"), true));
+        // Page 2 returns 503 header with Retry-After: 120 immediately, but body is delayed past read timeout
+        server.enqueue(new MockResponse()
+                .setResponseCode(503)
+                .setHeader("Retry-After", "120")
+                .setBody("{}")
+                .setBodyDelay(750, TimeUnit.MILLISECONDS));
+
+        Result waitResult = pull(q);
+        assertEquals(WAIT, waitResult.state());
+        assertEquals(SocialError.Code.RATE_LIMITED, waitResult.error().code);
+        // Deadline is computed as clock + 120_000 (10_000 + 120_000 = 130_000) instead of 40_000 generic backoff
+        assertEquals(Long.valueOf(10_000 + 120_000), waitResult.retryAt());
+
+        // Checkpoint preserved at MORE with row c1 cached, no lastCompleteSyncAt yet
+        CommentCheckpoint cp = writer.prepare(q).previous;
+        assertNotNull(cp);
+        assertEquals(CommentCheckpoint.State.MORE, cp.state);
+        assertNull(cp.lastCompleteSyncAt);
+        assertEquals(1, view(q).rows().size());
+        assertEquals("c1", view(q).rows().get(0).observation.commentId);
+
+        // Before deadline: pulls return WAIT without issuing additional HTTP
+        repo = repository(3);
+        clock.set(129_999);
+        assertEquals(WAIT, pull(q).state());
+        assertEquals(2, server.getRequestCount());
+
+        // At deadline: advance clock, enqueue page 2 success with dedup c1 + new c2
+        clock.set(130_000);
+        respond(page(row("c1") + "," + row("c2"), false));
+
+        assertEquals(COMPLETE, pull(q).state());
+        // Verify cursors across all three requests
+        assertNull(position());                       // request 1: first page, no after param
+        assertEquals("fixture-position", position()); // request 2: 503 page, used cursor from page 1
+        assertEquals("fixture-position", position()); // request 3: retry reuses same cursor from checkpoint
+
+        // Verify dedup and final data
+        var cached = view(q);
+        assertEquals(CommentCheckpoint.State.COMPLETE, cached.paging());
+        assertEquals(2, cached.rows().size());
+        assertEquals(Long.valueOf(130_000), cached.lastCompleteSyncAt());
+        assertNull(cached.error());
+        assertEquals(3, server.getRequestCount());
+    }
+
     @Test public void invalidatedRevisionCannotReadOrJoinFreshRevision() throws Exception {
         CommentCache.WorkKey old = repo.prepareWork(q);
         blockFirst(page(row("old"), false), page(row("new"), false));
