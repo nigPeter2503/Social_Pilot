@@ -7,6 +7,11 @@ import com.socialpilot.app.domain.contract.secret.SecretRead;
 import com.socialpilot.app.domain.contract.secret.SecretRef;
 import com.socialpilot.app.domain.contract.secret.SecretStoreException;
 import com.socialpilot.app.testing.MemoryPreferences;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -35,6 +40,30 @@ public class EncryptedSecretStoreTest {
         assertEquals(FAKE_KEY, read.value);
         assertEquals(revision, read.revision);
         assertFalse(read.toString().contains(FAKE_KEY));
+    }
+
+    @Test public void concurrentFirstWritesAcrossInstancesKeepBothRecordsReadable() throws Exception {
+        FirstWriteCipher firstWriteCipher = new FirstWriteCipher();
+        EncryptedSecretStore openAiStore = new EncryptedSecretStore(SecretNamespace.AI_PROVIDER, preferences, firstWriteCipher);
+        EncryptedSecretStore geminiStore = new EncryptedSecretStore(SecretNamespace.AI_PROVIDER, preferences, firstWriteCipher);
+        String geminiKey = "fake-key-gemini-0000000000";
+        ExecutorService workers = Executors.newFixedThreadPool(2);
+        try {
+            Future<String> openAi = workers.submit(() -> openAiStore.write(OPENAI, FAKE_KEY));
+            assertTrue(firstWriteCipher.firstLookup.await(5, TimeUnit.SECONDS));
+            Future<String> gemini = workers.submit(() -> geminiStore.write(GEMINI, geminiKey));
+            String openAiRevision = openAi.get(5, TimeUnit.SECONDS);
+            String geminiRevision = gemini.get(5, TimeUnit.SECONDS);
+
+            EncryptedSecretStore reopened = new EncryptedSecretStore(
+                    SecretNamespace.AI_PROVIDER, preferences.reboot(), firstWriteCipher);
+            assertEquals(FAKE_KEY, reopened.read(OPENAI).value);
+            assertEquals(openAiRevision, reopened.read(OPENAI).revision);
+            assertEquals(geminiKey, reopened.read(GEMINI).value);
+            assertEquals(geminiRevision, reopened.read(GEMINI).revision);
+        } finally {
+            workers.shutdownNow();
+        }
     }
 
     @Test public void everyWriteGetsANewRevision() throws Exception {
@@ -150,6 +179,38 @@ public class EncryptedSecretStoreTest {
         preferences.edit().putString("secret.channel-1", socialFile.getString("secret.channel-1", null)).commit();
         assertEquals(SecretRead.Status.UNREADABLE,
                 store.read(new SecretRef(SecretNamespace.AI_PROVIDER, "channel-1")).status);
+    }
+
+    /** Models alias replacement if two callers observe the same missing Keystore alias. */
+    private static final class FirstWriteCipher implements RecordCipher {
+        final CountDownLatch firstLookup = new CountDownLatch(1);
+        private final CountDownLatch secondLookup = new CountDownLatch(1);
+        private final CountDownLatch firstGenerated = new CountDownLatch(1);
+        private volatile byte alias;
+
+        @Override public String encrypt(String name, String plaintext) throws Exception {
+            byte key = alias;
+            if (key == 0) {
+                if (name.endsWith(OPENAI.id)) {
+                    firstLookup.countDown();
+                    // This wait expires when the second writer is correctly blocked outside the cipher.
+                    secondLookup.await(1, TimeUnit.SECONDS);
+                    key = 1;
+                    alias = key;
+                    firstGenerated.countDown();
+                } else {
+                    secondLookup.countDown();
+                    assertTrue(firstGenerated.await(5, TimeUnit.SECONDS));
+                    key = 2;
+                    alias = key;
+                }
+            }
+            return new TestRecordCipher(key).encrypt(name, plaintext);
+        }
+
+        @Override public String decrypt(String name, String ciphertext) throws Exception {
+            return new TestRecordCipher(alias).decrypt(name, ciphertext);
+        }
     }
 
     @Test public void referenceRoundTripsAsOpaqueText() {
