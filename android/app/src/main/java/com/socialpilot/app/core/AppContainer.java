@@ -7,9 +7,11 @@ import androidx.room.Room;
 import androidx.work.WorkManager;
 import com.socialpilot.app.BuildConfig;
 import com.socialpilot.app.data.local.AppDatabase;
-import com.socialpilot.app.data.repository.DraftRepository;
 import com.socialpilot.app.data.prototype.PrototypeDatabase;
 import com.socialpilot.app.data.prototype.SampleRepository;
+import com.socialpilot.app.data.repository.DraftRepository;
+import com.socialpilot.app.data.repository.InstagramPublishRepository;
+import com.socialpilot.app.data.security.EncryptedOAuthStore;
 import com.socialpilot.app.prototype.DemoStreamCoordinator;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -22,6 +24,8 @@ public final class AppContainer {
     public final SampleRepository sampleResults;
     public final DemoStreamCoordinator sampleStreams;
     public final FacebookOAuthCoordinator facebookOAuth;
+    public final EncryptedOAuthStore oauthStore;
+    public final InstagramPublishRepository instagram;
     public AppContainer(Context context) {
         database = Room.databaseBuilder(context.getApplicationContext(), AppDatabase.class, "socialpilot.db").build();
         drafts = new DraftRepository(database.drafts(), io);
@@ -36,6 +40,8 @@ public final class AppContainer {
                 main.postDelayed(action, delay));
         sampleResults.markInterruptedOnOpen();
         sampleResults.reconcileWorkOnOpen(WorkManager.getInstance(context.getApplicationContext()));
-        facebookOAuth = new FacebookOAuthCoordinator(context, io, BuildConfig.OAUTH_API_BASE_URL);
+        oauthStore = new EncryptedOAuthStore(context);
+        instagram = new InstagramPublishRepository(context, oauthStore);
+        facebookOAuth = new FacebookOAuthCoordinator(oauthStore, io, BuildConfig.OAUTH_API_BASE_URL);
     }
 }
