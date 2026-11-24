@@ -18,6 +18,8 @@ import com.socialpilot.app.data.local.AppDatabase;
 import com.socialpilot.app.data.prototype.PrototypeDatabase;
 import com.socialpilot.app.data.prototype.SampleRepository;
 import com.socialpilot.app.data.repository.DraftRepository;
+import com.socialpilot.app.data.repository.InstagramPublishRepository;
+import com.socialpilot.app.data.security.EncryptedOAuthStore;
 import com.socialpilot.app.data.security.EncryptedSecretStore;
 import com.socialpilot.app.domain.contract.ai.AttemptLedger;
 import com.socialpilot.app.domain.contract.ai.ModelRegistry;
@@ -38,6 +40,8 @@ public final class AppContainer {
     public final SampleRepository sampleResults;
     public final DemoStreamCoordinator sampleStreams;
     public final FacebookOAuthCoordinator facebookOAuth;
+    public final EncryptedOAuthStore oauthStore;
+    public final InstagramPublishRepository instagram;
     /** Social-token namespace for SP-022; separate file and Keystore key from AI keys. */
     public final SecretStore socialSecrets;
     public final AiKeyRepository aiKeys;
@@ -63,7 +67,9 @@ public final class AppContainer {
                 main.postDelayed(action, delay));
         sampleResults.markInterruptedOnOpen();
         sampleResults.reconcileWorkOnOpen(WorkManager.getInstance(app));
-        facebookOAuth = new FacebookOAuthCoordinator(context, io, BuildConfig.OAUTH_API_BASE_URL);
+        oauthStore = new EncryptedOAuthStore(app);
+        instagram = new InstagramPublishRepository(app, oauthStore);
+        facebookOAuth = new FacebookOAuthCoordinator(oauthStore, io, BuildConfig.OAUTH_API_BASE_URL);
         socialSecrets = new EncryptedSecretStore(app, SecretNamespace.SOCIAL_TOKEN);
         aiKeys = new AiKeyRepository(new EncryptedSecretStore(app, SecretNamespace.AI_PROVIDER),
                 app.getSharedPreferences("ai_key_status_v1", Context.MODE_PRIVATE),
