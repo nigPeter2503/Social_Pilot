@@ -93,11 +93,11 @@ public final class AiKeysViewModel extends AndroidViewModel {
             return false;
         }
         int generation = begin(provider, Busy.SAVING);
-        io.execute(() -> {
+        keys.enqueueStorage(provider, io, () -> {
             try {
                 KeyStatus saved = keys.save(provider, key);
                 if (!post(provider, generation, state -> state.with(saved, Busy.CHECKING, null, Notice.NONE))) return;
-                verify(provider, generation);
+                io.execute(() -> verify(provider, generation));
             } catch (SecretStoreException failure) {
                 KeyStatus status = keys.status(provider);
                 post(provider, generation, state -> state.with(status, Busy.NONE, null, Notice.STORE_ERROR));
@@ -113,7 +113,7 @@ public final class AiKeysViewModel extends AndroidViewModel {
 
     public void delete(Provider provider) {
         int generation = begin(provider, Busy.DELETING);
-        io.execute(() -> {
+        keys.enqueueStorage(provider, io, () -> {
             try {
                 KeyStatus status = keys.delete(provider);
                 post(provider, generation, state -> state.with(status, Busy.NONE, null, Notice.DELETED));
@@ -135,7 +135,7 @@ public final class AiKeysViewModel extends AndroidViewModel {
 
     private void load(Provider provider) {
         int generation = generations.get(provider);
-        io.execute(() -> {
+        keys.enqueueStorage(provider, io, () -> {
             KeyStatus status = keys.status(provider);
             post(provider, generation, state -> state.with(status, Busy.NONE, null, Notice.NONE));
         });

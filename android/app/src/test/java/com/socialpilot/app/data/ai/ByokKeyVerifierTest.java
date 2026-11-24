@@ -104,6 +104,17 @@ public final class ByokKeyVerifierTest {
         assertOutcome(TIMEOUT, verifier.prepare(OPENAI, KEY).run());
     }
 
+    @Test public void statusBasedOutcomesDoNotDependOnTheBodyArriving() {
+        ByokKeyVerifier shortRead = new ByokKeyVerifier(Map.of(OPENAI, server.url("/v1/models")), 250);
+        Map<Integer, Outcome> cases = Map.of(401, INVALID_KEY, 403, PERMISSION_DENIED, 429, RATE_LIMITED,
+                408, TIMEOUT, 503, PROVIDER_UNAVAILABLE, 504, TIMEOUT);
+        for (Map.Entry<Integer, Outcome> expected : cases.entrySet()) {
+            server.enqueue(json(expected.getKey(), "{}").setBodyDelay(750, TimeUnit.MILLISECONDS));
+            assertEquals("HTTP " + expected.getKey(), expected.getValue(), shortRead.prepare(OPENAI, KEY).run());
+        }
+        assertEquals(cases.size(), server.getRequestCount());
+    }
+
     @Test public void retryAfterZeroOn503StillUsesOnlyOneRequest() {
         server.enqueue(json(503, "{}").addHeader("Retry-After", "0"));
         server.enqueue(json(200, "{\"data\":[]}"));

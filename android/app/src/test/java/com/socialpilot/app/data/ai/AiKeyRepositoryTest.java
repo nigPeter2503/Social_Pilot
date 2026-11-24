@@ -86,6 +86,23 @@ public final class AiKeyRepositoryTest {
         assertTrue(afterRestart.usable());
     }
 
+    @Test public void recheckingAValidKeyWithSlowUnauthorizedBodyRevokesUsability() throws Exception {
+        repository.save(OPENAI, KEY_A);
+        server.enqueue(json(200, "{\"data\":[]}"));
+        assertTrue(repository.prepareVerification(OPENAI).run().status.usable());
+
+        AiKeyRepository rechecking = new AiKeyRepository(secrets, statusFile,
+                new ByokKeyVerifier(Map.of(OPENAI, server.url("/v1/models")), 250), () -> online, () -> now);
+        server.enqueue(json(401, "{}").setBodyDelay(750, TimeUnit.MILLISECONDS));
+        CheckResult result = rechecking.prepareVerification(OPENAI).run();
+
+        assertEquals(Outcome.INVALID_KEY, result.outcome);
+        assertEquals(INVALID, result.status.state);
+        assertFalse(result.status.usable());
+        assertEquals(INVALID, repository(statusFile.reboot()).status(OPENAI).state);
+        assertEquals(2, server.getRequestCount());
+    }
+
     @Test public void wrongRevokedAndPermissionOutcomesAreDistinctStates() throws Exception {
         repository.save(OPENAI, KEY_A);
         server.enqueue(json(401, "{}"));

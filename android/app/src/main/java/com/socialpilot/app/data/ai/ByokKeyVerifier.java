@@ -118,21 +118,23 @@ public final class ByokKeyVerifier {
 
     static Outcome classify(Provider provider, Response response) throws IOException {
         int status = response.code();
-        JsonObject body = json(response);
+        if (status == 401) return Outcome.INVALID_KEY;
+        if (status == 403) return Outcome.PERMISSION_DENIED;
+        if (status == 429) return Outcome.RATE_LIMITED;
+        if (status == 408 || status == 504) return Outcome.TIMEOUT;
+        if (status >= 500 && status < 600) return Outcome.PROVIDER_UNAVAILABLE;
+
         if (status == 200) {
+            JsonObject body = json(response);
             String list = provider == Provider.OPENAI ? "data" : "models";
             JsonElement items = body == null ? null : body.get(list);
             // A captive portal or proxy page is not proof that the provider accepted the key.
             return items instanceof JsonArray ? Outcome.VALID : Outcome.UNEXPECTED_RESPONSE;
         }
-        if (status == 401) return Outcome.INVALID_KEY;
-        if (status == 400 && provider == Provider.GEMINI && hasReason(body, "API_KEY_INVALID", "API_KEY_EXPIRED")) {
+        if (status == 400 && provider == Provider.GEMINI
+                && hasReason(json(response), "API_KEY_INVALID", "API_KEY_EXPIRED")) {
             return Outcome.INVALID_KEY;
         }
-        if (status == 403) return Outcome.PERMISSION_DENIED;
-        if (status == 429) return Outcome.RATE_LIMITED;
-        if (status == 408 || status == 504) return Outcome.TIMEOUT;
-        if (status >= 500) return Outcome.PROVIDER_UNAVAILABLE;
         return Outcome.UNEXPECTED_RESPONSE;
     }
 

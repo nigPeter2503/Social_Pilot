@@ -13,12 +13,16 @@ import com.socialpilot.app.domain.contract.secret.SecretRead;
 import com.socialpilot.app.domain.contract.secret.SecretRef;
 import com.socialpilot.app.domain.contract.secret.SecretStore;
 import com.socialpilot.app.domain.contract.secret.SecretStoreException;
+import java.util.ArrayDeque;
+import java.util.EnumMap;
+import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 
 /**
  * BYOK keys per provider. The key lives only in the AI namespace of the encrypted store; the
  * plain status file holds the check result bound to the key revision, never key material.
- * All methods do I/O and must run off the main thread.
+ * Synchronous storage operations and verification must run off the main thread.
  */
 // commit() is deliberate: callers are already on a worker, and a lost status write only falls
 // back to UNVERIFIED, which never enables provider calls.
@@ -68,6 +72,7 @@ public final class AiKeyRepository {
     private final NetworkStatus network;
     private final Clock clock;
     private final Gson gson = new Gson();
+    private final Map<Provider, KeyStorageQueue> storageQueues = new EnumMap<>(Provider.class);
 
     public AiKeyRepository(SecretStore store, SharedPreferences statusFile, ByokKeyVerifier verifier,
                            NetworkStatus network, Clock clock) {
@@ -79,6 +84,7 @@ public final class AiKeyRepository {
         this.verifier = Objects.requireNonNull(verifier);
         this.network = Objects.requireNonNull(network);
         this.clock = Objects.requireNonNull(clock);
+        for (Provider provider : Provider.values()) storageQueues.put(provider, new KeyStorageQueue());
     }
 
     public static SecretRef reference(Provider provider) {
@@ -96,6 +102,11 @@ public final class AiKeyRepository {
             if (character <= ' ' || character > '~') throw new IllegalArgumentException("Invalid key character");
         }
         return key;
+    }
+
+    /** Queues UI storage work across screen instances. Loads wait for earlier saves and deletes. */
+    public void enqueueStorage(Provider provider, Executor worker, Runnable operation) {
+        storageQueues.get(provider).enqueue(worker, operation);
     }
 
     public synchronized KeyStatus status(Provider provider) {
@@ -204,6 +215,38 @@ public final class AiKeyRepository {
 
     private static String statusName(Provider provider) {
         return "status." + provider.name();
+    }
+
+    /** At most one worker in the shared I/O pool runs this provider's storage work at a time. */
+    private static final class KeyStorageQueue {
+        private final ArrayDeque<Runnable> pending = new ArrayDeque<>();
+
+        void enqueue(Executor worker, Runnable operation) {
+            synchronized (pending) {
+                pending.addLast(operation);
+                if (pending.size() > 1) return;
+            }
+            scheduleNext(worker);
+        }
+
+        private void scheduleNext(Executor worker) {
+            Runnable next;
+            synchronized (pending) {
+                next = pending.getFirst();
+            }
+            worker.execute(() -> {
+                try {
+                    next.run();
+                } finally {
+                    boolean hasMore;
+                    synchronized (pending) {
+                        pending.removeFirst();
+                        hasMore = !pending.isEmpty();
+                    }
+                    if (hasMore) scheduleNext(worker);
+                }
+            });
+        }
     }
 
     private static final class StatusRecord {
