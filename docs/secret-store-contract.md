@@ -24,6 +24,7 @@ Gói `com.socialpilot.app.domain.contract.secret`. Dùng `AppContainer.socialSec
 - `UNREADABLE` nghĩa là cần người dùng kết nối/nhập lại, **không** phải token bị provider thu hồi. Phân loại thu hồi/hết hạn vẫn thuộc SP-022.
 - `revision` dùng để bỏ kết quả muộn gắn với giá trị cũ (ví dụ callback refresh token về sau khi đã reconnect).
 - Mọi method làm I/O Keystore/đĩa, gọi trên worker. Không log value; `toString()` của `SecretRef`/`SecretRead` không chứa secret.
+- Các instance dùng cùng file của namespace đồng bộ từ lúc lấy hoặc tạo khóa qua mã hóa đến khi commit. Hai lượt ghi đầu tiên đồng thời vẫn dùng chung một alias và đọc lại được cả hai record.
 - Khi khóa Keystore bị vô hiệu vĩnh viễn, lần **ghi** kế tiếp tạo khóa mới cho namespace đó; các record cũ của namespace vốn đã `UNREADABLE`.
 
 ## 3. BYOK cho SP-028 và UI
@@ -56,11 +57,11 @@ Kết quả kiểm tra tạm thời **không** đổi trạng thái key và khô
 
 | Ca | Kết quả |
 |---|---|
-| `EncryptedSecretStoreTest` (12): round trip sau restart, không plaintext trên đĩa/tên record, revision mới mỗi lần ghi, lỗi mã hóa giữ key cũ, commit lỗi không trả giá trị chưa xác nhận, mất khóa Keystore → `UNREADABLE` rồi ghi lại được, ciphertext hỏng/version lạ, hoán đổi ciphertext, xóa đúng reference, cô lập namespace, parse reference | Chạy JVM, đạt |
+| `EncryptedSecretStoreTest` (15): hai lượt ghi đầu tiên trên cùng namespace, round trip sau restart, không plaintext trên đĩa/tên record, revision mới mỗi lần ghi, lỗi mã hóa giữ key cũ, commit lỗi không trả giá trị chưa xác nhận, mất khóa Keystore → `UNREADABLE` rồi ghi lại được, ciphertext hỏng/version lạ, hoán đổi ciphertext, xóa đúng reference, cô lập namespace, parse reference | Chạy JVM, đạt |
 | `ByokKeyVerifierTest` (12, MockWebServer): host/scheme production, header đúng provider và không có key trong URL/body, 401/Gemini 400 → sai key, 400 khác không bị coi là sai key, 403, 429/5xx/504, ngắt kết nối/timeout, không theo redirect, 200 không phải JSON provider, hủy giữa chừng | Chạy JVM, đạt |
 | `AiKeyRepositoryTest` (15): lưu UNVERIFIED không gọi mạng, từ chối key sai định dạng, VALID bền sau restart, INVALID/PERMISSION_DENIED tách biệt, lỗi tạm giữ trạng thái cũ, offline không gửi request, kiểm tra cũ không đánh dấu key mới hợp lệ, hủy, xóa một provider không đụng provider/social token khác, lỗi kho giữ key cũ | Chạy JVM, đạt |
 | `BackupExclusionTest` (3): manifest và hai file rule | Chạy JVM, đạt |
-| `EncryptedSecretStoreDeviceTest` (3): Keystore thật, mất alias → `UNREADABLE` → ghi lại, namespace tách | Đạt trên emulator API 37, xem [bằng chứng](evidence/sp-027-device-check-2026-11-23.md). API 23 **NOT_RUN** |
+| `EncryptedSecretStoreDeviceTest` (4): Keystore thật, hai lượt ghi đầu tiên qua hai instance, mất alias → `UNREADABLE` → ghi lại, namespace tách | Đạt trên emulator API 37, xem [bằng chứng](evidence/sp-027-device-check-2026-11-23.md). API 23 **NOT_RUN** |
 | Luồng UI thủ công: lưu/kiểm tra/restart/offline/xóa với key giả | Đạt trên emulator API 37, cùng file bằng chứng |
 | Key hợp lệ thật với OpenAI/Gemini (`VALID`) | **NOT_RUN** — chưa có key được cấp cho phép thử. Key giả đã được hai provider thật từ chối đúng (`INVALID`). Không gửi key qua PR/chat |
 

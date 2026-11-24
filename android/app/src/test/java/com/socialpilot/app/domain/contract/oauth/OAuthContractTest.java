@@ -28,7 +28,15 @@ public class OAuthContractTest {
         assertEquals(examples.get("oauthHandoffExchangeRequest"), gson.toJsonTree(oauthHandoffExchangeRequest));
         OAuthContract.OAuthExchangeResponse oauthExchangeResponse = gson.fromJson(examples.get("oauthExchangeResponse"), OAuthContract.OAuthExchangeResponse.class);
         oauthExchangeResponse.validate();
-        assertEquals(examples.get("oauthExchangeResponse"), gson.toJsonTree(oauthExchangeResponse));
+        JsonObject legacyExchange = gson.toJsonTree(oauthExchangeResponse).getAsJsonObject();
+        assertTrue(legacyExchange.remove("linkedPageId").isJsonNull());
+        assertTrue(legacyExchange.remove("grantedScopes").isJsonNull());
+        assertTrue(legacyExchange.remove("graphApiVersion").isJsonNull());
+        assertEquals(examples.get("oauthExchangeResponse"), legacyExchange);
+        OAuthContract.OAuthExchangeResponse instagram = gson.fromJson(examples.get("instagramOAuthExchangeResponse"),
+                OAuthContract.OAuthExchangeResponse.class);
+        instagram.validate();
+        assertEquals(examples.get("instagramOAuthExchangeResponse"), gson.toJsonTree(instagram));
         OAuthContract.OAuthFailure oauthFailure = gson.fromJson(examples.get("oauthFailure"), OAuthContract.OAuthFailure.class);
         oauthFailure.validate();
         assertEquals(examples.get("oauthFailure"), gson.toJsonTree(oauthFailure));
