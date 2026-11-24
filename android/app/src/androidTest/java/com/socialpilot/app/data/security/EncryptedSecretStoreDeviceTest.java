@@ -10,6 +10,11 @@ import com.socialpilot.app.domain.contract.secret.SecretNamespace;
 import com.socialpilot.app.domain.contract.secret.SecretRead;
 import com.socialpilot.app.domain.contract.secret.SecretRef;
 import java.security.KeyStore;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -47,6 +52,38 @@ public class EncryptedSecretStoreDeviceTest {
         assertEquals(FAKE_KEY, read.value);
         assertEquals(revision, read.revision);
         for (Object value : aiFile.getAll().values()) assertFalse(String.valueOf(value).contains(FAKE_KEY));
+    }
+
+    @Test public void concurrentFirstWritesShareOneKeystoreAlias() throws Exception {
+        SecretRef gemini = new SecretRef(SecretNamespace.AI_PROVIDER, "llm.gemini");
+        String geminiKey = "fake-device-test-key-0000000002";
+        EncryptedSecretStore first = store(SecretNamespace.AI_PROVIDER, aiFile);
+        EncryptedSecretStore second = store(SecretNamespace.AI_PROVIDER, aiFile);
+        ExecutorService workers = Executors.newFixedThreadPool(2);
+        CountDownLatch start = new CountDownLatch(1);
+        try {
+            Future<String> openAiWrite = workers.submit(() -> {
+                assertTrue(start.await(5, TimeUnit.SECONDS));
+                return first.write(OPENAI, FAKE_KEY);
+            });
+            Future<String> geminiWrite = workers.submit(() -> {
+                assertTrue(start.await(5, TimeUnit.SECONDS));
+                return second.write(gemini, geminiKey);
+            });
+            start.countDown();
+            String firstRevision = openAiWrite.get(10, TimeUnit.SECONDS);
+            String secondRevision = geminiWrite.get(10, TimeUnit.SECONDS);
+
+            EncryptedSecretStore reopened = store(SecretNamespace.AI_PROVIDER, aiFile);
+            SecretRead openAi = reopened.read(OPENAI);
+            SecretRead geminiRead = reopened.read(gemini);
+            assertEquals(FAKE_KEY, openAi.value);
+            assertEquals(firstRevision, openAi.revision);
+            assertEquals(geminiKey, geminiRead.value);
+            assertEquals(secondRevision, geminiRead.revision);
+        } finally {
+            workers.shutdownNow();
+        }
     }
 
     @Test public void deletedKeystoreKeyGivesUnreadableThenRecoversOnWrite() throws Exception {
