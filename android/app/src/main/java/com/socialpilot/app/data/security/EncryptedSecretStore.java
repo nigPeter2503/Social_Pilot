@@ -11,8 +11,8 @@ import com.socialpilot.app.domain.contract.secret.SecretStoreException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.WeakHashMap;
 import java.util.UUID;
+import java.util.WeakHashMap;
 
 /**
  * One namespace per private preferences file and Keystore alias. Each reference is one
@@ -25,7 +25,7 @@ public final class EncryptedSecretStore implements SecretStore {
     private final SharedPreferences preferences;
     private final RecordCipher cipher;
     private final Gson gson = new Gson();
-    /** SharedPreferences shares one memory-first map across stores using the same file. */
+    /** Stores sharing a namespace file share the lock for both its Keystore alias and its edits. */
     private static final Map<SharedPreferences, Map<String, String>> ROLLBACKS = new WeakHashMap<>();
     private final Map<String, String> pendingRollback;
 
@@ -60,14 +60,16 @@ public final class EncryptedSecretStore implements SecretStore {
         String name = name(ref);
         if (secret == null || secret.isEmpty()) throw new IllegalArgumentException("Empty secret");
         Record record = new Record(ref.opaque(), secret, UUID.randomUUID().toString());
-        final String encrypted;
-        try {
-            // Encrypt fully before touching preferences, so an encryption failure changes nothing.
-            encrypted = cipher.encrypt(associatedData(name), gson.toJson(record));
-        } catch (Exception failure) {
-            throw new SecretStoreException(SecretStoreException.Reason.ENCRYPTION_FAILED);
+        synchronized (pendingRollback) {
+            final String encrypted;
+            try {
+                // Serialize key lookup/creation and encryption with commit.
+                encrypted = cipher.encrypt(associatedData(name), gson.toJson(record));
+            } catch (Exception failure) {
+                throw new SecretStoreException(SecretStoreException.Reason.ENCRYPTION_FAILED);
+            }
+            commitLocked(name, encrypted);
         }
-        commit(name, encrypted);
         return record.revision;
     }
 
@@ -99,41 +101,42 @@ public final class EncryptedSecretStore implements SecretStore {
 
     @Override
     public void delete(SecretRef ref) throws SecretStoreException {
-        commit(name(ref), null);
+        String name = name(ref);
+        synchronized (pendingRollback) {
+            commitLocked(name, null);
+        }
     }
 
-    private void commit(String name, String value) throws SecretStoreException {
-        synchronized (pendingRollback) {
-            // Keep the last confirmed ciphertext (or absence) before touching the in-memory map.
-            String previous;
-            try {
-                if (pendingRollback.containsKey(name)) {
-                    previous = pendingRollback.get(name);
-                } else {
-                    Object stored = preferences.getAll().get(name);
-                    previous = stored instanceof String ? (String) stored : null;
-                }
-            } catch (RuntimeException unavailable) {
-                throw new SecretStoreException(SecretStoreException.Reason.WRITE_FAILED);
+    private void commitLocked(String name, String value) throws SecretStoreException {
+        // Keep the last confirmed ciphertext (or absence) before touching the in-memory map.
+        String previous;
+        try {
+            if (pendingRollback.containsKey(name)) {
+                previous = pendingRollback.get(name);
+            } else {
+                Object stored = preferences.getAll().get(name);
+                previous = stored instanceof String ? (String) stored : null;
             }
-
-            try {
-                SharedPreferences.Editor editor = preferences.edit();
-                // A successful commit writes the whole file, including changes by other providers.
-                for (Map.Entry<String, String> entry : pendingRollback.entrySet()) {
-                    putOrRemove(editor, entry.getKey(), entry.getValue());
-                }
-                putOrRemove(editor, name, value);
-                if (editor.commit()) {
-                    pendingRollback.clear();
-                    return;
-                }
-            } catch (RuntimeException failed) {
-                // An exception can also leave an unconfirmed in-memory edit.
-            }
-            pendingRollback.put(name, previous);
+        } catch (RuntimeException unavailable) {
             throw new SecretStoreException(SecretStoreException.Reason.WRITE_FAILED);
         }
+
+        try {
+            SharedPreferences.Editor editor = preferences.edit();
+            // A successful commit writes the whole file, including changes by other providers.
+            for (Map.Entry<String, String> entry : pendingRollback.entrySet()) {
+                putOrRemove(editor, entry.getKey(), entry.getValue());
+            }
+            putOrRemove(editor, name, value);
+            if (editor.commit()) {
+                pendingRollback.clear();
+                return;
+            }
+        } catch (RuntimeException failed) {
+            // An exception can also leave an unconfirmed in-memory edit.
+        }
+        pendingRollback.put(name, previous);
+        throw new SecretStoreException(SecretStoreException.Reason.WRITE_FAILED);
     }
 
     private static void putOrRemove(SharedPreferences.Editor editor, String name, String value) {
