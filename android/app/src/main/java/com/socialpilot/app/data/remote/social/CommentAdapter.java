@@ -105,7 +105,17 @@ public abstract class CommentAdapter {
             CommentCursorCodec cursors, CommentRecord.Source source, String sourceRef) {
         this.platform = platform;
         this.client = client.newBuilder().followRedirects(false).followSslRedirects(false)
-                .retryOnConnectionFailure(false).build();
+                .retryOnConnectionFailure(false)
+                .addNetworkInterceptor(chain -> {
+                    Response response = chain.proceed(chain.request());
+                    if (response.code() == 503) {
+                        String retryAfter = response.header("Retry-After");
+                        if (retryAfter != null && "0".equals(retryAfter.trim())) {
+                            return response.newBuilder().removeHeader("Retry-After").build();
+                        }
+                    }
+                    return response;
+                }).build();
         this.connections = Objects.requireNonNull(connections, "connections");
         this.credentials = Objects.requireNonNull(credentials, "credentials");
         this.clock = Objects.requireNonNull(clock, "clock");
@@ -154,10 +164,21 @@ public abstract class CommentAdapter {
             if (!p.attach(call)) return;
             CommentPageResult result;
             try (Response response = call.execute()) {
-                String body = response.body() == null ? "" : response.body().string();
+                int code = response.code();
+                String retryAfter = response.header("Retry-After");
                 long at = clock.nowMillis();
-                result = CommentResponseMapper.map(r, sent, response.code(), body,
-                        response.header("Retry-After"), at, continuation, cursors, source, sourceRef, token);
+                String body;
+                if (code == 503) {
+                    try {
+                        body = response.body() == null ? "" : response.body().string();
+                    } catch (IOException ignored) {
+                        body = "";
+                    }
+                } else {
+                    body = response.body() == null ? "" : response.body().string();
+                }
+                result = CommentResponseMapper.map(r, sent, code, body,
+                        retryAfter, at, continuation, cursors, source, sourceRef, token);
             } catch (IOException ignored) {
                 result = fail(Failure.NETWORK_ERROR, SocialError.Code.NETWORK_ERROR, SocialError.NextAction.RETRY_WHEN_SAFE);
             }
