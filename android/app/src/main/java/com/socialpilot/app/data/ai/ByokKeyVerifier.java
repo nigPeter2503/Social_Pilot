@@ -29,13 +29,13 @@ import okhttp3.ResponseBody;
 public final class ByokKeyVerifier {
     /**
      * Only VALID, INVALID_KEY and PERMISSION_DENIED say something about the key itself. The
-     * verifier returns the network outcomes; {@link AiKeyRepository} adds the local ones
-     * (OFFLINE, NO_KEY, KEY_UNREADABLE, SUPERSEDED) without making a request.
+     * verifier returns the network outcomes. {@link AiKeyRepository} adds key availability,
+     * connectivity, supersession and status storage outcomes.
      */
     public enum Outcome {
         VALID, INVALID_KEY, PERMISSION_DENIED, RATE_LIMITED, PROVIDER_UNAVAILABLE,
         TIMEOUT, NETWORK_ERROR, UNEXPECTED_RESPONSE, CANCELLED,
-        OFFLINE, NO_KEY, KEY_UNREADABLE, SUPERSEDED;
+        OFFLINE, NO_KEY, KEY_UNREADABLE, SUPERSEDED, STATUS_STORAGE_FAILED;
 
         public boolean describesKey() {
             return this == VALID || this == INVALID_KEY || this == PERMISSION_DENIED;

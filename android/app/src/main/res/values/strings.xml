@@ -96,7 +96,8 @@
   <string name="ai_key_outcome_network">Lỗi kết nối mạng nên chưa xác định được key. Key không bị coi là sai.</string>
   <string name="ai_key_outcome_unexpected">Phản hồi không như mong đợi (mạng/proxy). Chưa xác định được key.</string>
   <string name="ai_key_outcome_offline">Thiết bị đang offline. Key đã lưu an toàn; hãy kiểm tra lại khi có mạng.</string>
-  <string name="ai_key_outcome_superseded">Key đã thay đổi trong lúc kiểm tra; kết quả cũ được bỏ qua.</string>
+  <string name="ai_key_outcome_superseded">Key hoặc lượt kiểm tra đã thay đổi nên kết quả cũ được bỏ qua.</string>
+  <string name="ai_key_outcome_status_storage_failed">Không ghi được trạng thái kiểm tra key. Hãy thử kiểm tra lại.</string>
   <string name="ai_key_format_error">Key không hợp lệ: cần 20–512 ký tự, không chứa khoảng trắng.</string>
   <string name="ai_key_store_error">Chưa lưu được key vào kho bảo mật. Vui lòng thử lại.</string>
   <string name="ai_key_delete_error">Chưa xóa được key. Vui lòng thử lại.</string>

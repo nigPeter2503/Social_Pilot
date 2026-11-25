@@ -15,8 +15,10 @@ import com.socialpilot.app.domain.contract.secret.SecretStore;
 import com.socialpilot.app.domain.contract.secret.SecretStoreException;
 import java.util.ArrayDeque;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Executor;
 
 /**
@@ -24,8 +26,7 @@ import java.util.concurrent.Executor;
  * plain status file holds the check result bound to the key revision, never key material.
  * Synchronous storage operations and verification must run off the main thread.
  */
-// commit() is deliberate: callers are already on a worker, and a lost status write only falls
-// back to UNVERIFIED, which never enables provider calls.
+// Credentials are gated on confirmed status writes. These synchronous commits run on workers.
 @SuppressLint("ApplySharedPref")
 public final class AiKeyRepository {
     public enum KeyState { NOT_SET, UNVERIFIED, VALID, INVALID, PERMISSION_DENIED, UNREADABLE }
@@ -73,6 +74,8 @@ public final class AiKeyRepository {
     private final Clock clock;
     private final Gson gson = new Gson();
     private final Map<Provider, KeyStorageQueue> storageQueues = new EnumMap<>(Provider.class);
+    private final Map<Provider, Verification> activeChecks = new EnumMap<>(Provider.class);
+    private final Set<Provider> unconfirmedStatuses = EnumSet.noneOf(Provider.class);
 
     public AiKeyRepository(SecretStore store, SharedPreferences statusFile, ByokKeyVerifier verifier,
                            NetworkStatus network, Clock clock) {
@@ -115,10 +118,9 @@ public final class AiKeyRepository {
         if (read.status == SecretRead.Status.UNREADABLE) {
             return new KeyStatus(provider, KeyState.UNREADABLE, null, null);
         }
-        StatusRecord record = statusRecord(provider);
-        boolean current = record != null && read.revision.equals(record.revision) && record.state != null;
-        return new KeyStatus(provider, current ? record.state : KeyState.UNVERIFIED, mask(read.value),
-                current ? record.checkedAt : null);
+        StatusRecord record = confirmedStatus(provider, read.revision);
+        return new KeyStatus(provider, record == null ? KeyState.UNVERIFIED : record.state, mask(read.value),
+                record == null ? null : record.checkedAt);
     }
 
     /** Stores a new key as UNVERIFIED. Replaces any previous key for this provider only. */
@@ -126,14 +128,14 @@ public final class AiKeyRepository {
         String key = normalize(rawKey);
         store.write(reference(provider), key);
         // The new revision already invalidates the old result; removing it is only tidy-up.
-        statusFile.edit().remove(statusName(provider)).commit();
+        commitStatus(provider, null);
         return status(provider);
     }
 
     /** Deletes this provider's key and status only; other providers and social tokens stay. */
     public synchronized KeyStatus delete(Provider provider) throws SecretStoreException {
         store.delete(reference(provider));
-        statusFile.edit().remove(statusName(provider)).commit();
+        commitStatus(provider, null);
         return status(provider);
     }
 
@@ -171,32 +173,54 @@ public final class AiKeyRepository {
 
         public CheckResult run() {
             SecretRead read;
+            StatusRecord previous;
             synchronized (AiKeyRepository.this) {
                 read = store.read(reference(provider));
+                if (read.status == SecretRead.Status.MISSING) return result(Outcome.NO_KEY);
+                if (read.status == SecretRead.Status.UNREADABLE) return result(Outcome.KEY_UNREADABLE);
+                if (cancelled) return result(Outcome.CANCELLED);
+                if (!network.isOnline()) return result(Outcome.OFFLINE);
+                previous = confirmedStatus(provider, read.revision);
+                // Durably remove the previous approval before a response can invalidate the key.
+                if (!commitStatus(provider, null)) return result(Outcome.STATUS_STORAGE_FAILED);
+                Verification superseded = activeChecks.put(provider, this);
+                if (superseded != null && superseded != this) superseded.cancel();
             }
-            if (read.status == SecretRead.Status.MISSING) return new CheckResult(Outcome.NO_KEY, status(provider));
-            if (read.status == SecretRead.Status.UNREADABLE) {
-                return new CheckResult(Outcome.KEY_UNREADABLE, status(provider));
-            }
-            if (cancelled) return new CheckResult(Outcome.CANCELLED, status(provider));
-            if (!network.isOnline()) return new CheckResult(Outcome.OFFLINE, status(provider));
-            check = verifier.prepare(provider, read.value);
-            if (cancelled) check.cancel();
-            Outcome outcome = check.run();
-            if (cancelled) outcome = Outcome.CANCELLED;
-            synchronized (AiKeyRepository.this) {
-                if (!outcome.describesKey()) return new CheckResult(outcome, status(provider));
-                SecretRead now = store.read(reference(provider));
-                if (now.status != SecretRead.Status.SUCCESS || !read.revision.equals(now.revision)) {
-                    // The user replaced or deleted the key while this check was running.
-                    return new CheckResult(Outcome.SUPERSEDED, status(provider));
+            try {
+                check = verifier.prepare(provider, read.value);
+                if (cancelled) check.cancel();
+                return finish(read.revision, previous, check.run());
+            } finally {
+                synchronized (AiKeyRepository.this) {
+                    if (activeChecks.get(provider) == this) activeChecks.remove(provider);
                 }
-                KeyState state = outcome == Outcome.VALID ? KeyState.VALID
-                        : outcome == Outcome.INVALID_KEY ? KeyState.INVALID : KeyState.PERMISSION_DENIED;
-                StatusRecord record = new StatusRecord(read.revision, state, clock.nowMillis());
-                statusFile.edit().putString(statusName(provider), gson.toJson(record)).commit();
-                return new CheckResult(outcome, status(provider));
             }
+        }
+
+        private CheckResult finish(String revision, StatusRecord previous, Outcome outcome) {
+            synchronized (AiKeyRepository.this) {
+                if (activeChecks.get(provider) != this) return result(Outcome.SUPERSEDED);
+                SecretRead now = store.read(reference(provider));
+                if (now.status != SecretRead.Status.SUCCESS || !revision.equals(now.revision)) {
+                    return result(Outcome.SUPERSEDED);
+                }
+                if (cancelled) outcome = Outcome.CANCELLED;
+                StatusRecord record = previous;
+                if (outcome.describesKey()) {
+                    KeyState state = outcome == Outcome.VALID ? KeyState.VALID
+                            : outcome == Outcome.INVALID_KEY ? KeyState.INVALID : KeyState.PERMISSION_DENIED;
+                    record = new StatusRecord(revision, state, clock.nowMillis());
+                } else if (outcome == Outcome.CANCELLED && previous != null && previous.state == KeyState.VALID) {
+                    // Cancellation can hide a response. A fresh check must clear the uncertainty.
+                    record = null;
+                }
+                if (record != null && !commitStatus(provider, record)) return result(Outcome.STATUS_STORAGE_FAILED);
+                return result(outcome);
+            }
+        }
+
+        private CheckResult result(Outcome outcome) {
+            return new CheckResult(outcome, status(provider));
         }
     }
 
@@ -204,10 +228,31 @@ public final class AiKeyRepository {
         return key.length() >= 12 ? "••••" + key.substring(key.length() - 4) : "••••";
     }
 
-    private StatusRecord statusRecord(Provider provider) {
+    /** Caller holds the repository monitor. A failed commit can still mutate memory. */
+    private boolean commitStatus(Provider provider, StatusRecord record) {
+        try {
+            SharedPreferences.Editor editor = statusFile.edit();
+            // A commit writes the whole file. Drop any prior unconfirmed edits in the same write.
+            for (Provider unconfirmed : unconfirmedStatuses) editor.remove(statusName(unconfirmed));
+            if (record == null) editor.remove(statusName(provider));
+            else editor.putString(statusName(provider), gson.toJson(record));
+            if (editor.commit()) {
+                unconfirmedStatuses.clear();
+                return true;
+            }
+        } catch (RuntimeException ignored) {
+            // Keep treating a status write exception as an unconfirmed edit.
+        }
+        unconfirmedStatuses.add(provider);
+        return false;
+    }
+
+    private StatusRecord confirmedStatus(Provider provider, String revision) {
+        if (unconfirmedStatuses.contains(provider)) return null;
         try {
             String json = statusFile.getString(statusName(provider), null);
-            return json == null ? null : gson.fromJson(json, StatusRecord.class);
+            StatusRecord record = json == null ? null : gson.fromJson(json, StatusRecord.class);
+            return record != null && record.state != null && revision.equals(record.revision) ? record : null;
         } catch (JsonParseException | ClassCastException damaged) {
             return null;
         }

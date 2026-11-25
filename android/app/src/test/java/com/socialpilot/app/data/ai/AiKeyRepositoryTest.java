@@ -15,12 +15,16 @@ import com.socialpilot.app.testing.MemoryPreferences;
 import com.socialpilot.app.testing.MemorySecretStore;
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import okhttp3.HttpUrl;
+import okhttp3.mockwebserver.Dispatcher;
 import okhttp3.mockwebserver.MockResponse;
+import okhttp3.mockwebserver.RecordedRequest;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.SocketPolicy;
 import org.junit.After;
@@ -103,6 +107,103 @@ public final class AiKeyRepositoryTest {
         assertEquals(2, server.getRequestCount());
     }
 
+    @Test public void failedUnauthorizedStatusCommitCannotRestoreValidOnRestart() throws Exception {
+        repository.save(OPENAI, KEY_A);
+        server.enqueue(json(200, "{\"data\":[]}"));
+        assertTrue(repository.prepareVerification(OPENAI).run().status.usable());
+        assertTrue(repository(statusFile.reboot()).status(OPENAI).usable());
+        server.setDispatcher(new Dispatcher() {
+            @Override public MockResponse dispatch(RecordedRequest request) {
+                statusFile.failCommits = 1;
+                return json(401, "{}");
+            }
+        });
+
+        CheckResult result = repository.prepareVerification(OPENAI).run();
+
+        assertEquals(Outcome.STATUS_STORAGE_FAILED, result.outcome);
+        assertEquals(UNVERIFIED, result.status.state);
+        KeyStatus restarted = repository(statusFile.reboot()).status(OPENAI);
+        assertEquals(UNVERIFIED, restarted.state);
+        assertFalse("restart must not restore the old VALID", restarted.usable());
+        assertEquals(2, server.getRequestCount());
+        assertEquals(KEY_A, repository.credentialSource(OPENAI).load());
+    }
+
+    @Test public void failedPreflightDoesNotSendAndTheNextCheckCanRetry() throws Exception {
+        repository.save(OPENAI, KEY_A);
+        server.enqueue(json(200, "{\"data\":[]}"));
+        assertTrue(repository.prepareVerification(OPENAI).run().status.usable());
+        statusFile.failCommits = 1;
+
+        CheckResult blocked = repository.prepareVerification(OPENAI).run();
+        assertEquals(Outcome.STATUS_STORAGE_FAILED, blocked.outcome);
+        assertFalse(blocked.status.usable());
+        assertEquals(1, server.getRequestCount());
+
+        server.enqueue(json(401, "{}"));
+        assertEquals(INVALID, repository.prepareVerification(OPENAI).run().status.state);
+        assertFalse(repository(statusFile.reboot()).status(OPENAI).usable());
+        assertEquals(2, server.getRequestCount());
+    }
+
+    @Test public void unconfirmedValidCannotBeFlushedByAnotherProvidersWrite() throws Exception {
+        repository.save(OPENAI, KEY_A);
+        repository.save(GEMINI, GEMINI_KEY);
+        server.setDispatcher(new Dispatcher() {
+            @Override public MockResponse dispatch(RecordedRequest request) {
+                if ("/v1/models".equals(request.getPath())) {
+                    statusFile.failCommits = 1;
+                    return json(200, "{\"data\":[]}");
+                }
+                return json(200, "{\"models\":[]}");
+            }
+        });
+
+        CheckResult openAi = repository.prepareVerification(OPENAI).run();
+        assertEquals(Outcome.STATUS_STORAGE_FAILED, openAi.outcome);
+        assertFalse(openAi.status.usable());
+        assertTrue(repository.prepareVerification(GEMINI).run().status.usable());
+
+        AiKeyRepository restarted = repository(statusFile.reboot());
+        assertFalse(restarted.status(OPENAI).usable());
+        assertTrue(restarted.status(GEMINI).usable());
+    }
+
+    @Test public void olderCheckCannotRestoreValidAfterANewerCheckRejectsTheSameRevision() throws Exception {
+        repository.save(OPENAI, KEY_A);
+        server.enqueue(json(200, "{\"data\":[]}"));
+        assertTrue(repository.prepareVerification(OPENAI).run().status.usable());
+
+        CountDownLatch oldRequest = new CountDownLatch(1);
+        CountDownLatch releaseOld = new CountDownLatch(1);
+        AtomicInteger attempts = new AtomicInteger();
+        server.setDispatcher(new Dispatcher() {
+            @Override public MockResponse dispatch(RecordedRequest request) throws InterruptedException {
+                if (attempts.getAndIncrement() == 0) {
+                    oldRequest.countDown();
+                    if (!releaseOld.await(5, TimeUnit.SECONDS)) throw new AssertionError("old response was not released");
+                    return json(200, "{\"data\":[]}");
+                }
+                return json(401, "{}");
+            }
+        });
+        ExecutorService worker = Executors.newSingleThreadExecutor();
+        try {
+            Future<CheckResult> older = worker.submit(() -> repository.prepareVerification(OPENAI).run());
+            assertTrue(oldRequest.await(5, TimeUnit.SECONDS));
+            assertFalse(repository(statusFile.reboot()).status(OPENAI).usable());
+
+            assertEquals(INVALID, repository.prepareVerification(OPENAI).run().status.state);
+            releaseOld.countDown();
+            assertEquals(Outcome.SUPERSEDED, older.get(5, TimeUnit.SECONDS).outcome);
+            assertEquals(INVALID, repository(statusFile.reboot()).status(OPENAI).state);
+        } finally {
+            releaseOld.countDown();
+            worker.shutdownNow();
+        }
+    }
+
     @Test public void wrongRevokedAndPermissionOutcomesAreDistinctStates() throws Exception {
         repository.save(OPENAI, KEY_A);
         server.enqueue(json(401, "{}"));
@@ -119,6 +220,7 @@ public final class AiKeyRepositoryTest {
         CheckResult unavailable = repository.prepareVerification(OPENAI).run();
         assertEquals(Outcome.PROVIDER_UNAVAILABLE, unavailable.outcome);
         assertEquals(VALID, unavailable.status.state);
+        assertTrue(repository(statusFile.reboot()).status(OPENAI).usable());
         server.enqueue(json(429, "{}"));
         assertEquals(VALID, repository.prepareVerification(OPENAI).run().status.state);
     }
@@ -180,6 +282,29 @@ public final class AiKeyRepositoryTest {
             CheckResult result = running.get(2, TimeUnit.SECONDS);
             assertEquals(Outcome.CANCELLED, result.outcome);
             assertEquals(UNVERIFIED, result.status.state);
+        } finally {
+            worker.shutdownNow();
+        }
+    }
+
+    @Test public void cancellingARecheckAfterDispatchDoesNotRestoreThePreviousValid() throws Exception {
+        repository.save(OPENAI, KEY_A);
+        server.enqueue(json(200, "{\"data\":[]}"));
+        assertTrue(repository.prepareVerification(OPENAI).run().status.usable());
+        assertNotNull(server.takeRequest(2, TimeUnit.SECONDS));
+
+        server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE));
+        AiKeyRepository.Verification verification = repository.prepareVerification(OPENAI);
+        ExecutorService worker = Executors.newSingleThreadExecutor();
+        try {
+            Future<CheckResult> running = worker.submit(verification::run);
+            assertNotNull(server.takeRequest(5, TimeUnit.SECONDS));
+            verification.cancel();
+
+            CheckResult result = running.get(5, TimeUnit.SECONDS);
+            assertEquals(Outcome.CANCELLED, result.outcome);
+            assertFalse(result.status.usable());
+            assertEquals(UNVERIFIED, repository(statusFile.reboot()).status(OPENAI).state);
         } finally {
             worker.shutdownNow();
         }

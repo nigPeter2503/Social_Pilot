@@ -10,7 +10,7 @@ public final class MemoryPreferences implements SharedPreferences {
     public final Map<String, String> memory = new HashMap<>();
     public final Map<String, String> disk = new HashMap<>();
     public int commits;
-    public int failCommits;
+    public volatile int failCommits;
 
     /** A new process reading only what reached disk. */
     public MemoryPreferences reboot() {

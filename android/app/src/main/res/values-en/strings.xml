@@ -96,7 +96,8 @@
   <string name="ai_key_outcome_network">Network error, so the key could not be confirmed. The key is not treated as wrong.</string>
   <string name="ai_key_outcome_unexpected">Unexpected response (network or proxy). The key could not be confirmed.</string>
   <string name="ai_key_outcome_offline">The device is offline. The key is stored safely; check again when online.</string>
-  <string name="ai_key_outcome_superseded">The key changed during the check; the old result was ignored.</string>
+  <string name="ai_key_outcome_superseded">The key or check changed, so the earlier result was ignored.</string>
+  <string name="ai_key_outcome_status_storage_failed">Could not save the key check status. Try checking again.</string>
   <string name="ai_key_format_error">Invalid key: it must be 20–512 characters without spaces.</string>
   <string name="ai_key_store_error">Could not save the key to secure storage. Please retry.</string>
   <string name="ai_key_delete_error">Could not delete the key. Please retry.</string>

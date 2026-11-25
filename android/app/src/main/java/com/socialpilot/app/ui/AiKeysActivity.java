@@ -109,6 +109,7 @@ public final class AiKeysActivity extends AppCompatActivity {
             case UNEXPECTED_RESPONSE: return R.string.ai_key_outcome_unexpected;
             case OFFLINE: return R.string.ai_key_outcome_offline;
             case SUPERSEDED: return R.string.ai_key_outcome_superseded;
+            case STATUS_STORAGE_FAILED: return R.string.ai_key_outcome_status_storage_failed;
             default: return 0; // Definite outcomes are already shown by the key state.
         }
     }
