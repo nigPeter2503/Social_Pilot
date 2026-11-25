@@ -79,6 +79,10 @@
     <TextView android:id="@+id/facebookPageStatus" android:layout_width="match_parent"
         android:layout_height="wrap_content" android:layout_marginTop="8dp"
         android:text="@string/facebook_not_connected" />
+    <com.google.android.material.button.MaterialButton android:id="@+id/openAiKeysButton"
+        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="16dp" android:text="@string/open_ai_keys" />
     <com.google.android.material.button.MaterialButton android:id="@+id/connectInstagramButton"
         android:layout_width="match_parent" android:layout_height="wrap_content"
         android:layout_marginTop="24dp" android:text="@string/connect_instagram" />

@@ -1,0 +1,40 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:layout_marginTop="24dp" android:orientation="vertical">
+  <TextView android:id="@+id/providerTitle" android:layout_width="match_parent"
+      android:layout_height="wrap_content" android:textSize="20sp" android:textStyle="bold" />
+  <TextView android:id="@+id/keyStatus" android:layout_width="match_parent"
+      android:layout_height="wrap_content" android:layout_marginTop="8dp"
+      android:accessibilityLiveRegion="polite" android:textSize="15sp" />
+  <TextView android:id="@+id/keyOutcome" android:layout_width="match_parent"
+      android:layout_height="wrap_content" android:layout_marginTop="4dp"
+      android:accessibilityLiveRegion="polite" android:textSize="14sp" android:visibility="gone" />
+  <ProgressBar android:id="@+id/keyProgress" style="?android:attr/progressBarStyleHorizontal"
+      android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:layout_marginTop="4dp" android:indeterminate="true" android:visibility="gone" />
+  <com.google.android.material.textfield.TextInputLayout android:id="@+id/keyInputLayout"
+      android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:layout_marginTop="8dp" android:hint="@string/ai_key_hint"
+      app:endIconMode="password_toggle">
+    <!-- saveEnabled=false keeps the typed key out of the saved-instance-state bundle. -->
+    <com.google.android.material.textfield.TextInputEditText android:id="@+id/keyInput"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:importantForAutofill="no" android:inputType="textPassword|textNoSuggestions"
+        android:saveEnabled="false" android:maxLines="1" />
+  </com.google.android.material.textfield.TextInputLayout>
+  <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:layout_marginTop="8dp" android:orientation="horizontal">
+    <com.google.android.material.button.MaterialButton android:id="@+id/saveKeyButton"
+        android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+        android:text="@string/ai_key_save" />
+    <com.google.android.material.button.MaterialButton android:id="@+id/checkKeyButton"
+        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+        android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+        android:layout_marginStart="8dp" android:text="@string/ai_key_check" />
+    <com.google.android.material.button.MaterialButton android:id="@+id/deleteKeyButton"
+        style="@style/Widget.MaterialComponents.Button.TextButton"
+        android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+        android:layout_marginStart="8dp" android:text="@string/ai_key_delete" />
+  </LinearLayout>
+</LinearLayout>
