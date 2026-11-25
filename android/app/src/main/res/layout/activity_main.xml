@@ -79,7 +79,46 @@
     <TextView android:id="@+id/facebookPageStatus" android:layout_width="match_parent"
         android:layout_height="wrap_content" android:layout_marginTop="8dp"
         android:text="@string/facebook_not_connected" />
+    <com.google.android.material.button.MaterialButton android:id="@+id/connectInstagramButton"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="24dp" android:text="@string/connect_instagram" />
+    <TextView android:id="@+id/instagramAccountStatus" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:layout_marginTop="8dp"
+        android:text="@string/instagram_not_connected" />
     <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:layout_marginTop="32dp" android:text="@string/integration_status" />
+        android:layout_marginTop="24dp" android:text="@string/instagram_publish_title"
+        android:textSize="20sp" android:textStyle="bold" />
+    <com.google.android.material.textfield.TextInputLayout android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:layout_marginTop="12dp"
+        android:hint="@string/instagram_image_url">
+      <com.google.android.material.textfield.TextInputEditText android:id="@+id/instagramImageUrl"
+          android:layout_width="match_parent" android:layout_height="wrap_content"
+          android:inputType="textUri" />
+    </com.google.android.material.textfield.TextInputLayout>
+    <com.google.android.material.textfield.TextInputLayout android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:layout_marginTop="8dp"
+        android:hint="@string/instagram_caption">
+      <com.google.android.material.textfield.TextInputEditText android:id="@+id/instagramCaption"
+          android:layout_width="match_parent" android:layout_height="wrap_content"
+          android:inputType="textMultiLine|textCapSentences" android:minLines="2" />
+    </com.google.android.material.textfield.TextInputLayout>
+    <com.google.android.material.button.MaterialButton android:id="@+id/instagramApprove"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="12dp" android:text="@string/instagram_approve" />
+    <com.google.android.material.button.MaterialButton android:id="@+id/instagramPublish"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="@string/instagram_publish" />
+    <com.google.android.material.button.MaterialButton android:id="@+id/instagramReconcile"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="@string/instagram_reconcile" />
+    <com.google.android.material.button.MaterialButton android:id="@+id/instagramOpen"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="@string/instagram_open" />
+    <TextView android:id="@+id/instagramPublishStatus" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:layout_marginTop="8dp"
+        android:accessibilityLiveRegion="polite" android:text="@string/instagram_publish_hint" />
+    <com.google.android.material.button.MaterialButton android:id="@+id/openPrototype"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="24dp" android:text="@string/open_prototype" />
   </LinearLayout>
 </ScrollView>

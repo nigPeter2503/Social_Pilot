@@ -77,7 +77,7 @@ public final class Brief {
 
         public Target(String channelId, String platform) {
             this.channelId = required("channelId", channelId);
-            if (!"FACEBOOK".equals(platform) && !"LINKEDIN".equals(platform)) {
+            if (!"FACEBOOK".equals(platform) && !"LINKEDIN".equals(platform) && !"INSTAGRAM".equals(platform)) {
                 throw new IllegalArgumentException("unsupported platform");
             }
             this.platform = platform;
