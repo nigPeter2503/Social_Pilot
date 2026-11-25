@@ -95,6 +95,20 @@ gian draft, mở lại hai kết nối đã nhập, chặn revision cũ, kiểm 
 rollback khi transaction Room lỗi và dọn journal sau khi mở lại. Backend
 `test bootJar` đạt với kết quả 43 test đã lưu từ cùng mã backend.
 
+### Kiểm tra trên Samsung API 36
+
+- Bản kiểm thử từ `61c667b` dùng application ID riêng `com.socialpilot.app.sp022qa`
+  và base URL HTTPS của môi trường thử. AndroidJUnitRunner trên Samsung SM-G990E
+  đạt **35/35** với fixture, gồm migration SQLite thật, Android Keystore, kiểm
+  callback từ chối cấp quyền và hồi quy Instagram.
+- Dùng `aapt` đọc manifest của APK cài thử. `allowBackup=false`,
+  `usesCleartextTraffic=false` và hai tài nguyên loại dữ liệu backup đều có
+  trong APK. Kiểm tệp trong APK cho kết quả 0 tệp `.env`, cấu hình Spring hoặc
+  keystore đóng gói. Kiểm theo cấu trúc APK và fixture, kiểm URL/log với phiên
+  Meta thật còn mở.
+- SHA-256 của APK thử là
+  `b18991fb6cab602cde4155c478a140e23c9769937ac7c45a4d5b9d3b7ff63196`.
+
 ## Nghiệm thu còn mở
 
 - [ ] Hai kênh qua luồng production đúng danh tính, reference và revision sau restart.
