@@ -61,7 +61,8 @@ public final class FacebookOAuthSessionService {
         request.validate();
         properties.requireConfigured();
         if (!validChallenge(request.sessionChallenge)) throw OAuthFlowException.invalidSession();
-        if (!"FACEBOOK".equals(request.provider) || !ANDROID_REDIRECT_ID.equals(request.redirectId)) {
+        boolean instagram = "INSTAGRAM".equals(request.provider);
+        if ((!instagram && !"FACEBOOK".equals(request.provider)) || !ANDROID_REDIRECT_ID.equals(request.redirectId)) {
             throw OAuthFlowException.invalidRedirect();
         }
         String sessionId = UUID.randomUUID().toString();
@@ -72,12 +73,12 @@ public final class FacebookOAuthSessionService {
             cleanupExpired(now);
             if (sessionsById.size() >= MAX_ACTIVE_SESSIONS) throw OAuthFlowException.providerError();
             expiresAt = now.plus(SESSION_TTL);
-            OAuthSession session = new OAuthSession(sessionId, state, request.sessionChallenge, expiresAt);
+            OAuthSession session = new OAuthSession(sessionId, state, request.sessionChallenge, expiresAt, instagram);
             sessionsById.put(sessionId, session);
             sessionsByState.put(state, session);
         }
         String authorizationUrl = com.socialpilot.oauth.facebook.FacebookOAuthUrlBuilder
-                .authorizationUri(properties, state).toASCIIString();
+                .authorizationUri(properties, state, instagram).toASCIIString();
         return new OAuthStartResponse(sessionId, authorizationUrl, UTC_SECONDS.format(expiresAt));
     }
 
@@ -101,7 +102,9 @@ public final class FacebookOAuthSessionService {
             return androidError(session.id, "PROVIDER_ERROR");
         }
         PageIdentity page;
-        try { page = graph.exchangeCodeForTargetPage(code); }
+        try {
+            page = session.instagram ? graph.exchangeCodeForInstagram(code) : graph.exchangeCodeForTargetPage(code);
+        }
         catch (OAuthFlowException exception) {
             synchronized (storeLock) { removeSession(session); }
             return androidError(session.id, exception.getCode());
@@ -151,6 +154,12 @@ public final class FacebookOAuthSessionService {
             sessionsById.remove(session.id, session);
             terminalHandoffs.put(digest, new TerminalHandoff("HANDOFF_ALREADY_USED", now.plus(SESSION_TTL)));
             PageIdentity page = handoff.page;
+            if (session.instagram) {
+                return new OAuthExchangeResponse(session.id, "INSTAGRAM", page.instagramId, "PROFESSIONAL",
+                        page.instagramUsername, page.accessToken, null, "bearer",
+                        page.expiresAt == null ? null : UTC_SECONDS.format(page.expiresAt), page.id,
+                        page.grantedScopes, properties.getGraphApiVersion());
+            }
             return new OAuthExchangeResponse(session.id, "FACEBOOK", page.id, "PAGE", page.name,
                     page.accessToken, null, "bearer", null);
         }
@@ -205,8 +214,10 @@ public final class FacebookOAuthSessionService {
     private static final class OAuthSession {
         private final String id, state, challenge;
         private final Instant expiresAt;
-        private OAuthSession(String id, String state, String challenge, Instant expiresAt) {
+        private final boolean instagram;
+        private OAuthSession(String id, String state, String challenge, Instant expiresAt, boolean instagram) {
             this.id = id; this.state = state; this.challenge = challenge; this.expiresAt = expiresAt;
+            this.instagram = instagram;
         }
     }
     private static final class TerminalHandoff {

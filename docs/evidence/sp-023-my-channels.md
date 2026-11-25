@@ -23,6 +23,19 @@ Ngày kiểm thử 21/11/2026 (UTC+07:00). [Issue #25](https://github.com/nigPet
 
 Fixture thiết bị nằm trong APK instrumentation dành riêng cho AVD. Ảnh chứa tên và ID mẫu. Các ca backend nằm ngoài phạm vi thay đổi Android này.
 
+## Đồng bộ ngày 25/11/2026
+
+Đã ghép main `ddab17f`, giữ lối vào Kênh của tôi, BYOK, kết nối Facebook/Instagram
+và prototype từ màn hình chính. Nguồn metadata hiện tại của Kênh của tôi vẫn chỉ
+đọc Page từ kho OAuth cục bộ. Kiểm lại lookup Facebook gọi đúng provider sau khi
+SP-065 tách kho theo đích.
+
+- Android `assembleDebug`, `testDebugUnitTest`, `lintDebug` và
+  `assembleDebugAndroidTest` đạt. 145 unit test, lint 0 lỗi và 11 cảnh báo.
+- AVD API 36 chạy AndroidJUnitRunner đạt 32/32, gồm hai ca điều hướng và tái
+  tạo Activity của Kênh của tôi. Lượt đầu bị hộp thoại ANR của System UI chiếm
+  focus. Chạy lại toàn bộ sau khi khôi phục AVD.
+
 ## Bàn giao còn mở
 
 | Phần còn mở | Điều kiện tiếp tục |

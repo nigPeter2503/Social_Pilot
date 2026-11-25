@@ -1,6 +1,5 @@
 package com.socialpilot.app.core;
 
-import android.content.Context;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
@@ -18,6 +17,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import okhttp3.OkHttpClient;
@@ -28,7 +28,7 @@ import retrofit2.converter.gson.GsonConverterFactory;
 public final class FacebookOAuthCoordinator {
     public interface Listener {
         void onAuthorizationUrl(String url);
-        void onConnected(String pageName, String pageId);
+        void onConnected(String provider, String displayName, String accountId, String sessionId);
         void onFailure(String code);
     }
 
@@ -40,9 +40,9 @@ public final class FacebookOAuthCoordinator {
     private final SecureRandom random = new SecureRandom();
     private final Gson gson = new Gson();
 
-    public FacebookOAuthCoordinator(Context context, ExecutorService io, String baseUrl) {
+    public FacebookOAuthCoordinator(EncryptedOAuthStore store, ExecutorService io, String baseUrl) {
         this.io = io;
-        this.store = new EncryptedOAuthStore(context);
+        this.store = store;
         URI uri = URI.create(baseUrl);
         if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null
                 || uri.getUserInfo() != null || uri.getQuery() != null || uri.getFragment() != null
@@ -52,7 +52,7 @@ public final class FacebookOAuthCoordinator {
                 .addConverterFactory(GsonConverterFactory.create()).build().create(OAuthApi.class);
     }
 
-    public void start(Listener listener) {
+    public void start(String provider, Listener listener) {
         if (!busy.compareAndSet(false, true)) return;
         final String verifier = randomVerifier();
         final String challenge;
@@ -62,11 +62,17 @@ public final class FacebookOAuthCoordinator {
         catch (Exception exception) { busy.set(false); postFailure(listener, "PROVIDER_ERROR"); return; }
         io.execute(() -> {
             try {
-                Response<OAuthStartResponse> response = api.start(
-                        new OAuthStartRequest("FACEBOOK", "android-dev", challenge)).execute();
+                Response<OAuthStartResponse> response = api.start(provider.toLowerCase(Locale.ROOT),
+                        new OAuthStartRequest(provider, "android-dev", challenge)).execute();
                 if (!response.isSuccessful() || response.body() == null) throw new OAuthRequestException(errorCode(response));
-                OAuthStartResponse result = response.body(); result.validate();
-                store.savePending(result.sessionId, verifier);
+                OAuthStartResponse result = response.body();
+                result.validate();
+                URI authorizationUri = URI.create(result.authorizationUrl);
+                if (!"www.facebook.com".equalsIgnoreCase(authorizationUri.getHost())
+                        || (authorizationUri.getPort() != -1 && authorizationUri.getPort() != 443)) {
+                    throw new OAuthRequestException("INVALID_REDIRECT");
+                }
+                store.savePending(result.sessionId, verifier, provider);
                 main.post(() -> { busy.set(false); listener.onAuthorizationUrl(result.authorizationUrl); });
             } catch (Exception exception) {
                 busy.set(false); postFailure(listener, exception instanceof OAuthRequestException
@@ -101,12 +107,13 @@ public final class FacebookOAuthCoordinator {
                         new OAuthHandoffExchangeRequest(sessionId, handoff, pending.verifier)).execute();
                 if (!response.isSuccessful() || response.body() == null) throw new OAuthRequestException(errorCode(response));
                 OAuthExchangeResponse result = response.body(); result.validate();
-                if (!"FACEBOOK".equals(result.provider) || !"PAGE".equals(result.accountType)) {
+                if (!sessionId.equals(result.sessionId) || !pending.provider.equals(result.provider)) {
                     throw new OAuthRequestException("PROVIDER_ERROR");
                 }
                 store.saveConnected(result);
                 main.post(() -> {
-                    busy.set(false); listener.onConnected(result.displayName, result.externalAccountId);
+                    busy.set(false);
+                    listener.onConnected(result.provider, result.displayName, result.externalAccountId, result.sessionId);
                 });
             } catch (Exception exception) {
                 busy.set(false); postFailure(listener, exception instanceof OAuthRequestException
@@ -119,6 +126,10 @@ public final class FacebookOAuthCoordinator {
 
     public EncryptedOAuthStore.PageMetadata savedPageMetadata() {
         return store.pageMetadata();
+    }
+
+    public static String instagramSummary(String username, String accountId) {
+        return "@" + username + " (" + accountId + ")";
     }
 
     private String randomVerifier() {
