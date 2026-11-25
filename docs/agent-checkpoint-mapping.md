@@ -20,6 +20,7 @@ Issue [#35](https://github.com/nigPeter2503/Social_Pilot/issues/35) · F2.B4/B5 
 | Mức | Khóa | Nguồn |
 |---|---|---|
 | Session | `sessionId` (UUID do pipeline tạo; giữ nguyên khi restore) | `ChannelPipeline.Session.sessionId` = `AiRequest.sessionId` |
+| Brief | `briefId` + `briefFingerprint` | SHA-256 có phiên bản, tính từ topic, goal, audience, tone, language và danh sách nguồn đã chuẩn hóa, gồm kiểu và thứ tự nguồn |
 | Kênh | `channelId` + `connectionRevision` | `ChannelTarget`; output luôn gắn với revision kết nối lúc chạy |
 | Bước | `stepId`: `outline`, `draft`, `rule-check` (tuần 4: `image-prompt`, `image`, `package`) | `PipelineStage.stepId` = `AiRequest.stepId` |
 | Lượt | `attempt` (1, 2, …) + `requestId` (mới cho mỗi lượt, kể cả retry) | `StageResult`; `requestId` là khóa nối sang ledger SP-029 |
@@ -40,7 +41,7 @@ Một lượt có phí luôn được nhận diện bằng `requestId`. Checkpoi
 
 `ChannelPipeline.restore(input, checkpoint, observer)`:
 
-1. `CheckpointStore.claimRecovery` đối chiếu session và revision yêu cầu với snapshot hiện hành rồi lưu bản phục hồi trong cùng thao tác nguyên tử. Hai lượt dùng cùng revision chỉ có một lượt được nhận. Store từ chối checkpoint thiếu, cũ hoặc lệch brief, nền tảng, tập kênh hay revision kết nối.
+1. `CheckpointStore.claimRecovery` đối chiếu session và revision yêu cầu với snapshot hiện hành rồi lưu bản phục hồi trong cùng thao tác nguyên tử. Hai lượt dùng cùng revision chỉ có một lượt được nhận. Store từ chối checkpoint thiếu, cũ hoặc lệch brief, nền tảng, tập kênh hay revision kết nối. Brief giữ nguyên ID mà đổi fingerprint trả `BRIEF_CHANGED`. Fingerprint thiếu hoặc khác phiên bản cũng từ chối phục hồi.
 2. Dựng session từ snapshot đã được store xác nhận, giữ `sessionId` và công bố trạng thái phục hồi. Các bước AI chờ người dùng retry. `CheckpointStore.NONE` chỉ áp mapping lên snapshot caller cung cấp vì không giữ dữ liệu.
 3. `Session.retry(channelId)` là hành động của người dùng: chạy lại từ `resumeStage()`, `attempt + 1`, `requestId` mới, reserve mới qua gateway. Các bước đã `COMPLETED` (ví dụ outline) không gửi lại; prompt draft dùng outline trong checkpoint.
 4. `cancelBranch` trên branch `INTERRUPTED` trả `false` (không có gì đang chạy).
@@ -63,15 +64,19 @@ Theo [Room contract](room-schema-contract.md), checkpoint, partial text và log 
 
 ## 7. Đề xuất schema Room — CHƯA ÁP DỤNG, cần chốt với Thiện
 
-Chưa chọn DB (DB chính hay `ai_ledger.db`), chưa chọn số version, chưa viết migration. Đề xuất để walk-through:
+Đề xuất lưu checkpoint trong `socialpilot.db` của editor để đối chiếu scope và áp dụng version cùng transaction. Chốt số version sau khi #82 và #83 vào `main`. Chưa có migration.
 
 | Bảng | Cột chính | Khóa |
 |---|---|---|
-| `ai_pipeline_session` | `session_id`, `brief_id`, `revision`, `updated_at` | PK `session_id` |
-| `ai_pipeline_branch` | `session_id`, `channel_id`, `platform`, `connection_revision`, `status`, `failed_step`, `rule_verdict`, `rule_issues` | PK (`session_id`, `channel_id`), FK session ON DELETE CASCADE |
-| `ai_pipeline_stage` | `session_id`, `channel_id`, `step_id`, `status`, `attempt`, `request_id`, `text`, `rejection`, `block`, `error_code`, `settlement`, `estimate_micros`, `budget_stopped`, `started_at`, `finished_at` | PK (`session_id`, `channel_id`, `step_id`), FK branch ON DELETE CASCADE |
+| `ai_pipeline_session` | `session_id`, `brief_id`, `brief_fingerprint`, `revision`, `updated_at` | PK `session_id` |
+| `ai_pipeline_branch` | `session_id`, `channel_id`, `platform`, `connection_revision`, `status`, `failed_step`, `rule_check_v1` | PK (`session_id`, `channel_id`), FK session ON DELETE CASCADE |
+| `ai_pipeline_stage` | `session_id`, `channel_id`, `step_id`, `status`, `attempt`, `request_id`, `text`, `rejection`, `block`, `error_code`, `budget_stopped`, `started_at`, `finished_at` | PK (`session_id`, `channel_id`, `step_id`), FK branch ON DELETE CASCADE |
 
-Điểm cần chốt: ghi cả snapshot trong một transaction và guard `revision` bằng `UPDATE … WHERE revision < :new`; có lưu `AiUsage` chi tiết hay chỉ dẫn `request_id` sang ledger; giữ `RuleCheck` dạng cột hay JSON; thời gian giữ session đã `TEXT_READY` sau khi Thiện áp dụng thành version (SP-036); không lưu key, token, prompt đầy đủ hay response gốc.
+- Ghi cả snapshot trong một transaction, kiểm tra brief/kênh còn hợp lệ và guard `revision` bằng `UPDATE … WHERE revision < :new`. Xóa checkpoint khi brief bị xóa hoặc dọn nhánh theo revision lúc kênh bị ngắt.
+- `request_id` tra usage và quyết toán trong `ai_ledger.db`. Nếu thiếu bản ghi ledger, giữ trạng thái chi phí chưa xác định.
+- `rule_check_v1` dùng định dạng có phiên bản, giữ đủ verdict, modelIssues, localIssues và unknownLinks để dựng lại cùng kết quả.
+- Giữ checkpoint `TEXT_READY` đến khi việc áp dụng version được xác nhận bền hoặc có chính sách retention đã chốt. Lượt xóa phải lưu tombstone để chặn ghi muộn.
+- Không lưu key, token, prompt đầy đủ hay response gốc.
 
 ## 8. Danh sách test recovery
 
@@ -82,6 +87,8 @@ Chưa chọn DB (DB chính hay `ai_ledger.db`), chưa chọn số version, chưa
 | Branch đã lên lịch nhưng chưa chạy → INTERRUPTED ở OUTLINE | PASS (unit) | `CheckpointPolicyTest.branchScheduledButNotStartedIsInterruptedAtItsFirstTextStage` |
 | Guard revision: STALE / OTHER_SESSION | PASS (unit) | `CheckpointPolicyTest.writeGuardAcceptsOnlyNewerRevisionsOfTheSameSession`, `ChannelPipelineTest.storeDropsLateWritesAndForgetsDisconnectedChannels` |
 | Mismatch brief/kênh/connection revision | PASS (unit) | `CheckpointPolicyTest.mismatchDetectsBriefTargetAndConnectionChanges`, `ChannelPipelineTest.restoreRefusesACheckpointBoundToAnOldConnection` |
+| Brief sửa cùng ID bị từ chối trước khi đổi checkpoint, phát event hay reserve | PASS (unit) | `ChannelPipelineTest.restoreRejectsEditedBriefWithTheSameIdBeforeChangingTheCheckpoint` |
+| Đổi ngôn ngữ, loại nguồn, nội dung nguồn, thứ tự hoặc thiếu fingerprint | PASS (unit) | `CheckpointPolicyTest.briefFingerprintIncludesContentLanguageAndTheTypeAndOrderOfSources` |
 | Ngắt kênh dọn branch, giữ nhánh còn lại và kết nối mới | PASS (unit) | `ChannelPipelineTest.cancellationCallbackCannotRestoreADisconnectedCheckpoint`, `ChannelPipelineTest.disconnectKeepsTheOtherBranchNextRevisionAndAllowsReconnect` |
 | Từ chối checkpoint cũ và chỉ nhận một lượt restore đồng thời từ cùng revision | PASS (unit) | `ChannelPipelineTest.staleCheckpointCannotRestoreCompletedStagesForRetry`, `ChannelPipelineTest.concurrentRecoveryClaimsFromTheSameRevisionHaveOneWinner` |
 | Writer từ chối ghi, pipeline vẫn hoàn tất và observer vẫn nhận trạng thái | PASS (unit) | `ChannelPipelineTest.checkpointWriterFailureDoesNotLeaveAnAsyncStageRunning` |

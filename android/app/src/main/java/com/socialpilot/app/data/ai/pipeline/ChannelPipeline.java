@@ -80,7 +80,8 @@ public final class ChannelPipeline {
     public Session start(PipelineInput input, Observer observer) {
         List<ChannelBranch> branches = new ArrayList<>();
         for (ChannelTarget target : input.targets) branches.add(ChannelBranch.initial(target));
-        PipelineSnapshot initial = new PipelineSnapshot(UUID.randomUUID().toString(), input.briefId, 1, branches);
+        PipelineSnapshot initial = new PipelineSnapshot(UUID.randomUUID().toString(), input.briefId,
+                input.briefFingerprint, 1, branches);
         Session session = new Session(input, Objects.requireNonNull(observer), initial);
         saveCheckpoint(initial);
         session.dispatchSnapshots();
@@ -381,7 +382,7 @@ public final class ChannelPipeline {
         private void publish(boolean checkpoint) {
             List<ChannelBranch> branches = new ArrayList<>();
             for (Run run : runs.values()) branches.add(run.branch);
-            snapshot = new PipelineSnapshot(sessionId, input.briefId, ++revision, branches);
+            snapshot = new PipelineSnapshot(sessionId, input.briefId, input.briefFingerprint, ++revision, branches);
             if (checkpoint) saveCheckpoint(snapshot);
             pendingSnapshots.addLast(snapshot);
         }

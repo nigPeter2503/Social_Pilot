@@ -4,6 +4,7 @@ import static org.junit.Assert.*;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import org.junit.Test;
 
 /** SP-033 recovery mapping and write guard, without any runtime. */
@@ -26,13 +27,15 @@ public final class CheckpointPolicyTest {
                 .withStage(completed(PipelineStage.DRAFT, "i2", "d"))
                 .withRuleCheck(completed(PipelineStage.RULE_CHECK, "i3", "VERDICT: PASS"),
                         RuleCheck.of("VERDICT: PASS", "d", Collections.emptyList()));
-        return new PipelineSnapshot("s-1", "brief-1", 7, Arrays.asList(facebook, instagram));
+        return new PipelineSnapshot("s-1", "brief-1", input("brief-1", FACEBOOK, INSTAGRAM).briefFingerprint,
+                7, Arrays.asList(facebook, instagram));
     }
 
     @Test public void runningStageBecomesInterruptedAndKeepsItsRequestAndText() {
         PipelineSnapshot recovered = CheckpointPolicy.recover(midDraft(), 99);
         assertEquals(8, recovered.revision);
         assertEquals("s-1", recovered.sessionId);
+        assertEquals(midDraft().briefFingerprint, recovered.briefFingerprint);
         ChannelBranch branch = recovered.branch("page-1");
         assertEquals(ChannelBranch.Status.INTERRUPTED, branch.status);
         assertEquals(PipelineStage.DRAFT, branch.failedStage);
@@ -56,7 +59,7 @@ public final class CheckpointPolicyTest {
     }
 
     @Test public void branchScheduledButNotStartedIsInterruptedAtItsFirstTextStage() {
-        PipelineSnapshot stored = new PipelineSnapshot("s-2", "brief-1", 1,
+        PipelineSnapshot stored = new PipelineSnapshot("s-2", "brief-1", input("brief-1", FACEBOOK).briefFingerprint, 1,
                 Collections.singletonList(ChannelBranch.initial(FACEBOOK)));
         ChannelBranch branch = CheckpointPolicy.recover(stored, 5).branch("page-1");
         assertEquals(ChannelBranch.Status.INTERRUPTED, branch.status);
@@ -71,9 +74,9 @@ public final class CheckpointPolicyTest {
         assertEquals(CheckpointPolicy.Write.ACCEPTED,
                 CheckpointPolicy.check(stored, CheckpointPolicy.recover(stored, 1)));
         assertEquals(CheckpointPolicy.Write.STALE, CheckpointPolicy.check(stored, stored));
-        PipelineSnapshot older = new PipelineSnapshot("s-1", "brief-1", 6, stored.branches);
+        PipelineSnapshot older = new PipelineSnapshot("s-1", "brief-1", stored.briefFingerprint, 6, stored.branches);
         assertEquals(CheckpointPolicy.Write.STALE, CheckpointPolicy.check(stored, older));
-        PipelineSnapshot other = new PipelineSnapshot("s-9", "brief-1", 100, stored.branches);
+        PipelineSnapshot other = new PipelineSnapshot("s-9", "brief-1", stored.briefFingerprint, 100, stored.branches);
         assertEquals(CheckpointPolicy.Write.OTHER_SESSION, CheckpointPolicy.check(stored, other));
     }
 
@@ -92,14 +95,42 @@ public final class CheckpointPolicyTest {
                 CheckpointPolicy.mismatch(input("brief-1", moved), CheckpointPolicy.withoutChannel(stored, "ig-1")));
     }
 
+    @Test public void briefFingerprintIncludesContentLanguageAndTheTypeAndOrderOfSources() {
+        PipelineInput.Source link = new PipelineInput.Source(true, "https://example.com/menu");
+        PipelineInput.Source note = new PipelineInput.Source(false, "Use the seasonal menu");
+        PipelineInput original = inputWithSources("vi", link, note);
+        PipelineSnapshot stored = new PipelineSnapshot("s-3", original.briefId, original.briefFingerprint, 1,
+                Collections.singletonList(ChannelBranch.initial(FACEBOOK)));
+
+        assertNull(CheckpointPolicy.mismatch(inputWithSources("vi",
+                new PipelineInput.Source(true, " https://example.com/menu "), note), stored));
+        assertEquals(CheckpointPolicy.Mismatch.BRIEF_CHANGED,
+                CheckpointPolicy.mismatch(inputWithSources("en", link, note), stored));
+        assertEquals(CheckpointPolicy.Mismatch.BRIEF_CHANGED,
+                CheckpointPolicy.mismatch(inputWithSources("vi", note, link), stored));
+        assertEquals(CheckpointPolicy.Mismatch.BRIEF_CHANGED, CheckpointPolicy.mismatch(inputWithSources("vi",
+                new PipelineInput.Source(false, link.value), note), stored));
+        assertEquals(CheckpointPolicy.Mismatch.BRIEF_CHANGED, CheckpointPolicy.mismatch(inputWithSources("vi",
+                link, new PipelineInput.Source(false, "Use the regular menu")), stored));
+        PipelineSnapshot missingFingerprint = new PipelineSnapshot("s-3", original.briefId, null, 1, stored.branches);
+        assertEquals(CheckpointPolicy.Mismatch.BRIEF_CHANGED, CheckpointPolicy.mismatch(original, missingFingerprint));
+    }
+
     @Test public void disconnectDropsOnlyThatChannelAndEmptiesTheSessionLast() {
         PipelineSnapshot stored = midDraft();
         PipelineSnapshot kept = CheckpointPolicy.withoutChannel(stored, "ig-1");
         assertEquals(1, kept.branches.size());
         assertNotNull(kept.branch("page-1"));
         assertEquals(stored.revision, kept.revision);
+        assertEquals(stored.briefFingerprint, kept.briefFingerprint);
         assertSame(stored, CheckpointPolicy.withoutChannel(stored, "unknown"));
         assertNull(CheckpointPolicy.withoutChannel(kept, "page-1"));
+    }
+
+    private static PipelineInput inputWithSources(String language, PipelineInput.Source... sources) {
+        List<PipelineInput.Source> ordered = Arrays.asList(sources);
+        return new PipelineInput("brief-1", "Topic", "Goal", "Audience", "Tone", language,
+                ordered, Collections.singletonList(FACEBOOK));
     }
 
     private static PipelineInput input(String briefId, ChannelTarget... targets) {

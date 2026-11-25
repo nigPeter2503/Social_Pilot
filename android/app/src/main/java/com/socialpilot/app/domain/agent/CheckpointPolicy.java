@@ -48,7 +48,8 @@ public final class CheckpointPolicy {
 
     /** Null when the checkpoint can be restored for this input. */
     public static Mismatch mismatch(PipelineInput input, PipelineSnapshot checkpoint) {
-        if (!input.briefId.equals(checkpoint.briefId)) return Mismatch.BRIEF_CHANGED;
+        if (!input.briefId.equals(checkpoint.briefId)
+                || !input.briefFingerprint.equals(checkpoint.briefFingerprint)) return Mismatch.BRIEF_CHANGED;
         if (input.targets.size() != checkpoint.branches.size()) return Mismatch.TARGETS_CHANGED;
         Map<String, ChannelTarget> targets = new HashMap<>();
         for (ChannelTarget target : input.targets) targets.put(target.channelId, target);
@@ -76,7 +77,8 @@ public final class CheckpointPolicy {
     public static PipelineSnapshot recover(PipelineSnapshot stored, long now) {
         List<ChannelBranch> branches = new ArrayList<>();
         for (ChannelBranch branch : stored.branches) branches.add(recover(branch, now));
-        return new PipelineSnapshot(stored.sessionId, stored.briefId, stored.revision + 1, branches);
+        return new PipelineSnapshot(stored.sessionId, stored.briefId, stored.briefFingerprint,
+                stored.revision + 1, branches);
     }
 
     private static ChannelBranch recover(ChannelBranch branch, long now) {
@@ -113,6 +115,6 @@ public final class CheckpointPolicy {
             if (!branch.target.channelId.equals(channelId)) kept.add(branch);
         }
         if (kept.isEmpty()) return null;
-        return new PipelineSnapshot(stored.sessionId, stored.briefId, stored.revision, kept);
+        return new PipelineSnapshot(stored.sessionId, stored.briefId, stored.briefFingerprint, stored.revision, kept);
     }
 }

@@ -27,6 +27,7 @@ import com.socialpilot.app.domain.contract.ai.ModelEntry;
 import com.socialpilot.app.domain.contract.ai.ModelRegistry;
 import com.socialpilot.app.domain.contract.ai.PriceSheet;
 import com.socialpilot.app.domain.contract.ai.UsageRecord;
+import com.socialpilot.app.domain.editor.Brief;
 import com.socialpilot.app.testing.MemoryPreferences;
 import com.socialpilot.app.testing.RecordingBudget;
 import java.math.BigDecimal;
@@ -527,6 +528,31 @@ public final class ChannelPipelineTest {
         assertEquals(sent, provider.prepared.size());
     }
 
+    @Test public void restoreRejectsEditedBriefWithTheSameIdBeforeChangingTheCheckpoint() {
+        List<Brief.Target> targets = Collections.singletonList(new Brief.Target("page-1", "FACEBOOK"));
+        Map<String, Long> revisions = Collections.singletonMap("page-1", 3L);
+        Brief original = new Brief("brief-1", "Old topic", "Goal", "Audience", "Tone", "vi",
+                targets, Collections.emptyList());
+        Brief edited = new Brief("brief-1", "New topic", "Goal", "Audience", "Tone", "vi",
+                targets, Collections.emptyList());
+        MemoryCheckpointStore store = new MemoryCheckpointStore();
+        ChannelPipeline pipeline = pipeline(inline, store);
+        ChannelPipeline.Session session = pipeline.start(PipelineInput.from(original, revisions).input, new Recorder());
+        PipelineSnapshot checkpoint = store.load(session.sessionId);
+        int sent = provider.prepared.size();
+        long reserved = budget.count("reserve:");
+        Recorder restored = new Recorder();
+
+        IllegalArgumentException rejection = assertThrows(IllegalArgumentException.class,
+                () -> pipeline.restore(PipelineInput.from(edited, revisions).input, checkpoint, restored));
+
+        assertTrue(rejection.getMessage().contains("BRIEF_CHANGED"));
+        assertSame(checkpoint, store.load(session.sessionId));
+        assertTrue(restored.snapshots.isEmpty());
+        assertEquals(sent, provider.prepared.size());
+        assertEquals(reserved, budget.count("reserve:"));
+    }
+
     @Test public void cancellationCallbackCannotRestoreADisconnectedCheckpoint() throws Exception {
         provider.hangStep = "page-1/outline";
         MemoryCheckpointStore store = new MemoryCheckpointStore();
@@ -557,7 +583,7 @@ public final class ChannelPipelineTest {
 
     @Test public void concurrentRecoveryClaimsFromTheSameRevisionHaveOneWinner() throws Exception {
         MemoryCheckpointStore store = new MemoryCheckpointStore();
-        PipelineSnapshot checkpoint = new PipelineSnapshot("recovery", "brief-1", 1,
+        PipelineSnapshot checkpoint = new PipelineSnapshot("recovery", "brief-1", input(FACEBOOK).briefFingerprint, 1,
                 Collections.singletonList(ChannelBranch.initial(FACEBOOK)));
         assertEquals(CheckpointPolicy.Write.ACCEPTED, store.save(checkpoint));
         ChannelPipeline pipeline = pipeline(inline, store);
@@ -609,7 +635,8 @@ public final class ChannelPipelineTest {
         MemoryCheckpointStore store = new MemoryCheckpointStore();
         ChannelPipeline.Session session = pipeline(inline, store).start(input(FACEBOOK, INSTAGRAM), new Recorder());
         PipelineSnapshot latest = store.load(session.sessionId);
-        PipelineSnapshot late = new PipelineSnapshot(latest.sessionId, latest.briefId, latest.revision - 1,
+        PipelineSnapshot late = new PipelineSnapshot(latest.sessionId, latest.briefId, latest.briefFingerprint,
+                latest.revision - 1,
                 latest.branches);
         assertEquals(CheckpointPolicy.Write.STALE, store.save(late));
         assertSame(latest, store.load(session.sessionId));
@@ -619,7 +646,7 @@ public final class ChannelPipelineTest {
         store.forgetChannel("page-1", FACEBOOK.connectionRevision);
         assertNull(store.load(session.sessionId));
         assertTrue(store.all().isEmpty());
-        PipelineSnapshot lateAfterDeletion = new PipelineSnapshot(latest.sessionId, latest.briefId,
+        PipelineSnapshot lateAfterDeletion = new PipelineSnapshot(latest.sessionId, latest.briefId, latest.briefFingerprint,
                 latest.revision + 1, latest.branches);
         assertEquals(CheckpointPolicy.Write.INVALIDATED, store.save(lateAfterDeletion));
     }
@@ -634,7 +661,8 @@ public final class ChannelPipelineTest {
         assertThrows(IllegalArgumentException.class,
                 () -> pipeline.restore(input(FACEBOOK, INSTAGRAM), both, new Recorder()));
 
-        PipelineSnapshot next = new PipelineSnapshot(both.sessionId, both.briefId, both.revision + 1, both.branches);
+        PipelineSnapshot next = new PipelineSnapshot(both.sessionId, both.briefId, both.briefFingerprint,
+                both.revision + 1, both.branches);
         assertEquals(CheckpointPolicy.Write.ACCEPTED, store.save(next));
         PipelineSnapshot kept = store.load(original.sessionId);
         assertEquals(next.revision, kept.revision);
