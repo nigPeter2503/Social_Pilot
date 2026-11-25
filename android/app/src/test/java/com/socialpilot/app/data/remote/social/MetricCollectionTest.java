@@ -4,6 +4,7 @@ import com.socialpilot.app.data.local.snapshot.*;
 import com.socialpilot.app.data.repository.metrics.*;
 import com.socialpilot.app.domain.contract.Cancelable;
 import com.socialpilot.app.domain.contract.social.*;
+import java.net.SocketTimeoutException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -11,10 +12,16 @@ import java.util.concurrent.atomic.AtomicLong;
 import okhttp3.Call;
 import okhttp3.EventListener;
 import okhttp3.OkHttpClient;
+import okhttp3.Response;
+import okhttp3.ResponseBody;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
 import okhttp3.mockwebserver.SocketPolicy;
+import okio.Buffer;
+import okio.BufferedSource;
+import okio.ForwardingSource;
+import okio.Okio;
 import org.junit.*;
 import static com.socialpilot.app.data.repository.metrics.MetricCollectionCoordinator.State.*;
 import static org.junit.Assert.*;
@@ -508,37 +515,45 @@ public class MetricCollectionTest {
         assertEquals(Long.valueOf(8), postSnap.samples().get(0).value());
     }
 
-    @Test public void http503BodyTimeoutPreservesDeadlineAndCompletesOnDefaultTimeoutRetry() throws Exception {
-        OkHttpClient baseClient = client;
-        client = baseClient.newBuilder()
-                .readTimeout(300, TimeUnit.MILLISECONDS)
-                .eventListener(new EventListener() {
-                    @Override public void responseFailed(Call call, java.io.IOException ioe) {
-                        clock.addAndGet(5_000L);
-                    }
-                }).build();
+    @Test public void http503BodyTimeoutPreservesDeadlineAndCompletesOnRetry() {
+        // Inject the timeout at the body read so socket timing cannot affect the retry.
+        client = client.newBuilder().addInterceptor(chain -> {
+            Response response = chain.proceed(chain.request());
+            if (response.code() != 503) return response;
+            ResponseBody body = response.body();
+            BufferedSource source = Okio.buffer(new ForwardingSource(body.source()) {
+                @Override public long read(Buffer sink, long byteCount) throws SocketTimeoutException {
+                    clock.addAndGet(5_000L);
+                    throw new SocketTimeoutException("injected 503 body read timeout");
+                }
+            });
+            return response.newBuilder()
+                    .body(ResponseBody.create(source, body.contentType(), body.contentLength()))
+                    .build();
+        }).build();
         configureCollection();
 
         MetricJob followerJob = job(true);
         server.enqueue(new MockResponse().setResponseCode(503).setHeader("Retry-After", "120")
-                .setBody("{}").setBodyDelay(1_000, TimeUnit.MILLISECONDS));
+                .setBody("{}"));
         server.enqueue(new MockResponse().setResponseCode(200).setBody("{\"id\":\"MO_PHONG-page\",\"followers_count\":33}"));
 
         MetricCollectionCoordinator.Result waitFollower = run(followerJob, 0);
+        assertEquals(START + 5_000L, clock.get());
         assertEquals(WAIT, waitFollower.state());
         assertEquals(Long.valueOf(START + 120_000L), waitFollower.retryAt());
         assertEquals(1, server.getRequestCount());
+        assertTrue(history().snapshots().isEmpty());
 
         clock.set(START + 119_999L);
         assertEquals(WAIT, run(followerJob, 1).state());
         assertEquals(1, server.getRequestCount());
 
-        // Restore default read timeout for retry after coordinator restart.
-        client = baseClient;
+        // Recreate the coordinator and retry from the persisted checkpoint.
         configureCollection();
         clock.set(START + 120_000L);
         MetricCollectionCoordinator.Result followerDone = run(followerJob, 2);
-        assertEquals(COMPLETE, followerDone.state());
+        assertEquals(followerDone.toString(), COMPLETE, followerDone.state());
         assertEquals(2, server.getRequestCount());
         assertEquals(Long.valueOf(33), history().snapshots().get(0).samples().get(0).value());
     }
