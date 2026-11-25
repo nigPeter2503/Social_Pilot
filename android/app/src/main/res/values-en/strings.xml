@@ -102,4 +102,31 @@
   <string name="ai_key_store_error">Could not save the key to secure storage. Please retry.</string>
   <string name="ai_key_delete_error">Could not delete the key. Please retry.</string>
   <string name="ai_key_deleted">This provider\'s key was deleted.</string>
+
+  <string name="ai_models_title">Model per task</string>
+  <string name="ai_dispatch_locked">AI calls are locked until shared budget control is enabled. You can pick a model for each task in advance.</string>
+  <string name="ai_dispatch_enabled">AI calls go through the shared budget control.</string>
+  <string name="ai_registry_revision">Model registry: %1$s</string>
+  <string name="ai_task_content_text">Write and edit content</string>
+  <string name="ai_task_comment_classification">Classify comments</string>
+  <string name="ai_task_comment_reply">Suggest comment replies</string>
+  <string name="ai_task_analytics_report">Analytics report</string>
+  <string name="ai_model_none">— Not selected —</string>
+  <string name="ai_model_option">%1$s · %2$s</string>
+  <string name="ai_model_not_selected">No model selected for this task.</string>
+  <string name="ai_model_no_options">The registry has no model for this task.</string>
+  <string name="ai_model_ready">Model ready (capability and price sheet %1$s confirmed).</string>
+  <string name="ai_model_block_unverified">This model is not verified yet and cannot be used.</string>
+  <string name="ai_model_block_capability_unknown">Streaming text support is not confirmed; the model cannot be used yet.</string>
+  <string name="ai_model_block_capability_unsupported">This model does not support this task.</string>
+  <string name="ai_model_block_task">This model is not allowed for this task.</string>
+  <string name="ai_model_block_output_cap">The output limit exceeds what the model allows.</string>
+  <string name="ai_model_block_price">No sourced price sheet; cost cannot be estimated, so the model cannot be used yet.</string>
+  <string name="ai_model_save_error">Could not save the model choice. Please retry.</string>
+  <string name="ai_usage_title">Estimated cost</string>
+  <string name="ai_usage_unavailable">No usage ledger yet. No AI call has been made.</string>
+  <string name="ai_usage_empty">No AI calls in this period.</string>
+  <string name="ai_usage_row">%1$s · %2$s: estimated %3$s %4$s; settled: %5$d, unknown cost: %6$d, not sent: %7$d</string>
+  <string name="ai_dispatch_status">%1$s\n%2$s</string>
+  <string name="ai_usage_note">This is the app\'s estimate from the pinned price sheet, not a provider invoice. Calls with missing usage are never counted as 0.</string>
 </resources>

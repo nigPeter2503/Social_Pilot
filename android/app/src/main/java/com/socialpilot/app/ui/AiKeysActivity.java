@@ -14,6 +14,10 @@ import com.socialpilot.app.data.ai.AiKeyRepository.KeyStatus;
 import com.socialpilot.app.data.ai.ByokKeyVerifier.Outcome;
 import com.socialpilot.app.databinding.ActivityAiKeysBinding;
 import com.socialpilot.app.databinding.ItemAiKeyBinding;
+import com.socialpilot.app.databinding.ItemTaskModelBinding;
+import com.socialpilot.app.domain.ai.UsageSummary;
+import com.socialpilot.app.domain.contract.ai.AiTaskType;
+import com.socialpilot.app.domain.contract.ai.ModelEntry;
 import com.socialpilot.app.domain.contract.ai.AiRequest.Provider;
 import com.socialpilot.app.ui.AiKeysViewModel.Busy;
 import com.socialpilot.app.ui.AiKeysViewModel.Notice;
@@ -38,6 +42,84 @@ public final class AiKeysActivity extends AppCompatActivity {
         model = new ViewModelProvider(this).get(AiKeysViewModel.class);
         bind(binding.openAiKey, Provider.OPENAI, R.string.provider_openai);
         bind(binding.geminiKey, Provider.GEMINI, R.string.provider_gemini);
+        AiModelsViewModel models = new ViewModelProvider(this).get(AiModelsViewModel.class);
+        models.state().observe(this, state -> renderModels(binding, models, state));
+    }
+
+    private void renderModels(ActivityAiKeysBinding binding, AiModelsViewModel models, AiModelsViewModel.State state) {
+        binding.dispatchStatus.setText(getString(R.string.ai_dispatch_status,
+                getString(state.dispatchEnabled ? R.string.ai_dispatch_enabled : R.string.ai_dispatch_locked),
+                getString(R.string.ai_registry_revision, state.registryRevision)));
+        binding.taskModels.removeAllViews();
+        for (AiModelsViewModel.TaskRow row : state.rows) {
+            ItemTaskModelBinding item = ItemTaskModelBinding.inflate(getLayoutInflater(), binding.taskModels, true);
+            item.taskTitle.setText(taskTitle(row.task));
+            java.util.List<String> labels = new java.util.ArrayList<>();
+            labels.add(getString(R.string.ai_model_none));
+            int selected = 0;
+            for (int i = 0; i < row.options.size(); i++) {
+                ModelEntry option = row.options.get(i);
+                labels.add(getString(R.string.ai_model_option, providerName(option.provider()), option.model()));
+                if (option == row.selected) selected = i + 1;
+            }
+            android.widget.ArrayAdapter<String> adapter = new android.widget.ArrayAdapter<>(this,
+                    android.R.layout.simple_spinner_item, labels);
+            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+            item.modelSpinner.setAdapter(adapter);
+            item.modelSpinner.setSelection(selected, false);
+            item.modelSpinner.setEnabled(!row.options.isEmpty());
+            final int current = selected;
+            item.modelSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+                @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                    if (position != current) models.select(row.task, position == 0 ? null : row.options.get(position - 1));
+                }
+                @Override public void onNothingSelected(android.widget.AdapterView<?> parent) { }
+            });
+            item.modelStatus.setText(modelStatus(row));
+        }
+        if (state.saveFailed) Toast.makeText(this, R.string.ai_model_save_error, Toast.LENGTH_SHORT).show();
+        binding.usageSummary.setText(usageText(state));
+    }
+
+    private String modelStatus(AiModelsViewModel.TaskRow row) {
+        if (row.options.isEmpty()) return getString(R.string.ai_model_no_options);
+        if (row.selected == null) return getString(R.string.ai_model_not_selected);
+        switch (row.block) {
+            case NONE: return getString(R.string.ai_model_ready, row.selected.price.priceRevision);
+            case UNVERIFIED: return getString(R.string.ai_model_block_unverified);
+            case CAPABILITY_UNKNOWN: return getString(R.string.ai_model_block_capability_unknown);
+            case CAPABILITY_UNSUPPORTED: return getString(R.string.ai_model_block_capability_unsupported);
+            case TASK_NOT_ALLOWED: return getString(R.string.ai_model_block_task);
+            case OUTPUT_CAP_EXCEEDED: return getString(R.string.ai_model_block_output_cap);
+            default: return getString(R.string.ai_model_block_price);
+        }
+    }
+
+    private String usageText(AiModelsViewModel.State state) {
+        if (state.today == null) return getString(R.string.ai_usage_unavailable);
+        StringBuilder text = new StringBuilder();
+        for (java.util.List<UsageSummary.Row> rows : java.util.Arrays.asList(state.today, state.month)) {
+            for (UsageSummary.Row row : rows) {
+                text.append(getString(R.string.ai_usage_row, providerName(row.provider), row.periodKey,
+                        java.math.BigDecimal.valueOf(row.estimatedMicros, 6).stripTrailingZeros().toPlainString(),
+                        row.currency, row.settledRequests, row.uncertainRequests, row.releasedRequests)).append("\n");
+            }
+        }
+        if (text.length() == 0) return getString(R.string.ai_usage_empty);
+        return text.append(getString(R.string.ai_usage_note)).toString();
+    }
+
+    private String providerName(Provider provider) {
+        return getString(provider == Provider.OPENAI ? R.string.provider_openai : R.string.provider_gemini);
+    }
+
+    private static int taskTitle(AiTaskType task) {
+        switch (task) {
+            case COMMENT_CLASSIFICATION: return R.string.ai_task_comment_classification;
+            case COMMENT_REPLY: return R.string.ai_task_comment_reply;
+            case ANALYTICS_REPORT: return R.string.ai_task_analytics_report;
+            default: return R.string.ai_task_content_text;
+        }
     }
 
     private void bind(ItemAiKeyBinding card, Provider provider, int title) {
