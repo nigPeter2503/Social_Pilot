@@ -51,7 +51,8 @@ public final class AppContainer {
         sampleResults.reconcileWorkOnOpen(WorkManager.getInstance(app));
         oauthStore = new EncryptedOAuthStore(app);
         instagram = new InstagramPublishRepository(app, oauthStore);
-        facebookOAuth = new FacebookOAuthCoordinator(oauthStore, io, BuildConfig.OAUTH_API_BASE_URL);
+        facebookOAuth = new FacebookOAuthCoordinator(oauthStore, Executors.newSingleThreadExecutor(),
+                BuildConfig.OAUTH_API_BASE_URL);
         socialSecrets = new EncryptedSecretStore(app, SecretNamespace.SOCIAL_TOKEN);
         aiKeys = new AiKeyRepository(new EncryptedSecretStore(app, SecretNamespace.AI_PROVIDER),
                 app.getSharedPreferences("ai_key_status_v1", Context.MODE_PRIVATE),

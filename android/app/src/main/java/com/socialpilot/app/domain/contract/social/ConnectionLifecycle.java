@@ -1,8 +1,8 @@
 package com.socialpilot.app.domain.contract.social;
 
 import com.socialpilot.app.domain.contract.oauth.OAuthContract.OAuthExchangeResponse;
-import java.text.ParsePosition;
 import java.text.SimpleDateFormat;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
@@ -20,7 +20,6 @@ public final class ConnectionLifecycle {
             SocialError.Code.PERMISSION_REQUIRED, SocialError.NextAction.RESOLVE_PERMISSION);
 
     public static final class Identity {
-        // Keep the proposed Instagram values independent of the wire enums pending SP-065.
         public final String platform;
         public final String accountType;
         public final String externalAccountId;
@@ -72,10 +71,11 @@ public final class ConnectionLifecycle {
         public final String tokenType;
         public final Long tokenExpiresAtMillis;
         public final Long dataAccessExpiresAtMillis;
+        private final Long legacyExpiryMillis;
 
         private Grant(Identity identity, String displayName, String linkedPageId,
                 List<String> grantedScopes, String graphApiVersion, String tokenType,
-                Long tokenExpiresAtMillis, Long dataAccessExpiresAtMillis) {
+                Long tokenExpiresAtMillis, Long dataAccessExpiresAtMillis, Long legacyExpiryMillis) {
             this.identity = identity;
             this.displayName = ContractChecks.text(displayName, "displayName");
             this.linkedPageId = linkedPageId;
@@ -86,33 +86,52 @@ public final class ConnectionLifecycle {
             this.tokenType = ContractChecks.text(tokenType, "tokenType");
             this.tokenExpiresAtMillis = tokenExpiresAtMillis;
             this.dataAccessExpiresAtMillis = dataAccessExpiresAtMillis;
+            this.legacyExpiryMillis = legacyExpiryMillis;
         }
 
         public Long effectiveExpiryMillis() {
+            if (tokenExpiresAtMillis == null && dataAccessExpiresAtMillis == null) return legacyExpiryMillis;
             if (tokenExpiresAtMillis == null) return dataAccessExpiresAtMillis;
             if (dataAccessExpiresAtMillis == null) return tokenExpiresAtMillis;
             return Math.min(tokenExpiresAtMillis, dataAccessExpiresAtMillis);
         }
     }
 
-    public static Grant fromFacebookExchange(String expectedSession, OAuthExchangeResponse response) {
+    public static Grant fromExchange(String expectedSession, String expectedPlatform, OAuthExchangeResponse response) {
         response.validate();
-        Long expiresAt = null;
-        if (response.expiresAt != null) {
-            SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.ROOT);
-            format.setTimeZone(TimeZone.getTimeZone("UTC"));
-            expiresAt = format.parse(response.expiresAt, new ParsePosition(0)).getTime();
-        }
-        return validateGrant(expectedSession, "FACEBOOK", response.sessionId, response.provider,
-                response.accountType, response.externalAccountId, response.displayName, null,
-                Collections.emptyList(), null, response.tokenType, expiresAt, null);
+        return validateGrant(expectedSession, expectedPlatform, response.sessionId, response.provider,
+                response.accountType, response.externalAccountId, response.displayName, response.linkedPageId,
+                response.grantedScopes == null ? Collections.emptyList() : response.grantedScopes,
+                response.graphApiVersion, response.tokenType, parseExpiry(response.tokenExpiresAt),
+                parseExpiry(response.dataAccessExpiresAt), parseExpiry(response.expiresAt));
     }
 
-    /** Maps fields supplied by a validated exchange, including the proposed SP-065 metadata. */
-    public static Grant validateGrant(String expectedSession, String expectedPlatform, String sessionId,
+    private static Long parseExpiry(String value) {
+        if (value == null) return null;
+        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.ROOT);
+        format.setTimeZone(TimeZone.getTimeZone("UTC"));
+        format.setLenient(false);
+        try {
+            return format.parse(value).getTime();
+        } catch (ParseException exception) {
+            throw new IllegalArgumentException("Invalid expiry", exception);
+        }
+    }
+
+    /** Used by connection metadata fixtures that already carry epoch milliseconds. */
+    static Grant validateGrant(String expectedSession, String expectedPlatform, String sessionId,
             String platform, String accountType, String externalAccountId, String displayName,
             String linkedPageId, List<String> grantedScopes, String graphApiVersion, String tokenType,
             Long tokenExpiresAtMillis, Long dataAccessExpiresAtMillis) {
+        return validateGrant(expectedSession, expectedPlatform, sessionId, platform, accountType,
+                externalAccountId, displayName, linkedPageId, grantedScopes, graphApiVersion,
+                tokenType, tokenExpiresAtMillis, dataAccessExpiresAtMillis, null);
+    }
+
+    private static Grant validateGrant(String expectedSession, String expectedPlatform, String sessionId,
+            String platform, String accountType, String externalAccountId, String displayName,
+            String linkedPageId, List<String> grantedScopes, String graphApiVersion, String tokenType,
+            Long tokenExpiresAtMillis, Long dataAccessExpiresAtMillis, Long legacyExpiryMillis) {
         if (!ContractChecks.text(expectedSession, "expectedSession").equals(sessionId)) {
             throw new IllegalArgumentException("INVALID_SESSION");
         }
@@ -131,7 +150,7 @@ public final class ConnectionLifecycle {
             throw new IllegalArgumentException("PROVIDER_ERROR");
         }
         return new Grant(identity, displayName, linkedPageId, grantedScopes, graphApiVersion,
-                tokenType, tokenExpiresAtMillis, dataAccessExpiresAtMillis);
+                tokenType, tokenExpiresAtMillis, dataAccessExpiresAtMillis, legacyExpiryMillis);
     }
 
     public static final class Connection {

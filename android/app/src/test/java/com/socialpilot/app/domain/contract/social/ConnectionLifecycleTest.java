@@ -12,6 +12,7 @@ import com.socialpilot.app.domain.contract.social.ConnectionLifecycle.Identity;
 import com.socialpilot.app.domain.contract.social.ConnectionLifecycle.Scope;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -43,9 +44,9 @@ public final class ConnectionLifecycleTest {
         assertThrows(IllegalArgumentException.class, () -> instagram("ig", null, null, null));
         assertThrows(IllegalArgumentException.class, () -> instagram("", "page", null, null));
         assertThrows(IllegalArgumentException.class, () ->
-                ConnectionLifecycle.fromFacebookExchange("new-session", facebookResponse("page", "PAGE")));
+                ConnectionLifecycle.fromExchange("new-session", "FACEBOOK", facebookResponse("page", "PAGE")));
         assertThrows(IllegalArgumentException.class, () ->
-                ConnectionLifecycle.fromFacebookExchange(SESSION, facebookResponse("page", "PERSON")));
+                ConnectionLifecycle.fromExchange(SESSION, "FACEBOOK", facebookResponse("page", "PERSON")));
         assertThrows(IllegalArgumentException.class, () -> ConnectionLifecycle.validateGrant(
                 SESSION, "FACEBOOK", SESSION, "INSTAGRAM", "PROFESSIONAL", "ig", "Demo", "page",
                 Collections.singletonList("instagram_basic"), "v27.0", "bearer", null, null));
@@ -55,6 +56,31 @@ public final class ConnectionLifecycleTest {
         assertThrows(IllegalArgumentException.class, () ->
                 new OAuthExchangeResponse(SESSION, "FACEBOOK", "page", "PAGE", "Demo", null,
                         null, "bearer", null));
+    }
+
+    @Test public void mapsActualInstagramExchangeAndRetainsDeadlineProvenance() {
+        String dataExpiry = "2033-05-18T03:33:20Z";
+        String tokenExpiry = "2034-05-18T03:33:20Z";
+        OAuthExchangeResponse response = new OAuthExchangeResponse(SESSION, "INSTAGRAM",
+                "17841459976957663", "PROFESSIONAL", "Demo", "fake-token", null, "bearer",
+                dataExpiry, "1234567890", Collections.singletonList("instagram_basic"),
+                "v27.0", tokenExpiry, dataExpiry);
+        Grant grant = ConnectionLifecycle.fromExchange(SESSION, "INSTAGRAM", response);
+        assertEquals("17841459976957663", grant.identity.externalAccountId);
+        assertEquals("1234567890", grant.linkedPageId);
+        assertEquals(Long.valueOf(Instant.parse(tokenExpiry).toEpochMilli()), grant.tokenExpiresAtMillis);
+        assertEquals(Long.valueOf(Instant.parse(dataExpiry).toEpochMilli()), grant.dataAccessExpiresAtMillis);
+        assertEquals(grant.dataAccessExpiresAtMillis, grant.effectiveExpiryMillis());
+        assertThrows(IllegalArgumentException.class, () ->
+                ConnectionLifecycle.fromExchange(SESSION, "FACEBOOK", response));
+
+        Grant legacy = ConnectionLifecycle.fromExchange(SESSION, "INSTAGRAM", new OAuthExchangeResponse(
+                SESSION, "INSTAGRAM", "17841459976957663", "PROFESSIONAL", "Demo", "fake-token",
+                null, "bearer", dataExpiry, "1234567890",
+                Collections.singletonList("instagram_basic"), "v27.0"));
+        assertNull(legacy.tokenExpiresAtMillis);
+        assertNull(legacy.dataAccessExpiresAtMillis);
+        assertEquals(grant.dataAccessExpiresAtMillis, legacy.effectiveExpiryMillis());
     }
 
     @Test public void expiryUsesEarlierKnownDeadlineAndUnknownDoesNotExpire() {
@@ -171,7 +197,7 @@ public final class ConnectionLifecycleTest {
     }
 
     private static Grant facebook(String id) {
-        return ConnectionLifecycle.fromFacebookExchange(SESSION, facebookResponse(id, "PAGE"));
+        return ConnectionLifecycle.fromExchange(SESSION, "FACEBOOK", facebookResponse(id, "PAGE"));
     }
 
     private static OAuthExchangeResponse facebookResponse(String id, String type) {

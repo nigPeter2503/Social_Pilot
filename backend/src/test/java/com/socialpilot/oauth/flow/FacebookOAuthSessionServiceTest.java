@@ -106,7 +106,7 @@ class FacebookOAuthSessionServiceTest {
                 .andExpect(request -> assertEquals("Bearer 123456789|fake-secret",
                         request.getHeaders().getFirst("Authorization")))
                 .andRespond(withSuccess("""
-                        {"data":{"app_id":"123456789","is_valid":true,"expires_at":0,"data_access_expires_at":2000000000,
+                        {"data":{"app_id":"123456789","is_valid":true,"expires_at":2000000001,"data_access_expires_at":2000000000,
                         "scopes":["instagram_basic","instagram_content_publish","pages_read_engagement"]}}
                         """, MediaType.APPLICATION_JSON));
         OAuthStartResponse start = service.start(startRequest("INSTAGRAM"));
@@ -120,6 +120,8 @@ class FacebookOAuthSessionServiceTest {
         assertEquals("1234567890", exchange.linkedPageId);
         assertEquals("17841459976957663", exchange.externalAccountId);
         assertEquals("2033-05-18T03:33:20Z", exchange.expiresAt);
+        assertEquals("2033-05-18T03:33:21Z", exchange.tokenExpiresAt);
+        assertEquals("2033-05-18T03:33:20Z", exchange.dataAccessExpiresAt);
         assertTrue(exchange.grantedScopes.contains("instagram_content_publish"));
         server.verify();
     }

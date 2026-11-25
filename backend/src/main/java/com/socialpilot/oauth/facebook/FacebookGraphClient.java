@@ -102,7 +102,8 @@ public final class FacebookGraphClient {
                         originalUserLifetime, longLivedUserLifetime, metadata.path("expires_at").asLong(0),
                         metadata.path("data_access_expires_at").asLong(0));
                 return new PageIdentity(properties.getTargetPageId(), pageName, pageToken, instagramId,
-                        username, scopes, instagramExpiry(metadata));
+                        username, scopes, positiveEpoch(metadata, "expires_at"),
+                        positiveEpoch(metadata, "data_access_expires_at"));
             }
 
             stage = "page_identity";
@@ -114,7 +115,7 @@ public final class FacebookGraphClient {
             JsonNode identity = parseGraphJson(identityResponse, stage);
             if (!properties.getTargetPageId().equals(text(identity, "id"))
                     || !pageName.equals(text(identity, "name"))) throw OAuthFlowException.providerError();
-            return new PageIdentity(properties.getTargetPageId(), pageName, pageToken, null, null, List.of(), null);
+            return new PageIdentity(properties.getTargetPageId(), pageName, pageToken, null, null, List.of(), null, null);
         } catch (OAuthFlowException exception) {
             LOGGER.warn("Facebook OAuth stopped at stage={} code={}", stage, exception.getCode());
             throw exception;
@@ -164,11 +165,8 @@ public final class FacebookGraphClient {
         return data;
     }
 
-    private static Instant instagramExpiry(JsonNode metadata) {
-        long tokenExpiry = metadata.path("expires_at").asLong(0);
-        long dataExpiry = metadata.path("data_access_expires_at").asLong(0);
-        long expiry = tokenExpiry > 0 && dataExpiry > 0
-                ? Math.min(tokenExpiry, dataExpiry) : Math.max(tokenExpiry, dataExpiry);
+    private static Instant positiveEpoch(JsonNode metadata, String field) {
+        long expiry = metadata.path(field).asLong(0);
         return expiry > 0 ? Instant.ofEpochSecond(expiry) : null;
     }
 
@@ -322,12 +320,24 @@ public final class FacebookGraphClient {
         public final String instagramId;
         public final String instagramUsername;
         public final List<String> grantedScopes;
-        public final Instant expiresAt;
+        public final Instant tokenExpiresAt;
+        public final Instant dataAccessExpiresAt;
         private PageIdentity(String id, String name, String accessToken, String instagramId,
-                String instagramUsername, List<String> grantedScopes, Instant expiresAt) {
+                String instagramUsername, List<String> grantedScopes,
+                Instant tokenExpiresAt, Instant dataAccessExpiresAt) {
             this.id = id; this.name = name; this.accessToken = accessToken;
             this.instagramId = instagramId; this.instagramUsername = instagramUsername;
-            this.grantedScopes = List.copyOf(grantedScopes); this.expiresAt = expiresAt;
+            this.grantedScopes = List.copyOf(grantedScopes);
+            this.tokenExpiresAt = tokenExpiresAt;
+            this.dataAccessExpiresAt = dataAccessExpiresAt;
+        }
+
+        public Instant effectiveExpiry() {
+            if (tokenExpiresAt == null) return dataAccessExpiresAt;
+            if (dataAccessExpiresAt == null || tokenExpiresAt.isBefore(dataAccessExpiresAt)) {
+                return tokenExpiresAt;
+            }
+            return dataAccessExpiresAt;
         }
     }
 }

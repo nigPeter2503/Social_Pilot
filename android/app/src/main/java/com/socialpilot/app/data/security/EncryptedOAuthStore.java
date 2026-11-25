@@ -10,7 +10,9 @@ import java.util.Set;
 /** Versioned, authenticated OAuth records. A Page and its credentials are read/written together. */
 public final class EncryptedOAuthStore {
     private static final String KEY_ALIAS = "socialpilot.oauth.v1";
-    private static final String PENDING = "pending_v2";
+    private static final String LEGACY_PENDING_RECORD = "pending_v2";
+    private static final String FACEBOOK_PENDING = "facebook_pending_v2";
+    private static final String INSTAGRAM_PENDING = "instagram_pending_v2";
     private static final String CONNECTED = "connected_v2";
     private static final String INSTAGRAM_CONNECTED = "instagram_connected_v2";
     private static final String[] NO_LEGACY_KEYS = {};
@@ -40,22 +42,52 @@ public final class EncryptedOAuthStore {
     public synchronized void savePending(String sessionId, String verifier, String provider) {
         PendingRecord record = new PendingRecord(sessionId, verifier, provider);
         record.validate();
-        write(PENDING, record, LEGACY_PENDING);
+        PendingRecord older = readPending(LEGACY_PENDING_RECORD, LEGACY_PENDING);
+        String[] retired = older != null && provider.equals(older.provider())
+                ? new String[] {LEGACY_PENDING_RECORD} : NO_LEGACY_KEYS;
+        write(pendingKey(provider), record, retired);
     }
 
     public synchronized Pending getPending() {
-        PendingRecord record = read(PENDING, PendingRecord.class, LEGACY_PENDING);
+        PendingRecord record = readPending(FACEBOOK_PENDING, NO_LEGACY_KEYS);
+        if (record == null) record = readPending(INSTAGRAM_PENDING, NO_LEGACY_KEYS);
+        if (record == null) record = readPending(LEGACY_PENDING_RECORD, LEGACY_PENDING);
+        return record == null ? null : record.pending();
+    }
+
+    /** Consume one session without touching the other provider's pending authorization. */
+    public synchronized Pending takePending(String sessionId) {
+        if (sessionId == null) return null;
+        for (String key : new String[] {FACEBOOK_PENDING, INSTAGRAM_PENDING, LEGACY_PENDING_RECORD}) {
+            String[] legacy = LEGACY_PENDING_RECORD.equals(key) ? LEGACY_PENDING : NO_LEGACY_KEYS;
+            PendingRecord record = readPending(key, legacy);
+            if (record == null || !sessionId.equals(record.sessionId)) continue;
+            // Never exchange a handoff until its verifier removal is durable.
+            unavailable.add(key);
+            if (!preferences.edit().remove(key).commit()) throw storageUnavailable();
+            return record.pending();
+        }
+        return null;
+    }
+
+    private PendingRecord readPending(String key, String[] legacy) {
+        PendingRecord record = read(key, PendingRecord.class, legacy);
         if (record == null) return null;
         try {
             record.validate();
-            return new Pending(record.sessionId, record.verifier, record.provider == null ? "FACEBOOK" : record.provider);
+            if (!LEGACY_PENDING_RECORD.equals(key) && !key.equals(pendingKey(record.provider()))) {
+                throw storageUnavailable();
+            }
+            return record;
         } catch (RuntimeException exception) {
-            invalidate(PENDING, LEGACY_PENDING);
+            invalidate(key, legacy);
             return null;
         }
     }
 
-    public synchronized void clearPending() { invalidate(PENDING, LEGACY_PENDING); }
+    private static String pendingKey(String provider) {
+        return "INSTAGRAM".equals(provider) ? INSTAGRAM_PENDING : FACEBOOK_PENDING;
+    }
 
     public synchronized void saveConnected(OAuthExchangeResponse response) {
         if (response == null) throw storageUnavailable();
@@ -204,6 +236,8 @@ public final class EncryptedOAuthStore {
         PendingRecord(String sessionId, String verifier, String provider) {
             this.sessionId = sessionId; this.verifier = verifier; this.provider = provider;
         }
+        String provider() { return provider == null ? "FACEBOOK" : provider; }
+        Pending pending() { return new Pending(sessionId, verifier, provider()); }
         void validate() {
             if (version != 2 || sessionId == null || sessionId.trim().isEmpty() || verifier == null
                     || !verifier.matches("[A-Za-z0-9._~-]{43,128}")

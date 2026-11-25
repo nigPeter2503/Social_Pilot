@@ -13,6 +13,7 @@ import com.socialpilot.app.domain.contract.oauth.OAuthContract.OAuthFailure;
 import com.socialpilot.app.domain.contract.oauth.OAuthContract.OAuthHandoffExchangeRequest;
 import com.socialpilot.app.domain.contract.oauth.OAuthContract.OAuthStartRequest;
 import com.socialpilot.app.domain.contract.oauth.OAuthContract.OAuthStartResponse;
+import com.socialpilot.app.domain.contract.social.ConnectionLifecycle;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -36,10 +37,11 @@ public final class FacebookOAuthCoordinator {
     private final EncryptedOAuthStore store;
     private final ExecutorService io;
     private final Handler main = new Handler(Looper.getMainLooper());
-    private final AtomicBoolean busy = new AtomicBoolean(false);
+    private final AtomicBoolean starting = new AtomicBoolean(false);
     private final SecureRandom random = new SecureRandom();
     private final Gson gson = new Gson();
 
+    /** The executor serializes session creation, callback consumption and connection writes. */
     public FacebookOAuthCoordinator(EncryptedOAuthStore store, ExecutorService io, String baseUrl) {
         this.io = io;
         this.store = store;
@@ -53,13 +55,13 @@ public final class FacebookOAuthCoordinator {
     }
 
     public void start(String provider, Listener listener) {
-        if (!busy.compareAndSet(false, true)) return;
+        if (!starting.compareAndSet(false, true)) return;
         final String verifier = randomVerifier();
         final String challenge;
         try { challenge = Base64.encodeToString(
                 MessageDigest.getInstance("SHA-256").digest(verifier.getBytes(StandardCharsets.US_ASCII)),
                 Base64.URL_SAFE | Base64.NO_PADDING | Base64.NO_WRAP); }
-        catch (Exception exception) { busy.set(false); postFailure(listener, "PROVIDER_ERROR"); return; }
+        catch (Exception exception) { starting.set(false); postFailure(listener, "PROVIDER_ERROR"); return; }
         io.execute(() -> {
             try {
                 Response<OAuthStartResponse> response = api.start(provider.toLowerCase(Locale.ROOT),
@@ -73,9 +75,9 @@ public final class FacebookOAuthCoordinator {
                     throw new OAuthRequestException("INVALID_REDIRECT");
                 }
                 store.savePending(result.sessionId, verifier, provider);
-                main.post(() -> { busy.set(false); listener.onAuthorizationUrl(result.authorizationUrl); });
+                main.post(() -> { starting.set(false); listener.onAuthorizationUrl(result.authorizationUrl); });
             } catch (Exception exception) {
-                busy.set(false); postFailure(listener, exception instanceof OAuthRequestException
+                starting.set(false); postFailure(listener, exception instanceof OAuthRequestException
                         ? ((OAuthRequestException) exception).code : "PROVIDER_ERROR");
             }
         });
@@ -88,35 +90,25 @@ public final class FacebookOAuthCoordinator {
         }
         String sessionId = callback.getQueryParameter("sessionId");
         String error = callback.getQueryParameter("error");
-        Pending pending = store.getPending();
-        if (pending == null || sessionId == null || !pending.sessionId.equals(sessionId)) {
-            postFailure(listener, "INVALID_SESSION"); return;
-        }
-        if (error != null) {
-            store.clearPending(); postFailure(listener, allowedError(error)); return;
-        }
         String handoff = callback.getQueryParameter("handoffCode");
-        if (handoff == null || !handoff.matches("[A-Za-z0-9_-]{43}")) {
-            store.clearPending(); postFailure(listener, "INVALID_SESSION"); return;
-        }
-        if (!busy.compareAndSet(false, true)) return;
-        store.clearPending();
         io.execute(() -> {
             try {
+                Pending pending = store.takePending(sessionId);
+                if (pending == null) throw new OAuthRequestException("INVALID_SESSION");
+                if (error != null) throw new OAuthRequestException(allowedError(error));
+                if (handoff == null || !handoff.matches("[A-Za-z0-9_-]{43}")) {
+                    throw new OAuthRequestException("INVALID_SESSION");
+                }
                 Response<OAuthExchangeResponse> response = api.exchange(
                         new OAuthHandoffExchangeRequest(sessionId, handoff, pending.verifier)).execute();
                 if (!response.isSuccessful() || response.body() == null) throw new OAuthRequestException(errorCode(response));
-                OAuthExchangeResponse result = response.body(); result.validate();
-                if (!sessionId.equals(result.sessionId) || !pending.provider.equals(result.provider)) {
-                    throw new OAuthRequestException("PROVIDER_ERROR");
-                }
+                OAuthExchangeResponse result = response.body();
+                ConnectionLifecycle.fromExchange(sessionId, pending.provider, result);
                 store.saveConnected(result);
-                main.post(() -> {
-                    busy.set(false);
-                    listener.onConnected(result.provider, result.displayName, result.externalAccountId, result.sessionId);
-                });
+                main.post(() -> listener.onConnected(result.provider, result.displayName,
+                        result.externalAccountId, result.sessionId));
             } catch (Exception exception) {
-                busy.set(false); postFailure(listener, exception instanceof OAuthRequestException
+                postFailure(listener, exception instanceof OAuthRequestException
                         ? ((OAuthRequestException) exception).code : "PROVIDER_ERROR");
             }
         });

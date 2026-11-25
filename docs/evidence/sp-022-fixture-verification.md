@@ -48,6 +48,24 @@ Windows, JDK 21.0.7, Android SDK Platform 36 cho build Android. Các ca giả l�
 | `backend` · `.\gradlew.bat test bootJar` | Đạt, 41 test. Hồi quy SP-010 kiểm state, phiên, verifier, TTL, replay và hai lượt đổi mã đồng thời với một lượt thắng. MockMvc kiểm provider/redirect sai và callback bị từ chối chỉ trả session cùng mã lỗi chuẩn hóa. |
 | Thiết bị, restart, migration và Meta thật cho SP-022 | Chưa chạy. ADB chưa có thiết bị và SDK chưa có AVD khả dụng. Kiểm thử production còn chờ SP-065, SP-027, lượt schema và môi trường HTTPS thử. |
 
+## Đồng bộ ngày 25/11/2026
+
+Đã ghép main tại `ddab17f` cùng SP-065 và SP-027. Android dùng wire DTO của cả hai
+đích trong callback. Pending đã tách theo provider. Ca hồi quy kiểm callback
+của phiên bị thay thế, phiên cũ khi nâng cấp, tiêu thụ một lần sau restart và lỗi
+ghi xóa verifier. Handoff giữ riêng hai nguồn hạn khi Meta cung cấp, đồng thời
+giữ `expiresAt` cho app cũ.
+
+| Kiểm tra trên worktree tích hợp | Kết quả |
+| --- | --- |
+| Android `assembleDebug`, `testDebugUnitTest`, `lintDebug`, `assembleDebugAndroidTest` | Đạt. 153 unit test, lint 0 lỗi và 11 cảnh báo. |
+| Backend `test bootJar` | Đạt. 43 test, gồm fixture JSON dùng chung Android/backend và hai hạn khác nhau trong handoff. |
+| AndroidJUnitRunner trên AVD API 36 | Đạt 30/30. Gồm SP-065, Keystore, prototype và BYOK. Dùng dữ liệu thử. |
+
+Lượt Room Channel chưa được chốt. Việc chuyển credential từ kho OAuth hiện hành
+sang SP-027, API repository production, migration và kết nối Meta thật còn mở.
+Bên nhận tiếp tục dùng fixture revision 7/8 cho phần tích hợp độc lập.
+
 ## Nghiệm thu còn mở
 
 - [ ] Hai kênh qua luồng production đúng danh tính, reference và revision sau restart.
