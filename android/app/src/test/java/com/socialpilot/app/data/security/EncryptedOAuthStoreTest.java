@@ -1,29 +1,20 @@
 package com.socialpilot.app.data.security;
 
-import android.content.SharedPreferences;
 import com.socialpilot.app.domain.contract.oauth.OAuthContract.OAuthExchangeResponse;
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-import java.security.SecureRandom;
-import java.util.Base64;
-import java.util.HashMap;
+import com.socialpilot.app.testing.MemoryPreferences;
 import java.util.Map;
-import java.util.Set;
-import javax.crypto.Cipher;
-import javax.crypto.spec.GCMParameterSpec;
-import javax.crypto.spec.SecretKeySpec;
 import org.junit.Before;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class EncryptedOAuthStoreTest {
     private MemoryPreferences preferences;
-    private TestCipher cipher;
+    private TestRecordCipher cipher;
     private EncryptedOAuthStore store;
 
     @Before public void setUp() {
         preferences = new MemoryPreferences();
-        cipher = new TestCipher();
+        cipher = new TestRecordCipher();
         store = new EncryptedOAuthStore(preferences, cipher);
     }
 
@@ -40,6 +31,35 @@ public class EncryptedOAuthStoreTest {
         EncryptedOAuthStore reloaded = new EncryptedOAuthStore(preferences.reboot(), cipher);
         assertEquals("old-page (old-page)", reloaded.pageSummary());
         assertEquals("fake-old-token", reloaded.accessToken());
+    }
+
+    @Test public void invalidatingInstagramLeavesFacebookAndNewerInstagramSessionIntact() {
+        store.saveConnected(connection("facebook-page", "test-facebook-token"));
+        OAuthExchangeResponse instagram = new OAuthExchangeResponse("new-instagram-session", "INSTAGRAM",
+                "17841459976957663", "PROFESSIONAL", "demo_user", "test-instagram-token", null,
+                "bearer", null, "1234567890", java.util.Collections.singletonList("instagram_basic"), "v27.0");
+        store.saveConnected(instagram);
+        store.invalidateInstagram("stale-instagram-session");
+        assertEquals("demo_user", store.instagramConnection().displayName);
+        store.invalidateInstagram(instagram.sessionId);
+        EncryptedOAuthStore reloaded = new EncryptedOAuthStore(preferences.reboot(), cipher);
+        assertNull(reloaded.instagramConnection());
+        assertEquals("test-facebook-token", reloaded.accessToken());
+    }
+
+    @Test public void disconnectedSnapshotDoesNotMatchAfterAnInterveningReconnect() {
+        EncryptedOAuthStore.InstagramSession original = store.instagramSession();
+        store.saveConnected(new OAuthExchangeResponse("instagram-session", "INSTAGRAM", "9876543210",
+                "PROFESSIONAL", "demo_user", "test-instagram-token", null, "bearer", null, "1234567890",
+                java.util.Collections.singletonList("instagram_basic"), "v27.0"));
+        EncryptedOAuthStore.InstagramSession connected = store.instagramSession();
+        assertTrue(store.isCurrentInstagramSession(connected));
+        store.invalidateInstagram(connected.sessionId);
+
+        assertNull(store.instagramConnection());
+        assertFalse(store.isCurrentInstagramSession(original));
+        assertFalse(store.isCurrentInstagramSession(connected));
+        assertTrue(store.isCurrentInstagramSession(store.instagramSession()));
     }
 
     @Test public void reconnectEncryptionFailurePreservesWholeOldRecord() {
@@ -128,70 +148,5 @@ public class EncryptedOAuthStoreTest {
         preferences.edit().putString("pending_v2", preferences.getString("connected_v2", null)).commit();
         assertNull(store.getPending());
         assertEquals("fake-old-token", store.accessToken());
-    }
-
-    private static final class TestCipher implements EncryptedOAuthStore.RecordCipher {
-        boolean failEncryption;
-        private final SecretKeySpec key = new SecretKeySpec(new byte[32], "AES");
-        @Override public String encrypt(String name, String plaintext) throws Exception {
-            if (failEncryption) throw new IllegalStateException("Injected encryption failure");
-            byte[] iv = new byte[12]; new SecureRandom().nextBytes(iv);
-            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-            cipher.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, iv));
-            cipher.updateAAD(name.getBytes(StandardCharsets.UTF_8));
-            byte[] encrypted = cipher.doFinal(plaintext.getBytes(StandardCharsets.UTF_8));
-            return Base64.getEncoder().encodeToString(ByteBuffer.allocate(12 + encrypted.length).put(iv).put(encrypted).array());
-        }
-        @Override public String decrypt(String name, String ciphertext) throws Exception {
-            ByteBuffer buffer = ByteBuffer.wrap(Base64.getDecoder().decode(ciphertext));
-            byte[] iv = new byte[12]; buffer.get(iv);
-            byte[] encrypted = new byte[buffer.remaining()]; buffer.get(encrypted);
-            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-            cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, iv));
-            cipher.updateAAD(name.getBytes(StandardCharsets.UTF_8));
-            return new String(cipher.doFinal(encrypted), StandardCharsets.UTF_8);
-        }
-    }
-
-    /** Models Android's memory-first commit, including failure without rollback. */
-    private static final class MemoryPreferences implements SharedPreferences {
-        final Map<String, String> memory = new HashMap<>();
-        final Map<String, String> disk = new HashMap<>();
-        int commits, failCommits;
-        MemoryPreferences reboot() {
-            MemoryPreferences result = new MemoryPreferences();
-            result.memory.putAll(disk); result.disk.putAll(disk); return result;
-        }
-        @Override public Map<String, ?> getAll() { return new HashMap<>(memory); }
-        @Override public String getString(String key, String fallback) { return memory.getOrDefault(key, fallback); }
-        @Override public boolean contains(String key) { return memory.containsKey(key); }
-        @Override public Editor edit() { return new MemoryEditor(); }
-        @Override public Set<String> getStringSet(String key, Set<String> fallback) { throw new UnsupportedOperationException(); }
-        @Override public int getInt(String key, int fallback) { throw new UnsupportedOperationException(); }
-        @Override public long getLong(String key, long fallback) { throw new UnsupportedOperationException(); }
-        @Override public float getFloat(String key, float fallback) { throw new UnsupportedOperationException(); }
-        @Override public boolean getBoolean(String key, boolean fallback) { throw new UnsupportedOperationException(); }
-        @Override public void registerOnSharedPreferenceChangeListener(OnSharedPreferenceChangeListener listener) { }
-        @Override public void unregisterOnSharedPreferenceChangeListener(OnSharedPreferenceChangeListener listener) { }
-        private final class MemoryEditor implements Editor {
-            final Map<String, String> changes = new HashMap<>();
-            boolean clear;
-            @Override public Editor putString(String key, String value) { changes.put(key, value); return this; }
-            @Override public Editor remove(String key) { changes.put(key, null); return this; }
-            @Override public Editor clear() { clear = true; return this; }
-            @Override public boolean commit() {
-                commits++;
-                if (clear) memory.clear();
-                changes.forEach((key, value) -> { if (value == null) memory.remove(key); else memory.put(key, value); });
-                if (failCommits > 0) { failCommits--; return false; }
-                disk.clear(); disk.putAll(memory); return true;
-            }
-            @Override public void apply() { commit(); }
-            @Override public Editor putStringSet(String key, Set<String> values) { throw new UnsupportedOperationException(); }
-            @Override public Editor putInt(String key, int value) { throw new UnsupportedOperationException(); }
-            @Override public Editor putLong(String key, long value) { throw new UnsupportedOperationException(); }
-            @Override public Editor putFloat(String key, float value) { throw new UnsupportedOperationException(); }
-            @Override public Editor putBoolean(String key, boolean value) { throw new UnsupportedOperationException(); }
-        }
     }
 }
