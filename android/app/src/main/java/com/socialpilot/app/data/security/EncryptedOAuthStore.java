@@ -3,8 +3,12 @@ package com.socialpilot.app.data.security;
 import android.content.Context;
 import android.content.SharedPreferences;
 import com.google.gson.Gson;
+import com.socialpilot.app.data.repository.ChannelRepository;
+import com.socialpilot.app.data.repository.ChannelRepository.Snapshot;
 import com.socialpilot.app.domain.contract.oauth.OAuthContract.OAuthExchangeResponse;
+import com.socialpilot.app.domain.contract.social.Platform;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /** Versioned, authenticated OAuth records. A Page and its credentials are read/written together. */
@@ -20,19 +24,45 @@ public final class EncryptedOAuthStore {
     private static final String[] LEGACY_CONNECTED = {"page_id", "page_name", "access_token", "token_type", "expires_at"};
     private final SharedPreferences preferences;
     private final RecordCipher cipher;
+    private final ChannelRepository channels;
     private final Gson gson = new Gson();
     private final Set<String> unavailable = new HashSet<>();
     private long instagramGeneration;
 
     public EncryptedOAuthStore(Context context) {
+        this(context, null);
+    }
+
+    public EncryptedOAuthStore(Context context, ChannelRepository channels) {
         this(context.getApplicationContext().getSharedPreferences("oauth_secure_v1", Context.MODE_PRIVATE),
-                new KeystoreRecordCipher(KEY_ALIAS, false));
+                new KeystoreRecordCipher(KEY_ALIAS, false), channels);
     }
 
     // Injection keeps failure tests independent of a device's Keystore and disk availability.
     EncryptedOAuthStore(SharedPreferences preferences, RecordCipher cipher) {
+        this(preferences, cipher, null);
+    }
+
+    private EncryptedOAuthStore(SharedPreferences preferences, RecordCipher cipher, ChannelRepository channels) {
         this.preferences = preferences;
         this.cipher = cipher;
+        this.channels = channels;
+    }
+
+    /** Imports authenticated v2 records once, after opening the shared Room database. */
+    public synchronized void restoreChannels() {
+        if (channels == null) return;
+        channels.restore();
+        importLegacy(Platform.FACEBOOK, CONNECTED, LEGACY_CONNECTED);
+        importLegacy(Platform.INSTAGRAM, INSTAGRAM_CONNECTED, NO_LEGACY_KEYS);
+    }
+
+    private void importLegacy(Platform platform, String key, String[] fields) {
+        ConnectedRecord legacy = connected(platform.name());
+        if (legacy == null) return;
+        if (channels.selected(platform) == null) channels.save(legacy.connection);
+        // The Room/ref pair is already committed. Reopening after a failed deletion is idempotent.
+        invalidate(key, fields);
     }
 
     public synchronized void savePending(String sessionId, String verifier) {
@@ -95,46 +125,100 @@ public final class EncryptedOAuthStore {
         String provider = response.provider;
         boolean instagram = "INSTAGRAM".equals(provider);
         record.validate(instagram ? "INSTAGRAM" : "FACEBOOK");
+        if (channels != null) {
+            channels.save(response);
+            invalidate(instagram ? INSTAGRAM_CONNECTED : CONNECTED,
+                    instagram ? NO_LEGACY_KEYS : LEGACY_CONNECTED);
+            return;
+        }
         write(instagram ? INSTAGRAM_CONNECTED : CONNECTED, record,
                 instagram ? NO_LEGACY_KEYS : LEGACY_CONNECTED);
         if (instagram) instagramGeneration++;
     }
 
     public synchronized String pageSummary() {
+        if (channels != null) {
+            Snapshot page = channels.selected(Platform.FACEBOOK);
+            return page == null || !page.connected() ? null
+                    : page.info.displayName + " (" + page.info.externalAccountId + ")";
+        }
         ConnectedRecord record = connected("FACEBOOK");
         return record == null ? null : record.connection.displayName + " (" + record.connection.externalAccountId + ")";
     }
 
     /** Token access is kept out of Room and should only be consumed by a provider adapter. */
     public synchronized String accessToken() {
+        if (channels != null) {
+            Snapshot page = channels.selected(Platform.FACEBOOK);
+            OAuthExchangeResponse credential = page == null ? null : channels.credential(page.scope);
+            return credential == null ? null : credential.accessToken;
+        }
         ConnectedRecord record = connected("FACEBOOK");
         return record == null ? null : record.connection.accessToken;
     }
 
     public synchronized OAuthExchangeResponse instagramConnection() {
+        if (channels != null) {
+            Snapshot profile = channels.selected(Platform.INSTAGRAM);
+            return profile == null ? null : channels.credential(profile.scope);
+        }
         ConnectedRecord record = connected("INSTAGRAM");
         return record == null ? null : record.connection;
     }
 
     public synchronized InstagramSession instagramSession() {
-        OAuthExchangeResponse current = instagramConnection();
+        InstagramMetadata current = instagramMetadata();
         return new InstagramSession(current, instagramGeneration);
     }
 
     public synchronized boolean isCurrentInstagramSession(InstagramSession session) {
-        OAuthExchangeResponse current = instagramConnection();
+        InstagramMetadata current = instagramMetadata();
         return session.matches(current) && session.generation == instagramGeneration;
     }
 
     public synchronized OAuthExchangeResponse instagramConnection(InstagramSession session) {
-        OAuthExchangeResponse current = instagramConnection();
-        return session.matches(current) && session.generation == instagramGeneration ? current : null;
+        return isCurrentInstagramSession(session) ? instagramConnection() : null;
     }
 
     public synchronized void invalidateInstagram(String sessionId) {
+        if (channels != null) {
+            Snapshot profile = channels.selected(Platform.INSTAGRAM);
+            if (profile != null && profile.sessionId.equals(sessionId)
+                    && channels.requireReconnect(profile.scope)) instagramGeneration++;
+            return;
+        }
         OAuthExchangeResponse current = instagramConnection();
         if (current != null && current.sessionId.equals(sessionId)) {
             invalidate(INSTAGRAM_CONNECTED, NO_LEGACY_KEYS);
+        }
+    }
+
+    public synchronized InstagramMetadata instagramMetadata() {
+        if (channels != null) {
+            Snapshot profile = channels.selected(Platform.INSTAGRAM);
+            if (profile == null || !profile.connected()) return null;
+            return new InstagramMetadata(profile.sessionId, profile.info.externalAccountId, profile.info.displayName,
+                    profile.linkedPageId, profile.grantedScopes, profile.expiresAt, profile.graphApiVersion);
+        }
+        OAuthExchangeResponse response = instagramConnection();
+        return response == null ? null : new InstagramMetadata(response.sessionId, response.externalAccountId,
+                response.displayName, response.linkedPageId, response.grantedScopes, response.expiresAt,
+                response.graphApiVersion);
+    }
+
+    public static final class InstagramMetadata {
+        public final String sessionId, externalAccountId, displayName, linkedPageId, expiresAt, graphApiVersion;
+        public final List<String> grantedScopes;
+
+        private InstagramMetadata(String sessionId, String externalAccountId, String displayName,
+                String linkedPageId, List<String> grantedScopes, String expiresAt, String graphApiVersion) {
+            this.sessionId = sessionId;
+            this.externalAccountId = externalAccountId;
+            this.displayName = displayName;
+            this.linkedPageId = linkedPageId;
+            this.grantedScopes = grantedScopes;
+            this.expiresAt = expiresAt;
+            this.graphApiVersion = graphApiVersion;
         }
     }
 
@@ -210,13 +294,13 @@ public final class EncryptedOAuthStore {
         public final String accountId;
         private final long generation;
 
-        private InstagramSession(OAuthExchangeResponse connection, long generation) {
+        private InstagramSession(InstagramMetadata connection, long generation) {
             sessionId = connection == null ? null : connection.sessionId;
             accountId = connection == null ? null : connection.externalAccountId;
             this.generation = generation;
         }
 
-        public boolean matches(OAuthExchangeResponse connection) {
+        public boolean matches(InstagramMetadata connection) {
             return connection == null ? sessionId == null : matches(connection.sessionId, connection.externalAccountId);
         }
 

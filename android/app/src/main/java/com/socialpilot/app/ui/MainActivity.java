@@ -15,7 +15,7 @@ import com.socialpilot.app.core.FacebookOAuthCoordinator;
 import com.socialpilot.app.databinding.ActivityMainBinding;
 import com.socialpilot.app.data.repository.InstagramPublishRepository;
 import com.socialpilot.app.domain.DraftValidator;
-import com.socialpilot.app.domain.contract.oauth.OAuthContract.OAuthExchangeResponse;
+import com.socialpilot.app.data.security.EncryptedOAuthStore.InstagramMetadata;
 
 public final class MainActivity extends AppCompatActivity {
     private ActivityMainBinding binding;
@@ -35,6 +35,12 @@ public final class MainActivity extends AppCompatActivity {
         binding.connectFacebookButton.setOnClickListener(view -> model.connectFacebook());
         binding.openAiKeysButton.setOnClickListener(view -> startActivity(new Intent(this, AiKeysActivity.class)));
         binding.connectInstagramButton.setOnClickListener(view -> model.connectInstagram());
+        model.connectionsLoaded().observe(this, loaded -> {
+            String restoredPage = model.connectedPageSummary();
+            binding.facebookPageStatus.setText(restoredPage == null ? getString(R.string.facebook_not_connected)
+                    : getString(R.string.facebook_connected, restoredPage));
+            renderInstagramControls();
+        });
         model.oauthState().observe(this, state -> {
             if (state.status == MainViewModel.OAuthStatus.AUTHORIZATION_READY) {
                 String url = state.value;
@@ -128,7 +134,7 @@ public final class MainActivity extends AppCompatActivity {
         boolean oauthBusy = oauth != null && (oauth.status == MainViewModel.OAuthStatus.STARTING
                 || oauth.status == MainViewModel.OAuthStatus.EXCHANGING);
         boolean busy = Boolean.TRUE.equals(model.instagramBusy().getValue());
-        OAuthExchangeResponse connection = model.instagramConnection();
+        InstagramMetadata connection = model.instagramConnection();
         boolean connected = connection != null;
         boolean approved = model.isInstagramApprovedFor(connection);
         binding.connectFacebookButton.setEnabled(!oauthBusy && !busy);

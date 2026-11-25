@@ -139,7 +139,7 @@ public final class InstagramPublishRepositoryDeviceTest {
     }
 
     @Test public void losingPublishResponseKeepsContainerAndPreventsAnotherPost() {
-        saveInstagram("publish-test-session", "test-ig-token", null);
+        saveInstagram("publish-test-session", "test-ig-token", "2099-01-01T00:00:00Z");
         AtomicInteger requests = new AtomicInteger();
         InstagramGraphClient graph = ControlledInstagramGraph.withResponse(chain -> {
             Request request = chain.request();
@@ -168,6 +168,21 @@ public final class InstagramPublishRepositoryDeviceTest {
         assertEquals(PUBLISHED_ID_UNKNOWN, reconcile(reloaded).status);
         assertEquals(CHECK_REQUIRED, reloaded.publish(version, connections.instagramSession()).status);
         assertEquals(3, requests.get());
+    }
+
+    @Test public void unknownExpiryChecksIdentityBeforeAnyPublishWrite() {
+        saveInstagram("unknown-expiry", "test-ig-token", null);
+        AtomicInteger requests = new AtomicInteger();
+        InstagramGraphClient graph = ControlledInstagramGraph.withResponse(chain -> {
+            requests.incrementAndGet();
+            assertEquals("GET", chain.request().method());
+            assertEquals("id", chain.request().url().queryParameter("fields"));
+            return json(chain.request(), 400, "{\"error\":{\"code\":190}}");
+        });
+        ContentVersion version = new ContentVersion("test-version", "test-brief", INSTAGRAM_ID,
+                null, "Test caption", "https://example.test/image.jpg", 1L);
+        assertEquals(RECONNECT, repository(graph).publish(version, connections.instagramSession()).status);
+        assertEquals(1, requests.get());
     }
 
     @Test public void lateReadyIsDiscardedAfterSameAccountReconnect() {
@@ -258,7 +273,7 @@ public final class InstagramPublishRepositoryDeviceTest {
     }
 
     @Test public void publishResponseAfterReconnectKeepsMediaForReadOnlyReconciliation() {
-        saveInstagram("session-a", "token-a", null);
+        saveInstagram("session-a", "token-a", "2099-01-01T00:00:00Z");
         AtomicInteger requests = new AtomicInteger();
         InstagramPublishRepository repository = repository(ControlledInstagramGraph.withResponse(chain -> {
             Request request = chain.request();

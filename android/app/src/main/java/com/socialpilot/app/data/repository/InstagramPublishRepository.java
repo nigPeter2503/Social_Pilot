@@ -7,6 +7,7 @@ import com.socialpilot.app.data.remote.instagram.InstagramGraphClient;
 import com.socialpilot.app.data.remote.instagram.InstagramGraphClient.AuthorizationExpired;
 import com.socialpilot.app.data.security.EncryptedOAuthStore;
 import com.socialpilot.app.data.security.EncryptedOAuthStore.InstagramSession;
+import com.socialpilot.app.data.security.EncryptedOAuthStore.InstagramMetadata;
 import com.socialpilot.app.domain.contract.oauth.OAuthContract.OAuthExchangeResponse;
 import com.socialpilot.app.domain.editor.ContentVersion;
 import java.io.IOException;
@@ -40,7 +41,7 @@ public final class InstagramPublishRepository {
             return connections.isCurrentInstagramSession(visibleSession);
         }
 
-        public boolean matchesConnection(OAuthExchangeResponse connection) {
+        public boolean matchesConnection(InstagramMetadata connection) {
             return visibleSession.matches(connection);
         }
     }
@@ -72,6 +73,10 @@ public final class InstagramPublishRepository {
                 if (previous.versionId.equals(version.versionId())) return currentResult(session, published(session, previous));
             }
             if (!connections.isCurrentInstagramSession(session)) return cancelled(session);
+            if (connection.expiresAt == null) {
+                graph.validateConnection(connection);
+                if (!connections.isCurrentInstagramSession(session)) return cancelled(session);
+            }
             String container = graph.createContainer(connection, version.imageReference(), version.text());
             Attempt attempt = new Attempt(version.versionId(), container, null, null);
             synchronized (connections) {

@@ -16,7 +16,7 @@ import com.socialpilot.app.data.repository.DraftRepository;
 import com.socialpilot.app.data.repository.InstagramPublishRepository;
 import com.socialpilot.app.data.security.EncryptedOAuthStore;
 import com.socialpilot.app.data.security.EncryptedOAuthStore.InstagramSession;
-import com.socialpilot.app.domain.contract.oauth.OAuthContract.OAuthExchangeResponse;
+import com.socialpilot.app.data.security.EncryptedOAuthStore.InstagramMetadata;
 import com.socialpilot.app.domain.editor.Brief;
 import com.socialpilot.app.domain.editor.ContentVersion;
 import com.socialpilot.app.domain.editor.VersionApprovalState;
@@ -53,6 +53,7 @@ public final class MainViewModel extends AndroidViewModel {
     private final MutableLiveData<InstagramPublishRepository.Result> instagramResult = new MutableLiveData<>();
     private final MutableLiveData<Boolean> instagramBusy = new MutableLiveData<>(false);
     private final MutableLiveData<Boolean> instagramApproved = new MutableLiveData<>(false);
+    private final MutableLiveData<Boolean> connectionsLoaded = new MutableLiveData<>(false);
     private VersionApprovalState approval;
     private ContentVersion approvedVersion;
     private InstagramSession approvedSession;
@@ -64,6 +65,14 @@ public final class MainViewModel extends AndroidViewModel {
     private MainViewModel(Application application, AppContainer appContainer) {
         this(application, appContainer.drafts, appContainer.facebookOAuth, appContainer.oauthStore,
                 appContainer.instagram, appContainer.io);
+        io.execute(() -> {
+            try {
+                connections.restoreChannels();
+            } catch (RuntimeException failure) {
+                main.post(() -> oauthState.setValue(new OAuthUiState(OAuthStatus.FAILED, "PROVIDER_ERROR")));
+            }
+            connectionsLoaded.postValue(true);
+        });
     }
 
     MainViewModel(Application application, DraftRepository repository, FacebookOAuthCoordinator facebookOAuth,
@@ -80,9 +89,10 @@ public final class MainViewModel extends AndroidViewModel {
     public LiveData<SaveState> saveState() { return saveState; }
     public LiveData<OAuthUiState> oauthState() { return oauthState; }
     public String connectedPageSummary() { return facebookOAuth.connectedPageSummary(); }
-    public OAuthExchangeResponse instagramConnection() { return connections.instagramConnection(); }
+    public LiveData<Boolean> connectionsLoaded() { return connectionsLoaded; }
+    public InstagramMetadata instagramConnection() { return connections.instagramMetadata(); }
     public LiveData<InstagramPublishRepository.Result> instagramResult() { return instagramResult; }
-    public InstagramPublishRepository.Result instagramResultFor(OAuthExchangeResponse connection) {
+    public InstagramPublishRepository.Result instagramResultFor(InstagramMetadata connection) {
         InstagramPublishRepository.Result result = instagramResult.getValue();
         return result != null && result.matchesConnection(connection) && result.isCurrent(connections) ? result : null;
     }
@@ -92,7 +102,7 @@ public final class MainViewModel extends AndroidViewModel {
     }
     public LiveData<Boolean> instagramBusy() { return instagramBusy; }
     public LiveData<Boolean> instagramApproved() { return instagramApproved; }
-    public boolean isInstagramApprovedFor(OAuthExchangeResponse connection) {
+    public boolean isInstagramApprovedFor(InstagramMetadata connection) {
         return approvedSession != null && approvedSession.matches(connection);
     }
     public void acknowledge() { saveState.setValue(SaveState.IDLE); }

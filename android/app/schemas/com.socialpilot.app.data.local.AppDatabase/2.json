@@ -1,0 +1,192 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 2,
+    "identityHash": "e95be5bec6605bc5a164e2992cda53f2",
+    "entities": [
+      {
+        "tableName": "drafts",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `topic` TEXT, `createdAt` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "topic",
+            "columnName": "topic",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "channels",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`channelId` TEXT NOT NULL, `platform` TEXT NOT NULL, `accountType` TEXT NOT NULL, `externalAccountId` TEXT NOT NULL, `displayName` TEXT NOT NULL, `status` TEXT NOT NULL, `sessionId` TEXT NOT NULL, `tokenType` TEXT NOT NULL, `scopesJson` TEXT NOT NULL, `capabilitiesJson` TEXT NOT NULL, `connectionRevision` INTEGER NOT NULL, `selected` INTEGER NOT NULL, `credentialRef` TEXT, `credentialRevision` TEXT, `linkedPageId` TEXT, `graphApiVersion` TEXT, `tokenExpiresAtMillis` INTEGER, `dataAccessExpiresAtMillis` INTEGER, `effectiveExpiresAtMillis` INTEGER, PRIMARY KEY(`channelId`))",
+        "fields": [
+          {
+            "fieldPath": "channelId",
+            "columnName": "channelId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "platform",
+            "columnName": "platform",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "accountType",
+            "columnName": "accountType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "externalAccountId",
+            "columnName": "externalAccountId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "displayName",
+            "columnName": "displayName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sessionId",
+            "columnName": "sessionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tokenType",
+            "columnName": "tokenType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "scopesJson",
+            "columnName": "scopesJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "capabilitiesJson",
+            "columnName": "capabilitiesJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "connectionRevision",
+            "columnName": "connectionRevision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "selected",
+            "columnName": "selected",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "credentialRef",
+            "columnName": "credentialRef",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "credentialRevision",
+            "columnName": "credentialRevision",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "linkedPageId",
+            "columnName": "linkedPageId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "graphApiVersion",
+            "columnName": "graphApiVersion",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "tokenExpiresAtMillis",
+            "columnName": "tokenExpiresAtMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "dataAccessExpiresAtMillis",
+            "columnName": "dataAccessExpiresAtMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "effectiveExpiresAtMillis",
+            "columnName": "effectiveExpiresAtMillis",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "channelId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_channels_platform_accountType_externalAccountId",
+            "unique": true,
+            "columnNames": [
+              "platform",
+              "accountType",
+              "externalAccountId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_channels_platform_accountType_externalAccountId` ON `${TABLE_NAME}` (`platform`, `accountType`, `externalAccountId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "channel_secret_cleanup",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`credentialRef` TEXT NOT NULL, PRIMARY KEY(`credentialRef`))",
+        "fields": [
+          {
+            "fieldPath": "credentialRef",
+            "columnName": "credentialRef",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "credentialRef"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'e95be5bec6605bc5a164e2992cda53f2')"
+    ]
+  }
+}

@@ -62,9 +62,38 @@ giữ `expiresAt` cho app cũ.
 | Backend `test bootJar` | Đạt. 43 test, gồm fixture JSON dùng chung Android/backend và hai hạn khác nhau trong handoff. |
 | AndroidJUnitRunner trên AVD API 36 | Đạt 30/30. Gồm SP-065, Keystore, prototype và BYOK. Dùng dữ liệu thử. |
 
-Lượt Room Channel chưa được chốt. Việc chuyển credential từ kho OAuth hiện hành
-sang SP-027, API repository production, migration và kết nối Meta thật còn mở.
-Bên nhận tiếp tục dùng fixture revision 7/8 cho phần tích hợp độc lập.
+## Repository production và migration Channel
+
+Dùng migration 1 → 2 theo [hợp đồng Room](../room-schema-contract.md#6-thứ-tự-migration-từ-v1-và-kiểm-thử).
+Sau callback, `AppContainer.channels` ghi ref mới vào danh sách cleanup, ghi
+token trong `SOCIAL_TOKEN`, rồi đổi ref và revision trong transaction Room.
+Lỗi ghi giữ kết nối cũ. Ref chưa được gắn và ref đã thay được dọn theo journal
+khi tiến trình mở lại. Bản ghi OAuth v2 từ SP-010/065 được nhập theo provider,
+chỉ bỏ bản cũ sau khi Room và credential mới đã ghi thành công. Dữ liệu đăng
+Instagram đang chờ đối soát dùng kho attempt hiện hành.
+
+- SP-023/035 dùng `ChannelRepository.list()` và `find(channelId)` trên worker.
+  `Snapshot` trả danh tính, kết nối, hạn và capability theo thao tác. Tình trạng
+  `MISSING` và `UNREADABLE` dẫn tới reconnect, tách với quyền của từng thao tác.
+  Khi nối #97, phân biệt repository này với field `AppContainer.channels`
+  cùng tên đang dùng cho data source UI cũ trên nhánh SP-023.
+- SP-025/041/045 đọc credential ở tầng adapter qua `credential(scope)`. Khi cập
+  nhật capability, dùng `recordCapability(scope, result)`. Các module ghi Room
+  phải kiểm lại platform, ID và revision **trong transaction ghi tương ứng**.
+  `isCurrent(scope)` chỉ kiểm tại thời điểm gọi.
+- Thử đăng Instagram khi chưa biết hạn token dùng GET kiểm danh tính trước
+  khi tạo container. Kết quả OAuth hay GET danh tính chỉ xác nhận đúng kết nối.
+  Quyền comment, follower và publish cần bằng chứng theo operation.
+
+OAuth Meta thật và refresh với quyền được cấp vẫn cần môi trường HTTPS và tài khoản
+thử. Lượt AVD sử dụng credential giả và phản hồi provider có kiểm soát.
+
+Trên base main `c5b8b17`, Android build, lint và 178 unit test đạt. AndroidJUnitRunner
+API 36 đạt 35/35, gồm bốn ca Room/Keystore và ca kiểm danh tính trước publish
+khi thiếu hạn. Các ca Room nâng từ v1 qua builder thật, giữ ID/topic nullable/thời
+gian draft, mở lại hai kết nối đã nhập, chặn revision cũ, kiểm lỗi ghi secret,
+rollback khi transaction Room lỗi và dọn journal sau khi mở lại. Backend
+`test bootJar` đạt với kết quả 43 test đã lưu từ cùng mã backend.
 
 ## Nghiệm thu còn mở
 
