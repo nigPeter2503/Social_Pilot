@@ -426,11 +426,17 @@ public class MetricCollectionTest {
 
     @Test public void http503SlowAndIoErrorBodiesPreserveDeadlineAndBackoffForBothAdapters() throws Exception {
         AtomicInteger callbackCount = new AtomicInteger();
+        Set<Call> tracked503 = ConcurrentHashMap.newKeySet();
         client = client.newBuilder()
-                .readTimeout(150, TimeUnit.MILLISECONDS)
                 .eventListener(new EventListener() {
+                    @Override public void responseHeadersEnd(Call call, okhttp3.Response response) {
+                        if (response.code() == 503) tracked503.add(call);
+                    }
+                    @Override public void responseBodyEnd(Call call, long byteCount) {
+                        if (tracked503.remove(call)) clock.addAndGet(5_000L);
+                    }
                     @Override public void responseFailed(Call call, java.io.IOException ioe) {
-                        clock.addAndGet(5_000L);
+                        if (tracked503.remove(call)) clock.addAndGet(5_000L);
                     }
                 }).build();
         configureCollection();
@@ -446,10 +452,10 @@ public class MetricCollectionTest {
         };
         coordinator = coordinator(provider);
 
-        // Follower: 503 + Retry-After: 120 with body delayed past readTimeout; clock advances +5s during body read.
+        // Follower: 503 + Retry-After: 120 with slow body; clock advances +5s during body read.
         MetricJob followerJob = job(true);
         server.enqueue(new MockResponse().setResponseCode(503).setHeader("Retry-After", "120")
-                .setBody("{}").setBodyDelay(450, TimeUnit.MILLISECONDS));
+                .setBody("{\"slow\":true}").setBodyDelay(50, TimeUnit.MILLISECONDS));
         server.enqueue(new MockResponse().setResponseCode(200).setBody("{\"id\":\"MO_PHONG-page\",\"followers_count\":21}"));
 
         MetricCollectionCoordinator.Result waitFollower = run(followerJob, 0);
@@ -500,6 +506,41 @@ public class MetricCollectionTest {
                 .filter(s -> s.key().subjectType() == Snapshot.Subject.POST && s.key().collectionId().equals(postJob.collectionId()))
                 .findFirst().orElseThrow();
         assertEquals(Long.valueOf(8), postSnap.samples().get(0).value());
+    }
+
+    @Test public void http503BodyTimeoutPreservesDeadlineAndCompletesOnDefaultTimeoutRetry() throws Exception {
+        OkHttpClient baseClient = client;
+        client = baseClient.newBuilder()
+                .readTimeout(300, TimeUnit.MILLISECONDS)
+                .eventListener(new EventListener() {
+                    @Override public void responseFailed(Call call, java.io.IOException ioe) {
+                        clock.addAndGet(5_000L);
+                    }
+                }).build();
+        configureCollection();
+
+        MetricJob followerJob = job(true);
+        server.enqueue(new MockResponse().setResponseCode(503).setHeader("Retry-After", "120")
+                .setBody("{}").setBodyDelay(1_000, TimeUnit.MILLISECONDS));
+        server.enqueue(new MockResponse().setResponseCode(200).setBody("{\"id\":\"MO_PHONG-page\",\"followers_count\":33}"));
+
+        MetricCollectionCoordinator.Result waitFollower = run(followerJob, 0);
+        assertEquals(WAIT, waitFollower.state());
+        assertEquals(Long.valueOf(START + 120_000L), waitFollower.retryAt());
+        assertEquals(1, server.getRequestCount());
+
+        clock.set(START + 119_999L);
+        assertEquals(WAIT, run(followerJob, 1).state());
+        assertEquals(1, server.getRequestCount());
+
+        // Restore default read timeout for retry after coordinator restart.
+        client = baseClient;
+        configureCollection();
+        clock.set(START + 120_000L);
+        MetricCollectionCoordinator.Result followerDone = run(followerJob, 2);
+        assertEquals(COMPLETE, followerDone.state());
+        assertEquals(2, server.getRequestCount());
+        assertEquals(Long.valueOf(33), history().snapshots().get(0).samples().get(0).value());
     }
 
     @Test public void unownedPostDoesNotBlockIndependentFollower() {
