@@ -70,4 +70,36 @@
   <string name="instagram_cancelled">The connection changed. Approve the content again.</string>
   <string name="instagram_publish_error">Could not check the Instagram connection or post.</string>
   <string name="instagram_open_error">Could not open the original post in the browser.</string>
+
+  <string name="open_ai_keys">Configure AI keys (BYOK)</string>
+  <string name="ai_keys_title">Your AI API keys</string>
+  <string name="ai_keys_intro">Keys are encrypted with an Android Keystore key and sent directly to the matching provider only. They never pass through the SocialPilot server, are excluded from backups and are only shown masked.</string>
+  <string name="provider_openai">OpenAI</string>
+  <string name="provider_gemini">Google Gemini</string>
+  <string name="ai_key_hint">Paste API key</string>
+  <string name="ai_key_save">Save and check</string>
+  <string name="ai_key_check">Check again</string>
+  <string name="ai_key_delete">Delete key</string>
+  <string name="ai_key_loading">Loading status…</string>
+  <string name="ai_key_saving">Encrypting and saving key…</string>
+  <string name="ai_key_checking">Checking key with the provider…</string>
+  <string name="ai_key_deleting">Deleting key…</string>
+  <string name="ai_key_state_not_set">No key set.</string>
+  <string name="ai_key_state_unverified">Key %1$s saved, not yet confirmed by the provider.</string>
+  <string name="ai_key_state_valid">Key %1$s is valid (checked %2$s).</string>
+  <string name="ai_key_state_invalid">Key %1$s was rejected: wrong or revoked. Please enter a new key.</string>
+  <string name="ai_key_state_permission">Key %1$s is not allowed to use this API/model. Check the project and permissions at the provider.</string>
+  <string name="ai_key_state_unreadable">The saved key cannot be read (the device keystore changed). Please enter it again or delete it.</string>
+  <string name="ai_key_outcome_rate_limited">The provider is rate limiting, so the key could not be confirmed. Try again later.</string>
+  <string name="ai_key_outcome_provider_unavailable">The provider is having problems, so the key could not be confirmed.</string>
+  <string name="ai_key_outcome_timeout">The check timed out, so the key could not be confirmed. Try again later.</string>
+  <string name="ai_key_outcome_network">Network error, so the key could not be confirmed. The key is not treated as wrong.</string>
+  <string name="ai_key_outcome_unexpected">Unexpected response (network or proxy). The key could not be confirmed.</string>
+  <string name="ai_key_outcome_offline">The device is offline. The key is stored safely; check again when online.</string>
+  <string name="ai_key_outcome_superseded">The key or check changed, so the earlier result was ignored.</string>
+  <string name="ai_key_outcome_status_storage_failed">Could not save the key check status. Try checking again.</string>
+  <string name="ai_key_format_error">Invalid key: it must be 20–512 characters without spaces.</string>
+  <string name="ai_key_store_error">Could not save the key to secure storage. Please retry.</string>
+  <string name="ai_key_delete_error">Could not delete the key. Please retry.</string>
+  <string name="ai_key_deleted">This provider\'s key was deleted.</string>
 </resources>
