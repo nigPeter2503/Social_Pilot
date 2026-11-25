@@ -85,8 +85,8 @@ Instagram đang chờ đối soát dùng kho attempt hiện hành.
   khi tạo container. Kết quả OAuth hay GET danh tính chỉ xác nhận đúng kết nối.
   Quyền comment, follower và publish cần bằng chứng theo operation.
 
-OAuth Meta thật và refresh với quyền được cấp vẫn cần môi trường HTTPS và tài khoản
-thử. Lượt AVD sử dụng credential giả và phản hồi provider có kiểm soát.
+Lượt AVD sử dụng credential giả và phản hồi provider có kiểm soát. Kết quả
+OAuth Meta qua HTTPS trên thiết bị thật được ghi bên dưới.
 
 Trên base main `c5b8b17`, Android build, lint và 178 unit test đạt. AndroidJUnitRunner
 API 36 đạt 35/35, gồm bốn ca Room/Keystore và ca kiểm danh tính trước publish
@@ -109,11 +109,43 @@ rollback khi transaction Room lỗi và dọn journal sau khi mở lại. Backen
 - SHA-256 của APK thử là
   `b18991fb6cab602cde4155c478a140e23c9769937ac7c45a4d5b9d3b7ff63196`.
 
+### OAuth Meta thật qua HTTPS ngày 25/11/2026
+
+Samsung SM-G990E, API 36, bản SP-022 từ `61c667b`. Bản cài thử dùng cùng
+application ID như lượt trên với nhãn SocialPilot SP-022 để chọn đúng callback.
+SHA-256 APK `e3d4e8bf2c74ce721e0e1fdf693b56fdbc80aa119dc4e635117d9652be3317bf`.
+Minh thực hiện đăng nhập và cấp quyền trên thiết bị.
+
+| Ca | Kết quả quan sát |
+| --- | --- |
+| Backend HTTPS và khởi tạo hai provider | `UP / CONFIGURED`, cả hai route start trả phiên OAuth và host ủy quyền Facebook. Callback có state sai trả HTTP 400 `INVALID_STATE`, không trả Location và có `no-store`. |
+| Facebook Page và Instagram Professional | App hiển thị đúng từng tài khoản. Room v2 có hai dòng `CONNECTED`, revision 1 và cùng Page theo cấu hình. Mỗi dòng trỏ tới một reference opaque và bản ghi mã hóa tương ứng trong `SOCIAL_TOKEN`. |
+| Đóng tiến trình rồi mở lại | Android báo `COLD`. Cả hai danh tính còn hiển thị đúng trên UI và Room giữ nguyên trạng thái cùng revision. |
+| Callback Instagram khi tiến trình Android đã dừng | Đã xác nhận không còn PID khi trình duyệt đang mở. Callback mở đúng bản thử, PID mới và Instagram tăng revision từ 1 lên 2. Facebook giữ revision 1 và cùng hai dòng `CONNECTED`. |
+| Kiểm credential Facebook trước khi thu hồi | Probe chỉ đọc trong bản cài thử gọi Graph bằng credential lấy từ kho của app. HTTP 200 và đúng danh tính Page. Probe chỉ ghi HTTP, mã lỗi Graph và kết quả khớp danh tính, không xuất giá trị credential. |
+| Thu hồi grant thật | Minh gỡ grant của Meta App thử từ tài khoản cá nhân. Probe Facebook nhận HTTP 401/mã Graph 190 khi dùng credential cũ. Thao tác kiểm kết nối Instagram trong app chuyển kênh từ `CONNECTED` sang `REAUTH_REQUIRED`. Facebook ở bản `61c667b` vẫn hiển thị trạng thái cũ, dẫn tới việc bổ sung phép kiểm Facebook Page trong app. |
+| Xác nhận bản sửa Facebook | Nút kiểm tra chỉ gọi Graph GET để đọc danh tính. Trên APK thử có SHA-256 `5d6541ca75d761ad479437ed9382af1ed1db4cce72c2969abe732260ef7c7ef6`, app hiện Cần kết nối lại Facebook Page. Room ghi Facebook `REAUTH_REQUIRED` ở revision 1, cùng Instagram `REAUTH_REQUIRED` ở revision 2. |
+| Cấp lại quyền sau thu hồi | Meta hiển thị quyền đã được cấp. Backend hiện tại dừng ở `stage=page_list code=ACCESS_DENIED` và Room giữ nguyên hai revision. Trên backend mới, log phân biệt `TARGET_PAGE_NOT_RETURNED` và `PAGE_CONTENT_TASK_MISSING` mà không ghi token, Page ID hoặc payload. Còn chờ đối chiếu `me/accounts` của grant mới hoặc lượt chạy trên backend chẩn đoán. |
+| Kiểm dữ liệu nhạy cảm trong lượt chạy | Schema Room không có cột access token/refresh token. Quét 26 dòng log hệ thống thuộc package thử, không thấy tham số URL dạng handoffCode, OAuth code, access token, refresh token hoặc client secret. Phạm vi log gồm ActivityTaskManager, ActivityManager và AndroidRuntime. |
+
+**Giới hạn F1.B3.** Handoff Page và Instagram trong cấu hình hiện tại không
+cấp `refreshToken` cho Android. Backend có bước đổi token ngắn hạn trong lượt
+đăng nhập Instagram. Việc đổi đó và việc đăng nhập lại được ghi nhận riêng.
+Refresh tự động chưa được kiểm chứng. Meta ghi rõ việc đổi sang token dài hạn
+cần token còn hợp lệ và mô tả refresh của SDK riêng.
+[Tài liệu vòng đời token Meta](https://developers.facebook.com/documentation/facebook-login/guides/access-tokens/get-long-lived)
+
+Sau bản sửa `2201701`, Android build/lint đạt, 179 unit test đạt, AVD API 36
+đạt 36/36. Ca bổ sung xác minh credential đã hết hạn giữ
+`REAUTH_REQUIRED` sau mở lại Room. Backend `test bootJar` đạt với test bổ sung
+ca tìm được Page nhưng chỉ có task đọc. JAR chẩn đoán được build ở thư mục riêng
+trong khi backend đang phục vụ phiên Meta thử.
+
 ## Nghiệm thu còn mở
 
-- [ ] Hai kênh qua luồng production đúng danh tính, reference và revision sau restart.
+- [x] Hai kênh qua luồng production đúng danh tính, reference và revision sau restart.
 - [ ] Hết hạn, thu hồi, kết nối lại trên thiết bị và draft còn nguyên. Ghi cơ chế refresh nếu được cấp.
-- [ ] Hồi quy callback/handoff trên bản tích hợp SP-065 và đường ghi kết nối production.
+- [x] Hồi quy callback/handoff trên bản tích hợp SP-065 và đường ghi kết nối production.
 - [ ] Kiểm tra URL, log, Room, backup và APK của bản tích hợp.
 - [ ] Bên nhận xác nhận bàn giao production, hai reviewer approve, PR đã merge và Project đã cập nhật hoàn tất.
 

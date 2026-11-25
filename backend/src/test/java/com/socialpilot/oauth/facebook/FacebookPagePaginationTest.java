@@ -73,6 +73,14 @@ class FacebookPagePaginationTest {
         assertFailure("ACCESS_DENIED");
     }
 
+    @Test void deniesTargetPageWithReadOnlyTasksBeforeUsingItsToken() {
+        page(null, """
+                {"data":[{"id":"1234567890","name":"Target","tasks":["ANALYZE"],
+                "access_token":"fake-page-token"}]}
+                """);
+        assertFailure("ACCESS_DENIED");
+    }
+
     @Test void repeatedCursorIsProviderErrorRatherThanPermissionFailure() {
         page(null, next("repeated"));
         page("repeated", next("repeated"));

@@ -76,9 +76,14 @@ public final class FacebookGraphClient {
 
             stage = "page_list";
             JsonNode page = findTargetPage(userToken, instagram);
+            JsonNode tasks = page.get("tasks");
+            if (!hasContentTask(tasks)) {
+                LOGGER.warn("OAuth Page grant rejected: provider={} reason=PAGE_CONTENT_TASK_MISSING taskCount={}",
+                        instagram ? "INSTAGRAM" : "FACEBOOK", tasks != null && tasks.isArray() ? tasks.size() : 0);
+                throw OAuthFlowException.accessDenied();
+            }
             String pageName = text(page, "name");
             String pageToken = text(page, "access_token");
-            if (!hasContentTask(page.get("tasks"))) throw OAuthFlowException.accessDenied();
 
             if (instagram) {
                 stage = "instagram_identity";
@@ -176,6 +181,7 @@ public final class FacebookGraphClient {
         String after = null;
         Set<String> seenCursors = new HashSet<>();
         long startedAt = System.nanoTime();
+        int returnedPages = 0;
         for (int request = 0; request < MAX_PAGE_LIST_REQUESTS; request++) {
             if (System.nanoTime() - startedAt >= PAGE_LIST_BUDGET_NANOS) throw OAuthFlowException.providerError();
             String cursor = after;
@@ -190,12 +196,15 @@ public final class FacebookGraphClient {
             JsonNode pageList = parseGraphJson(response, "page_list");
             JsonNode data = pageList.get("data");
             if (data == null || !data.isArray()) throw OAuthFlowException.providerError();
+            returnedPages += data.size();
             for (JsonNode page : data) {
                 if (properties.getTargetPageId().equals(text(page, "id"))) return page;
             }
             JsonNode paging = pageList.path("paging");
             JsonNode next = paging.get("next");
             if (next == null || next.isNull() || (next.isTextual() && next.asText().isBlank())) {
+                LOGGER.warn("OAuth Page grant rejected: provider={} reason=TARGET_PAGE_NOT_RETURNED pageCount={}",
+                        instagram ? "INSTAGRAM" : "FACEBOOK", returnedPages);
                 throw OAuthFlowException.accessDenied();
             }
             after = paging.path("cursors").path("after").asText("");
