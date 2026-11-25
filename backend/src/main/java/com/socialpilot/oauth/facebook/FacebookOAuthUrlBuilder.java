@@ -15,6 +15,7 @@ public final class FacebookOAuthUrlBuilder {
         String scopes = instagram
                 ? "public_profile,pages_show_list,pages_read_engagement,instagram_basic,instagram_content_publish"
                 : "public_profile,pages_show_list,pages_read_engagement,pages_manage_posts";
+        if (properties.isBusinessManagedPage()) scopes += ",business_management";
         return UriComponentsBuilder.fromUriString("https://www.facebook.com")
                 .pathSegment(properties.getGraphApiVersion(), "dialog", "oauth")
                 .queryParam("client_id", "{clientId}")

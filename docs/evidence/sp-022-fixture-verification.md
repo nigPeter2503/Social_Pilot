@@ -125,7 +125,7 @@ Minh thực hiện đăng nhập và cấp quyền trên thiết bị.
 | Kiểm credential Facebook trước khi thu hồi | Probe chỉ đọc trong bản cài thử gọi Graph bằng credential lấy từ kho của app. HTTP 200 và đúng danh tính Page. Probe chỉ ghi HTTP, mã lỗi Graph và kết quả khớp danh tính, không xuất giá trị credential. |
 | Thu hồi grant thật | Minh gỡ grant của Meta App thử từ tài khoản cá nhân. Probe Facebook nhận HTTP 401/mã Graph 190 khi dùng credential cũ. Thao tác kiểm kết nối Instagram trong app chuyển kênh từ `CONNECTED` sang `REAUTH_REQUIRED`. Facebook ở bản `61c667b` vẫn hiển thị trạng thái cũ, dẫn tới việc bổ sung phép kiểm Facebook Page trong app. |
 | Xác nhận bản sửa Facebook | Nút kiểm tra chỉ gọi Graph GET để đọc danh tính. Trên APK thử có SHA-256 `5d6541ca75d761ad479437ed9382af1ed1db4cce72c2969abe732260ef7c7ef6`, app hiện Cần kết nối lại Facebook Page. Room ghi Facebook `REAUTH_REQUIRED` ở revision 1, cùng Instagram `REAUTH_REQUIRED` ở revision 2. |
-| Cấp lại quyền sau thu hồi | Meta hiển thị quyền đã được cấp. Backend hiện tại dừng ở `stage=page_list code=ACCESS_DENIED` và Room giữ nguyên hai revision. Trên backend mới, log phân biệt `TARGET_PAGE_NOT_RETURNED` và `PAGE_CONTENT_TASK_MISSING` mà không ghi token, Page ID hoặc payload. Còn chờ đối chiếu `me/accounts` của grant mới hoặc lượt chạy trên backend chẩn đoán. |
+| Cấp lại quyền sau thu hồi | Lượt cấp ban đầu dừng ở `page_list / ACCESS_DENIED` và Explorer trả `data: []`. Minh thêm `business_management` và tạo User Token mới trong Explorer, rồi kết nối lại từ app. Facebook ở revision 2, Instagram ở revision 3. Cả hai `CONNECTED` theo đúng Page, có reference mới và bản ghi mã hóa. Hai nút kiểm kết nối trong app đều xác minh được danh tính bằng GET thật. |
 | Kiểm dữ liệu nhạy cảm trong lượt chạy | Schema Room không có cột access token/refresh token. Quét 26 dòng log hệ thống thuộc package thử, không thấy tham số URL dạng handoffCode, OAuth code, access token, refresh token hoặc client secret. Phạm vi log gồm ActivityTaskManager, ActivityManager và AndroidRuntime. |
 
 **Giới hạn F1.B3.** Handoff Page và Instagram trong cấu hình hiện tại không
@@ -135,16 +135,22 @@ Refresh tự động chưa được kiểm chứng. Meta ghi rõ việc đổi s
 cần token còn hợp lệ và mô tả refresh của SDK riêng.
 [Tài liệu vòng đời token Meta](https://developers.facebook.com/documentation/facebook-login/guides/access-tokens/get-long-lived)
 
-Sau bản sửa `2201701`, Android build/lint đạt, 179 unit test đạt, AVD API 36
-đạt 36/36. Ca bổ sung xác minh credential đã hết hạn giữ
-`REAUTH_REQUIRED` sau mở lại Room. Backend `test bootJar` đạt với test bổ sung
-ca tìm được Page nhưng chỉ có task đọc. JAR chẩn đoán được build ở thư mục riêng
-trong khi backend đang phục vụ phiên Meta thử.
+Backend có tùy chọn `FACEBOOK_BUSINESS_MANAGED_PAGE=true` để xin
+`business_management` ở cả hai luồng OAuth với Page cần quyền này. Tùy chọn
+mặc định tắt. Smoke test JAR cục bộ xác nhận cả hai route start phát đúng scope
+khi bật tùy chọn. Lượt kết nối Meta thật ở trên dùng grant đã bổ sung trong
+Explorer. Ca cấp mới grant hoàn toàn qua app với cấu hình này còn mở.
+
+Android build/lint đạt, 179 unit test và 36/36 ca AVD API 36. Ca bổ sung
+xác minh credential đã hết hạn giữ `REAUTH_REQUIRED` sau mở lại Room.
+Backend `test bootJar` đạt, gồm ca Page chỉ có task đọc và ca hai route
+yêu cầu scope theo cấu hình.
 
 ## Nghiệm thu còn mở
 
 - [x] Hai kênh qua luồng production đúng danh tính, reference và revision sau restart.
-- [ ] Hết hạn, thu hồi, kết nối lại trên thiết bị và draft còn nguyên. Ghi cơ chế refresh nếu được cấp.
+- [x] Hết hạn với fixture Room. Thu hồi và kết nối lại hai kênh trên thiết bị thật. Migration/rollback với draft đã được kiểm trong fixture.
+- [ ] Ca cấp mới qua app với cấu hình Business Portfolio, và cơ chế refresh nếu được cấp.
 - [x] Hồi quy callback/handoff trên bản tích hợp SP-065 và đường ghi kết nối production.
 - [ ] Kiểm tra URL, log, Room, backup và APK của bản tích hợp.
 - [ ] Bên nhận xác nhận bàn giao production, hai reviewer approve, PR đã merge và Project đã cập nhật hoàn tất.
