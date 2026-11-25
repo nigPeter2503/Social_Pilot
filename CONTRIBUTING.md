@@ -152,9 +152,9 @@ Ticket triển khai chỉ **Hoàn tất** khi đáp ứng đầu ra đã thống
 
 ## 8. Nhịp làm việc và bàn giao cuối kỳ
 
-Kế hoạch nội bộ gồm 6 tuần, tuần 1 là 02–08/11/2026 (thứ Hai–Chủ nhật). Demo tích hợp cuối tuần 5 (06/12/2026); tuần 6 (07–13/12/2026) kiểm thử, sửa lỗi, nghiệm thu và hoàn thiện bàn giao. Mỗi người cam kết 24 giờ/tuần, gồm thiết kế, lập trình, review, họp, tích hợp, kiểm thử và tài liệu: 96 giờ/nhóm/tuần, 480 giờ đến demo và 576 giờ toàn đợt. Demo không thay nghiệm thu 44 yêu cầu; hạn nộp/bảo vệ chính thức theo thông báo giảng viên.
+Mốc nội bộ có ưu tiên cao nhất là **03/12/2026**. Ngày 30/11 khóa tính năng. Ngày 01–02/12 chạy kiểm thử liên thông, xử lý lỗi và xác nhận lại bản giao. Ngày 03/12 cài thử APK, demo và xác nhận đủ 44/44 yêu cầu cùng tám nhóm sản phẩm. Giờ công dùng để phân việc và bố trí review. Hạn nộp/bảo vệ chính thức theo thông báo giảng viên. [Taskbrief 24/11–03/12](docs/TaskBrief/W4-W5/week-4-5-taskbrief.md)
 
-- Họp ngắn hai lần mỗi tuần: tiến độ, trở ngại, tải còn lại và quyết định chuyển task. Demo bản tích hợp vào cuối tuần.
+- Họp ngắn hai lần mỗi tuần: tiến độ, trở ngại, tải còn lại và quyết định chuyển task. Trong đợt cuối, demo bản tích hợp ngày 28/11 và demo bàn giao ngày 03/12.
 - Khi bị chặn hoặc có nguy cơ trễ, cập nhật ngay kèm phần có thể tiếp tục; không đợi tới buổi họp hoặc ngày bàn giao.
 - TV3 vận hành CI và đóng gói Android; TV1 triển khai backend và điều phối tích hợp. Lỗi build/test do chủ phần gây lỗi xử lý, có hỗ trợ khi cần.
 - Mỗi người viết tài liệu và cung cấp bằng chứng phần mình. TV4 tổng hợp ma trận nghiệm thu và video; TV2 tổng hợp báo cáo/đóng góp; TV3 tổng hợp slide; TV1 tổng hợp kịch bản demo.

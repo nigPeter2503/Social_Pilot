@@ -1,5 +1,7 @@
 # Combined Week 2 + Week 3 Task Brief
 
+> Brief lịch sử của giai đoạn này. Mốc hoàn thành nội bộ hiện hành là **03/12/2026**. Xem [lịch tích hợp, nghiệm thu và bàn giao](../W4-W5/week-4-5-taskbrief.md).
+
 Planning baseline: November 14, 2026; review reconciliation: November 15, 2026, Asia/Bangkok. Documentation task: [SP-062 / #78](https://github.com/nigPeter2503/Social_Pilot/issues/78), under [SP-008 / #10](https://github.com/nigPeter2503/Social_Pilot/issues/10). Owner: Ngô Gia Minh (`nigPeter2503`). Planned human reviewers: Nguyễn Đức Đạt (`dat532006`) and Tô Lãng Nghị (`bob35306`); no approvals are claimed.
 
 ## 1. Overview

@@ -1,5 +1,7 @@
 # Taskbrief chung — SocialPilot Tuần 1
 
+> Brief lịch sử của giai đoạn này. Mốc hoàn thành nội bộ hiện hành là **03/12/2026**. Xem [lịch tích hợp, nghiệm thu và bàn giao](../W4-W5/week-4-5-taskbrief.md).
+
 Cập nhật phạm vi ngày 20/11. SP-065 và SP-066 dưới đây là đầu ra Instagram thay thế. Các ticket gốc là [SP-011 / #13](https://github.com/nigPeter2503/Social_Pilot/issues/13) và [SP-019 / #21](https://github.com/nigPeter2503/Social_Pilot/issues/21). Mốc bàn giao hiện tại theo #90 và #91. Trạng thái, giờ và hạn tuần 1 thuộc kế hoạch ban đầu. [Quyết định đổi kênh](../../SocialPilot_Proposal_Java.md#doi-kenh)
 
 Đồng bộ ngày **04/11/2026**, múi giờ Asia/Bangkok, từ GitHub Issues và Project. Bản này dùng mã SP và URL ticket thật cho toàn bộ công việc Tuần 1.
