@@ -1,0 +1,407 @@
+package com.socialpilot.app.data.ai;
+
+import static com.socialpilot.app.domain.contract.ai.ModelCapabilities.Support.*;
+import static org.junit.Assert.*;
+
+import com.socialpilot.app.domain.contract.AiProvider;
+import com.socialpilot.app.domain.contract.BudgetManager;
+import com.socialpilot.app.domain.contract.ai.AiEvent;
+import com.socialpilot.app.domain.contract.ai.AiRequest;
+import com.socialpilot.app.domain.contract.ai.AiTaskType;
+import com.socialpilot.app.domain.contract.ai.AiUsage;
+import com.socialpilot.app.domain.contract.ai.ModelCapabilities;
+import com.socialpilot.app.domain.contract.ai.ModelEntry;
+import com.socialpilot.app.domain.contract.ai.ModelRegistry;
+import com.socialpilot.app.domain.contract.ai.PriceSheet;
+import com.socialpilot.app.domain.contract.ai.UsageRecord;
+import com.socialpilot.app.testing.MemoryPreferences;
+import com.socialpilot.app.testing.MemoryUsageLog;
+import com.socialpilot.app.testing.RecordingBudget;
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Currency;
+import java.util.EnumMap;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import okhttp3.mockwebserver.MockResponse;
+import okhttp3.mockwebserver.MockWebServer;
+import okhttp3.mockwebserver.RecordedRequest;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
+public final class AiGatewayTest {
+    /** Labelled fixture rates: 1.00 / 0.25 / 4.00 USD per million tokens. */
+    private static final PriceSheet PRICE = new PriceSheet(Currency.getInstance("USD"), new BigDecimal("1.00"),
+            new BigDecimal("0.25"), new BigDecimal("4.00"), "fixture-2026-11-23", "fixture", "2026-11-23T00:00:00Z");
+    private static final long NOV_23_2330_BANGKOK = 1795451400000L; // 2026-11-23T16:30:00Z
+    private ModelEntry openAi;
+    private ModelEntry gemini;
+    private ModelEntry unverified;
+    private ModelRegistry registry;
+    private ModelSelectionStore selections;
+    private MemoryPreferences selectionFile;
+    private RecordingBudget budget;
+    private MemoryUsageLog usage;
+    private final Map<AiRequest.Provider, AiProvider> providers = new EnumMap<>(AiRequest.Provider.class);
+    private final EnumSet<AiRequest.Provider> usableKeys = EnumSet.allOf(AiRequest.Provider.class);
+    private final List<Runnable> queued = new ArrayList<>();
+    private final Executor manual = queued::add;
+    private long now = NOV_23_2330_BANGKOK;
+    private MockWebServer server;
+
+    @Before public void setUp() throws Exception {
+        openAi = entry(AiRequest.Provider.OPENAI, "fixture-open", ModelEntry.Verification.VERIFIED, PRICE);
+        gemini = entry(AiRequest.Provider.GEMINI, "fixture-gem", ModelEntry.Verification.VERIFIED, PRICE);
+        unverified = entry(AiRequest.Provider.OPENAI, "fixture-unverified", ModelEntry.Verification.UNVERIFIED, PRICE);
+        registry = new ModelRegistry("fixture", Arrays.asList(openAi, gemini, unverified));
+        selectionFile = new MemoryPreferences();
+        selections = new ModelSelectionStore(selectionFile, registry);
+        budget = new RecordingBudget();
+        usage = new MemoryUsageLog();
+        server = new MockWebServer();
+        server.start();
+    }
+
+    @After public void tearDown() throws Exception {
+        server.shutdown();
+    }
+
+    private static ModelEntry entry(AiRequest.Provider provider, String model, ModelEntry.Verification verification,
+                                    PriceSheet price) {
+        return new ModelEntry(new ModelCapabilities(provider, model, SUPPORTED, SUPPORTED, UNSUPPORTED, SUPPORTED, 256),
+                EnumSet.of(AiTaskType.CONTENT_TEXT, AiTaskType.COMMENT_REPLY), verification, price, "fixture");
+    }
+
+    private AiGateway gateway(BudgetManager ledger, Executor workers) {
+        return new AiGateway(selections, providers, usableKeys::contains, ledger, ledger == null ? null : usage,
+                workers, () -> now, () -> "Asia/Bangkok");
+    }
+
+    private static AiGateway.Call call(String step) {
+        return new AiGateway.Call("session-1", "channel-a", 3L, step, AiTaskType.CONTENT_TEXT, "Viết bài", 100);
+    }
+
+    @Test public void withoutProductionLedgerNothingIsPreparedOrSent() {
+        selections.select(AiTaskType.CONTENT_TEXT, openAi);
+        Scripted provider = new Scripted();
+        providers.put(AiRequest.Provider.OPENAI, provider);
+        AiGateway gateway = gateway(null, manual);
+        assertFalse(gateway.dispatchEnabled());
+        AiGateway.Submission submission = gateway.submit(call("draft"), new Collector());
+        assertEquals(AiGateway.Rejection.BUDGET_NOT_CONFIGURED, submission.rejection);
+        assertEquals(0, provider.prepared.size());
+        assertTrue(queued.isEmpty());
+        // Preview resolution still works so the pipeline can build typed requests.
+        assertNotNull(gateway.resolve(call("draft")).request);
+    }
+
+    @Test public void blockedSelectionsAreRejectedBeforeReserve() {
+        providers.put(AiRequest.Provider.OPENAI, new Scripted());
+        AiGateway gateway = gateway(budget, manual);
+        assertEquals(AiGateway.Rejection.NO_MODEL_SELECTED, gateway.submit(call("s"), new Collector()).rejection);
+        selections.select(AiTaskType.CONTENT_TEXT, unverified);
+        AiGateway.Submission blocked = gateway.submit(call("s"), new Collector());
+        assertEquals(AiGateway.Rejection.MODEL_BLOCKED, blocked.rejection);
+        assertEquals(ModelEntry.Block.UNVERIFIED, blocked.block);
+        selections.select(AiTaskType.CONTENT_TEXT, openAi);
+        AiGateway.Call tooLong = new AiGateway.Call("s", null, null, "s", AiTaskType.CONTENT_TEXT, "p", 257);
+        assertEquals(ModelEntry.Block.OUTPUT_CAP_EXCEEDED, gateway.submit(tooLong, new Collector()).block);
+        usableKeys.remove(AiRequest.Provider.OPENAI);
+        assertEquals(AiGateway.Rejection.KEY_NOT_USABLE, gateway.submit(call("s"), new Collector()).rejection);
+        assertTrue(budget.calls.isEmpty());
+    }
+
+    @Test public void completedCallReservesFreshIdSettlesOnceAndPinsReservePeriod() {
+        selections.select(AiTaskType.CONTENT_TEXT, openAi);
+        Scripted provider = new Scripted();
+        providers.put(AiRequest.Provider.OPENAI, provider);
+        AiGateway gateway = gateway(budget, manual);
+        Collector collector = new Collector();
+        AiGateway.Submission first = gateway.submit(call("draft"), collector);
+        AiGateway.Submission second = gateway.submit(call("draft"), new Collector());
+        assertTrue(first.accepted());
+        assertNotEquals(first.requestId, second.requestId);
+        assertEquals(400 + "Viết bài".getBytes(java.nio.charset.StandardCharsets.UTF_8).length, budget.lastReservedMicros);
+        AiRequest request = provider.prepared.get(0);
+        assertEquals("channel-a", request.channelId);
+        assertEquals(Long.valueOf(3), request.connectionRevision);
+        assertEquals("draft", request.stepId);
+        assertEquals(100, request.maxOutputTokens);
+        now += TimeUnit.HOURS.toMillis(1); // Terminal arrives after local midnight.
+        provider.script = Arrays.asList("Xin ", "chào");
+        provider.usage = new AiUsage(100L, 20L, 120L, 0L, null);
+        queued.get(0).run();
+        provider.finishAgain(request); // Duplicate terminal must not settle twice.
+        assertEquals(1, budget.count("settle:" + first.requestId));
+        UsageRecord record = usage.records.get(first.requestId);
+        assertEquals(UsageRecord.Settlement.SETTLED, record.settlement);
+        assertEquals(Long.valueOf(180), record.estimateMicros); // 100 * 1.00 + 20 * 4.00
+        assertEquals("2026-11-23", record.period.dayKey);
+        assertEquals("fixture-2026-11-23", record.priceRevision);
+        assertEquals("Xin chào", collector.finished.get().text);
+        assertEquals(AiEvent.Type.COMPLETED, collector.finished.get().terminal.type);
+    }
+
+    @Test public void dispatchedCallWithMissingOrPartialUsageStaysUncertain() {
+        selections.select(AiTaskType.CONTENT_TEXT, openAi);
+        Scripted provider = new Scripted();
+        providers.put(AiRequest.Provider.OPENAI, provider);
+        AiGateway gateway = gateway(budget, manual);
+        AiGateway.Submission missing = gateway.submit(call("a"), new Collector());
+        provider.script = Arrays.asList("partial");
+        provider.failAfterText = true;
+        queued.get(0).run();
+        assertEquals(1, budget.count("uncertain:" + missing.requestId));
+        assertNull(usage.records.get(missing.requestId).estimateMicros);
+        assertEquals(AiUsage.State.MISSING, usage.records.get(missing.requestId).usage.state);
+        AiGateway.Submission partial = gateway.submit(call("b"), new Collector());
+        provider.usage = new AiUsage(100L, 20L, 120L, null, null).asPartial();
+        queued.get(1).run();
+        assertEquals(UsageRecord.Settlement.UNCERTAIN, usage.records.get(partial.requestId).settlement);
+    }
+
+    @Test public void cancelBeforeWorkerRunsReleasesExactlyOnce() {
+        selections.select(AiTaskType.CONTENT_TEXT, openAi);
+        Scripted provider = new Scripted();
+        providers.put(AiRequest.Provider.OPENAI, provider);
+        AiGateway gateway = gateway(budget, manual);
+        Collector collector = new Collector();
+        AiGateway.Submission submission = gateway.submit(call("a"), collector);
+        submission.cancel();
+        submission.cancel();
+        assertEquals(0, budget.count("release:")); // Nothing is finalized on the cancelling thread.
+        queued.get(0).run(); // The queued worker job finalizes it without starting the attempt.
+        assertEquals(1, budget.count("release:"));
+        assertEquals(0, provider.runs);
+        assertEquals(UsageRecord.Settlement.RELEASED, usage.records.get(submission.requestId).settlement);
+        assertEquals(AiEvent.Type.CANCELLED, collector.finished.get().terminal.type);
+    }
+
+    /** Refuses every call made on {@link #forbidden}, like Room on the main thread. */
+    private static final class ThreadGuard {
+        volatile Thread forbidden;
+
+        void check() {
+            if (Thread.currentThread() == forbidden) {
+                throw new IllegalStateException("fixture: storage access on the UI thread");
+            }
+        }
+    }
+
+    @Test public void cancelFromTheUiThreadBeforeStartFinalizesOnTheWorkerExactlyOnce() throws Exception {
+        selections.select(AiTaskType.CONTENT_TEXT, openAi);
+        Scripted provider = new Scripted();
+        providers.put(AiRequest.Provider.OPENAI, provider);
+        ThreadGuard guard = new ThreadGuard();
+        BudgetManager guardedBudget = new BudgetManager() {
+            @Override public Admission reserve(String requestId, com.socialpilot.app.domain.contract.ai.AiCostEstimate upperBound) {
+                guard.check();
+                return budget.reserve(requestId, upperBound);
+            }
+            @Override public void settle(String requestId, com.socialpilot.app.domain.contract.ai.AiCostEstimate estimate) {
+                guard.check();
+                budget.settle(requestId, estimate);
+            }
+            @Override public void releaseUndispatched(String requestId) {
+                guard.check();
+                budget.releaseUndispatched(requestId);
+            }
+            @Override public void markUncertain(String requestId) {
+                guard.check();
+                budget.markUncertain(requestId);
+            }
+        };
+        com.socialpilot.app.domain.contract.ai.UsageLog guardedUsage = new com.socialpilot.app.domain.contract.ai.UsageLog() {
+            @Override public boolean record(UsageRecord record) {
+                guard.check();
+                return usage.record(record);
+            }
+            @Override public List<UsageRecord> forMonth(String monthKey) {
+                guard.check();
+                return usage.forMonth(monthKey);
+            }
+        };
+        AiGateway gateway = new AiGateway(selections, providers, usableKeys::contains, guardedBudget, guardedUsage,
+                manual, () -> now, () -> "Asia/Bangkok");
+        java.util.concurrent.atomic.AtomicInteger finishes = new java.util.concurrent.atomic.AtomicInteger();
+        AtomicReference<Thread> finishedOn = new AtomicReference<>();
+        Collector collector = new Collector() {
+            @Override public void onFinished(AiGateway.Finished result) {
+                finishes.incrementAndGet();
+                finishedOn.set(Thread.currentThread());
+                super.onFinished(result);
+            }
+        };
+        AiGateway.Submission submission = gateway.submit(call("a"), collector); // Submitted from a worker in the app.
+        guard.forbidden = Thread.currentThread(); // From here on this thread acts as the UI thread.
+        submission.cancel(); // Must neither throw nor touch storage here.
+        submission.cancel();
+        assertEquals(0, budget.count("release:"));
+        assertNull(collector.finished.get());
+        Thread worker = new Thread(queued.get(0), "ai-worker");
+        worker.start();
+        worker.join(5_000);
+        assertEquals(0, provider.runs); // The provider is never called.
+        assertEquals(1, budget.count("release:"));
+        assertEquals(1, finishes.get());
+        assertSame(worker, finishedOn.get());
+        assertEquals(AiEvent.Type.CANCELLED, collector.finished.get().terminal.type);
+        assertFalse(collector.finished.get().terminal.mayHaveDispatched);
+        assertEquals(UsageRecord.Settlement.RELEASED, usage.records.get(submission.requestId).settlement);
+    }
+
+    @Test public void budgetLimitAndDuplicateAdmissionNeverDispatch() {
+        selections.select(AiTaskType.CONTENT_TEXT, openAi);
+        Scripted provider = new Scripted();
+        providers.put(AiRequest.Provider.OPENAI, provider);
+        budget.next = BudgetManager.Admission.LIMIT_REACHED;
+        AiGateway.Submission limited = gateway(budget, manual).submit(call("a"), new Collector());
+        assertEquals(AiGateway.Rejection.BUDGET_LIMIT_REACHED, limited.rejection);
+        assertTrue(provider.prepared.isEmpty());
+        assertTrue(queued.isEmpty());
+    }
+
+    @Test public void fullWorkerReleasesReservationWithoutCallback() {
+        selections.select(AiTaskType.CONTENT_TEXT, openAi);
+        providers.put(AiRequest.Provider.OPENAI, new Scripted());
+        Collector collector = new Collector();
+        AiGateway.Submission submission = gateway(budget, command -> {
+            throw new java.util.concurrent.RejectedExecutionException();
+        }).submit(call("a"), collector);
+        assertEquals(AiGateway.Rejection.WORKER_UNAVAILABLE, submission.rejection);
+        assertEquals(1, budget.count("release:"));
+        assertNull(collector.finished.get());
+    }
+
+    @Test public void switchingProviderKeepsRecordedUsageAndUsesNewProvider() {
+        selections.select(AiTaskType.CONTENT_TEXT, openAi);
+        Scripted open = new Scripted();
+        Scripted gem = new Scripted();
+        providers.put(AiRequest.Provider.OPENAI, open);
+        providers.put(AiRequest.Provider.GEMINI, gem);
+        AiGateway gateway = gateway(budget, manual);
+        AiGateway.Submission first = gateway.submit(call("a"), new Collector());
+        queued.get(0).run();
+        selections.select(AiTaskType.CONTENT_TEXT, gemini);
+        assertSame(gemini, new ModelSelectionStore(selectionFile.reboot(), registry).selected(AiTaskType.CONTENT_TEXT));
+        gateway.submit(call("b"), new Collector());
+        queued.get(1).run();
+        assertEquals(1, open.runs);
+        assertEquals(1, gem.runs);
+        assertEquals(2, usage.records.size());
+        assertTrue(usage.records.containsKey(first.requestId));
+    }
+
+    @Test public void selectionStoreRejectsForeignEntriesAndForgetsRemovedModels() {
+        ModelEntry foreign = entry(AiRequest.Provider.OPENAI, "fixture-open", ModelEntry.Verification.VERIFIED, PRICE);
+        assertThrows(IllegalArgumentException.class, () -> selections.select(AiTaskType.CONTENT_TEXT, foreign));
+        assertThrows(IllegalArgumentException.class, () -> selections.select(AiTaskType.ANALYTICS_REPORT, openAi));
+        selections.select(AiTaskType.CONTENT_TEXT, openAi);
+        ModelRegistry shrunk = new ModelRegistry("next", Arrays.asList(gemini));
+        assertNull(new ModelSelectionStore(selectionFile, shrunk).selected(AiTaskType.CONTENT_TEXT));
+        selections.select(AiTaskType.CONTENT_TEXT, null);
+        assertNull(selections.selected(AiTaskType.CONTENT_TEXT));
+    }
+
+    @Test public void realOpenAiAdapterThroughGatewayUsesHeaderAndRecordsReportedUsage() throws Exception {
+        selections.select(AiTaskType.CONTENT_TEXT, openAi);
+        providers.put(AiRequest.Provider.OPENAI, new OpenAiProvider(server.url("/v1/responses"),
+                () -> "fake-openai-key-for-fixture", registry.capabilities(AiRequest.Provider.OPENAI), 5_000));
+        server.enqueue(new MockResponse().setHeader("Content-Type", "text/event-stream").setBody(
+                "data: {\"type\":\"response.output_text.delta\",\"item_id\":\"m\",\"content_index\":0,\"delta\":\"Xin chào\"}\n\n"
+                + "data: {\"type\":\"response.completed\",\"response\":{\"status\":\"completed\",\"usage\":"
+                + "{\"input_tokens\":12,\"output_tokens\":3,\"total_tokens\":15}}}\n\n"));
+        ExecutorService worker = Executors.newSingleThreadExecutor();
+        try {
+            Collector collector = new Collector();
+            AiGateway.Submission submission = gateway(budget, worker).submit(call("draft"), collector);
+            assertTrue(collector.done.await(5, TimeUnit.SECONDS));
+            RecordedRequest sent = server.takeRequest();
+            assertEquals("Bearer fake-openai-key-for-fixture", sent.getHeader("Authorization"));
+            assertTrue(sent.getBody().readUtf8().contains("\"max_output_tokens\":100"));
+            UsageRecord record = usage.records.get(submission.requestId);
+            assertEquals(AiUsage.State.REPORTED, record.usage.state);
+            assertEquals(Long.valueOf(24), record.estimateMicros); // 12 * 1.00 + 3 * 4.00
+            assertEquals("Xin chào", collector.finished.get().text);
+        } finally {
+            worker.shutdownNow();
+        }
+    }
+
+    @Test public void registryAssetParsesAndEveryCandidateIsBlocked() throws Exception {
+        String json = new String(java.nio.file.Files.readAllBytes(
+                java.nio.file.Paths.get("src/main/assets/ai_model_registry.json")), java.nio.charset.StandardCharsets.UTF_8);
+        ModelRegistry asset = ModelRegistryParser.parse(json);
+        assertFalse(asset.entries.isEmpty());
+        for (ModelEntry entry : asset.entries) {
+            assertNotEquals(entry.model(), ModelEntry.Block.NONE, entry.blockFor(AiTaskType.CONTENT_TEXT, 1));
+            assertNull("Prices must come from a sourced sheet, not memory", entry.price);
+        }
+        assertTrue(ModelRegistryParser.parseOrEmpty("{broken").entries.isEmpty());
+    }
+
+    /** Fake provider emitting a scripted stream on run(). */
+    private static final class Scripted implements AiProvider {
+        final List<AiRequest> prepared = new ArrayList<>();
+        List<String> script = Arrays.asList("ok");
+        AiUsage usage = AiUsage.MISSING;
+        boolean failAfterText;
+        int runs;
+        private Listener last;
+
+        @Override public Attempt prepare(AiRequest request, Listener listener) {
+            prepared.add(request);
+            last = listener;
+            return new Attempt() {
+                private volatile boolean cancelled;
+                @Override public void cancel() { cancelled = true; }
+                @Override public void run() {
+                    runs++;
+                    long sequence = 0;
+                    if (cancelled) {
+                        listener.onEvent(AiEvent.terminal(request, ++sequence, AiEvent.Type.CANCELLED, null,
+                                AiUsage.MISSING, false, false));
+                        return;
+                    }
+                    listener.onEvent(AiEvent.started(request, ++sequence));
+                    for (String part : script) listener.onEvent(AiEvent.text(request, ++sequence, part));
+                    if (failAfterText) {
+                        listener.onEvent(AiEvent.terminal(request, ++sequence, AiEvent.Type.FAILED,
+                                new com.socialpilot.app.domain.contract.ai.AiError(
+                                        com.socialpilot.app.domain.contract.ai.AiError.Code.INCOMPLETE, null),
+                                usage, true, true));
+                    } else {
+                        listener.onEvent(AiEvent.terminal(request, ++sequence, AiEvent.Type.COMPLETED, null,
+                                usage, false, true));
+                    }
+                }
+            };
+        }
+
+        void finishAgain(AiRequest request) {
+            last.onEvent(AiEvent.terminal(request, 99, AiEvent.Type.COMPLETED, null, usage, false, true));
+        }
+    }
+
+    private static class Collector implements AiGateway.Callback {
+        final List<AiEvent> events = new ArrayList<>();
+        final AtomicReference<AiGateway.Finished> finished = new AtomicReference<>();
+        final CountDownLatch done = new CountDownLatch(1);
+
+        @Override public void onEvent(AiEvent event) { events.add(event); }
+
+        @Override public void onFinished(AiGateway.Finished result) {
+            finished.set(result);
+            done.countDown();
+        }
+    }
+}
