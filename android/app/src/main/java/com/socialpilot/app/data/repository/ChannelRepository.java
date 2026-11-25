@@ -6,6 +6,8 @@ import com.socialpilot.app.data.local.AppDatabase;
 import com.socialpilot.app.data.local.ChannelDao;
 import com.socialpilot.app.data.local.ChannelEntity;
 import com.socialpilot.app.data.local.ChannelSecretCleanup;
+import com.socialpilot.app.data.remote.instagram.InstagramGraphClient;
+import com.socialpilot.app.data.remote.instagram.InstagramGraphClient.AuthorizationExpired;
 import com.socialpilot.app.domain.contract.oauth.OAuthContract.OAuthExchangeResponse;
 import com.socialpilot.app.domain.contract.secret.SecretNamespace;
 import com.socialpilot.app.domain.contract.secret.SecretRead;
@@ -22,6 +24,7 @@ import com.socialpilot.app.domain.contract.social.ConnectionLifecycle.Scope;
 import com.socialpilot.app.domain.contract.social.ConnectionStatus;
 import com.socialpilot.app.domain.contract.social.Platform;
 import com.socialpilot.app.domain.contract.social.SocialOperation;
+import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -35,9 +38,12 @@ import java.util.UUID;
 
 /** The connection registry. Call database and credential operations on a worker. */
 public final class ChannelRepository {
+    public enum PageCheck { IDLE, CHECKING, VERIFIED, RECONNECT, FAILED }
+
     private final AppDatabase database;
     private final ChannelDao channels;
     private final SecretStore secrets;
+    private final InstagramGraphClient graph = new InstagramGraphClient();
     private final Gson gson = new Gson();
     private final EnumMap<Platform, Snapshot> selected = new EnumMap<>(Platform.class);
 
@@ -73,6 +79,34 @@ public final class ChannelRepository {
     public synchronized boolean isCurrent(Scope scope) {
         ChannelEntity row = current(scope);
         return usable(row) && readCredential(row) != null;
+    }
+
+    public PageCheck checkFacebookPage() {
+        Snapshot page = selected(Platform.FACEBOOK);
+        if (page == null || !page.connected()) return PageCheck.RECONNECT;
+        OAuthExchangeResponse connection = credential(page.scope);
+        if (connection == null) {
+            return page.scope.matches(selectedScope(Platform.FACEBOOK)) ? PageCheck.RECONNECT : PageCheck.IDLE;
+        }
+        try {
+            graph.validatePageConnection(connection);
+            return page.scope.matches(selectedScope(Platform.FACEBOOK)) ? PageCheck.VERIFIED : PageCheck.IDLE;
+        } catch (AuthorizationExpired invalid) {
+            return applyFacebookRevocation(page.scope);
+        } catch (IOException unavailable) {
+            return page.scope.matches(selectedScope(Platform.FACEBOOK)) ? PageCheck.FAILED : PageCheck.IDLE;
+        }
+    }
+
+    private Scope selectedScope(Platform platform) {
+        Snapshot snapshot = selected(platform);
+        return snapshot == null ? null : snapshot.scope;
+    }
+
+    private synchronized PageCheck applyFacebookRevocation(Scope scope) {
+        if (!scope.matches(selectedScope(Platform.FACEBOOK))) return PageCheck.IDLE;
+        requireReconnect(scope);
+        return PageCheck.RECONNECT;
     }
 
     /**

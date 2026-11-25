@@ -130,6 +130,22 @@ public class ChannelRepositoryDeviceTest {
         assertEquals(SecretRead.Status.MISSING, channels.find(next.info.channelId).credentialStatus);
     }
 
+    @Test public void expiredPageCredentialRequiresReconnectAfterRestart() {
+        ChannelRepository channels = open();
+        ChannelRepository.Snapshot expired = channels.save(new OAuthExchangeResponse(
+                "page-expired", "FACEBOOK", "1234567890", "PAGE", "Page",
+                "expired-fake", null, "bearer", "2020-01-01T00:00:00Z"));
+        assertEquals(ConnectionStatus.REAUTH_REQUIRED, expired.info.connectionStatus);
+        assertNull(channels.credential(expired.scope));
+        database.close();
+
+        ChannelRepository reopened = open();
+        reopened.restore();
+        assertEquals(ConnectionStatus.REAUTH_REQUIRED,
+                reopened.selected(Platform.FACEBOOK).info.connectionStatus);
+        assertFalse(reopened.isCurrent(expired.scope));
+    }
+
     @Test public void failedSecretWriteLeavesOldChannelAndCredentialUsable() {
         ChannelRepository channels = open();
         ChannelRepository.Snapshot previous = channels.save(page("fb-a", "old-fake"));

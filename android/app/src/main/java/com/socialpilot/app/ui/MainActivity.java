@@ -14,6 +14,7 @@ import com.socialpilot.app.R;
 import com.socialpilot.app.core.FacebookOAuthCoordinator;
 import com.socialpilot.app.databinding.ActivityMainBinding;
 import com.socialpilot.app.data.repository.InstagramPublishRepository;
+import com.socialpilot.app.data.repository.ChannelRepository.PageCheck;
 import com.socialpilot.app.domain.DraftValidator;
 import com.socialpilot.app.data.security.EncryptedOAuthStore.InstagramMetadata;
 
@@ -30,15 +31,16 @@ public final class MainActivity extends AppCompatActivity {
             view.setPadding(bars.left, bars.top, bars.right, bars.bottom); return insets;
         });
         model = new ViewModelProvider(this).get(MainViewModel.class);
-        String page = model.connectedPageSummary();
-        if (page != null) binding.facebookPageStatus.setText(getString(R.string.facebook_connected, page));
         binding.connectFacebookButton.setOnClickListener(view -> model.connectFacebook());
+        binding.checkFacebookButton.setOnClickListener(view -> model.checkFacebookPage());
+        model.facebookPageCheck().observe(this, result -> {
+            renderFacebookConnection();
+            renderInstagramControls();
+        });
         binding.openAiKeysButton.setOnClickListener(view -> startActivity(new Intent(this, AiKeysActivity.class)));
         binding.connectInstagramButton.setOnClickListener(view -> model.connectInstagram());
         model.connectionsLoaded().observe(this, loaded -> {
-            String restoredPage = model.connectedPageSummary();
-            binding.facebookPageStatus.setText(restoredPage == null ? getString(R.string.facebook_not_connected)
-                    : getString(R.string.facebook_connected, restoredPage));
+            renderFacebookConnection();
             renderInstagramControls();
         });
         model.oauthState().observe(this, state -> {
@@ -57,6 +59,7 @@ public final class MainActivity extends AppCompatActivity {
                 showOAuthError(state.value == null ? "PROVIDER_ERROR" : state.value);
                 model.acknowledgeOAuth();
             }
+            renderFacebookConnection();
             renderInstagramControls();
         });
         setupInstagram();
@@ -98,6 +101,24 @@ public final class MainActivity extends AppCompatActivity {
         Toast.makeText(this, getString(R.string.oauth_error, code), Toast.LENGTH_LONG).show();
     }
 
+    private void renderFacebookConnection() {
+        String page = model.connectedPageSummary();
+        PageCheck check = model.facebookPageCheck().getValue();
+        if (model.facebookPageRequiresReconnect() || (page == null && check == PageCheck.RECONNECT)) {
+            binding.facebookPageStatus.setText(R.string.facebook_reconnect);
+        } else if (check == PageCheck.CHECKING) {
+            binding.facebookPageStatus.setText(R.string.facebook_checking);
+        } else if (page == null) {
+            binding.facebookPageStatus.setText(R.string.facebook_not_connected);
+        } else if (check == PageCheck.VERIFIED) {
+            binding.facebookPageStatus.setText(getString(R.string.facebook_verified, page));
+        } else if (check == PageCheck.FAILED) {
+            binding.facebookPageStatus.setText(getString(R.string.facebook_check_failed, page));
+        } else {
+            binding.facebookPageStatus.setText(getString(R.string.facebook_connected, page));
+        }
+    }
+
     private void setupInstagram() {
         TextWatcher invalidateApproval = new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) {}
@@ -137,8 +158,11 @@ public final class MainActivity extends AppCompatActivity {
         InstagramMetadata connection = model.instagramConnection();
         boolean connected = connection != null;
         boolean approved = model.isInstagramApprovedFor(connection);
-        binding.connectFacebookButton.setEnabled(!oauthBusy && !busy);
-        binding.connectInstagramButton.setEnabled(!oauthBusy && !busy);
+        boolean checkingPage = model.facebookPageCheck().getValue() == PageCheck.CHECKING;
+        binding.connectFacebookButton.setEnabled(!oauthBusy && !busy && !checkingPage);
+        binding.checkFacebookButton.setEnabled(!oauthBusy && !busy && !checkingPage
+                && model.connectedPageSummary() != null);
+        binding.connectInstagramButton.setEnabled(!oauthBusy && !busy && !checkingPage);
         binding.instagramImageUrl.setEnabled(connected && !busy && !oauthBusy);
         binding.instagramCaption.setEnabled(connected && !busy && !oauthBusy);
         binding.instagramApprove.setEnabled(connected && !busy && !oauthBusy);

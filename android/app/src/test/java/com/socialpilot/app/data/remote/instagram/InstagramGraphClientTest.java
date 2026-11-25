@@ -56,4 +56,29 @@ public final class InstagramGraphClientTest {
                         .body(ResponseBody.create("{\"error\":{\"code\":190}}", null)).build()).build());
         assertThrows(InstagramGraphClient.AuthorizationExpired.class, () -> graph.validateConnection(CONNECTION));
     }
+
+    @Test public void pageVerificationUsesReadOnlyGraphRequestAndDistinguishesRevocation() throws Exception {
+        OAuthExchangeResponse page = new OAuthExchangeResponse("page-session", "FACEBOOK", "1234567890",
+                "PAGE", "Page", "test-page-token", null, "bearer", null);
+        AtomicInteger calls = new AtomicInteger();
+        InstagramGraphClient graph = new InstagramGraphClient(new OkHttpClient.Builder()
+                .addInterceptor(chain -> {
+                    Request request = chain.request();
+                    assertEquals("GET", request.method());
+                    assertEquals("graph.facebook.com", request.url().host());
+                    assertEquals("/v27.0/1234567890", request.url().encodedPath());
+                    assertEquals(Collections.singleton("fields"), request.url().queryParameterNames());
+                    assertEquals("Bearer test-page-token", request.header("Authorization"));
+                    int response = calls.getAndIncrement();
+                    return new Response.Builder().request(request).protocol(Protocol.HTTP_1_1)
+                            .code(response == 0 ? 200 : response == 1 ? 403 : 401).message("Fixture")
+                            .body(ResponseBody.create(response == 0 ? "{\"id\":\"1234567890\"}"
+                                    : response == 1 ? "{\"error\":{\"code\":200}}"
+                                    : "{\"error\":{\"code\":190}}", null)).build();
+                }).build());
+        graph.validatePageConnection(page);
+        IOException noPermission = assertThrows(IOException.class, () -> graph.validatePageConnection(page));
+        assertEquals(IOException.class, noPermission.getClass());
+        assertThrows(InstagramGraphClient.AuthorizationExpired.class, () -> graph.validatePageConnection(page));
+    }
 }
