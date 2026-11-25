@@ -13,7 +13,10 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import okhttp3.Call;
+import okhttp3.EventListener;
 import okhttp3.OkHttpClient;
 import okhttp3.mockwebserver.Dispatcher;
 import okhttp3.mockwebserver.MockResponse;
@@ -523,6 +526,142 @@ public class PostMetricAdapterTest {
         assertEquals(SocialError.NextAction.RETRY_WHEN_SAFE, result.error.nextAction);
         assertNull(result.retryAfterAt);
         missing(result, Metric.REACTION_COUNT, MissingReason.NETWORK_ERROR);
+    }
+
+    @Test public void http503WithRetryAfterZeroSendsSingleRequestWithoutConsumingQueued200() throws Exception {
+        PostRequest r = request(FB_REACTIONS); bind(r);
+        server.enqueue(new MockResponse().setResponseCode(503).setHeader("Retry-After", "0").setBody("{}"));
+        server.enqueue(new MockResponse().setResponseCode(200).setBody("{\"summary\":{\"total_count\":9}}"));
+
+        PostResult first = read(r);
+        assertEquals(1, server.getRequestCount());
+        assertEquals(Status.FAILURE, first.status);
+        assertEquals(Failure.PROVIDER_ERROR, first.failure);
+        missing(first, Metric.REACTION_COUNT, MissingReason.NETWORK_ERROR);
+        assertNotNull(first.error);
+        assertEquals(SocialError.Code.NETWORK_ERROR, first.error.code);
+        assertEquals(SocialError.NextAction.WAIT, first.error.nextAction);
+        assertEquals(Long.valueOf(NOW), first.retryAfterAt);
+
+        PostResult second = read(r);
+        assertEquals(2, server.getRequestCount());
+        assertEquals(Status.SUCCESS, second.status);
+        assertEquals(Long.valueOf(9), sample(second, Metric.REACTION_COUNT).value);
+    }
+
+    @Test public void http503SlowBodyAndIoErrorsPreserveHeaderDeadlineAndDeliverOnce() throws Exception {
+        PostRequest r = request(FB_REACTIONS); bind(r);
+        AtomicLong mutableClock = new AtomicLong(NOW);
+        OkHttpClient timedClient = client.newBuilder()
+                .readTimeout(150, TimeUnit.MILLISECONDS)
+                .eventListener(new EventListener() {
+                    @Override public void responseBodyEnd(Call call, long byteCount) {
+                        mutableClock.set(NOW + 25_000L);
+                    }
+                    @Override public void responseFailed(Call call, java.io.IOException ioe) {
+                        mutableClock.set(NOW + 45_000L);
+                    }
+                }).build();
+        PostMetricAdapter timedAdapter = new PostMetricAdapter(timedClient, ignored -> connection.get(),
+                channel -> "MO_PHONG-token", mutableClock::get, server.url("/"), server.url("/rest/"),
+                FollowerResult.Source.MO_PHONG, "sp045-slow-503");
+
+        // 1. Slow body within readTimeout: clock advances during body read, deadline must use header receipt time NOW.
+        server.enqueue(new MockResponse().setResponseCode(503).setHeader("Retry-After", "120")
+                .setBody("{\"slow\":true}").setBodyDelay(40, TimeUnit.MILLISECONDS));
+        AtomicInteger deliveries = new AtomicInteger();
+        AtomicReference<PostResult> slowResult = new AtomicReference<>();
+        CountDownLatch slowDone = new CountDownLatch(1);
+        timedAdapter.read(r, value -> { deliveries.incrementAndGet(); slowResult.set(value); slowDone.countDown(); });
+        assertTrue("terminal background callback", slowDone.await(5, TimeUnit.SECONDS));
+        assertEquals(1, deliveries.get());
+        assertEquals(1, server.getRequestCount());
+        assertEquals(Status.FAILURE, slowResult.get().status);
+        assertEquals(Failure.PROVIDER_ERROR, slowResult.get().failure);
+        missing(slowResult.get(), Metric.REACTION_COUNT, MissingReason.NETWORK_ERROR);
+        assertEquals(SocialError.NextAction.WAIT, slowResult.get().error.nextAction);
+        assertEquals(Long.valueOf(NOW + 120_000L), slowResult.get().retryAfterAt);
+
+        // 2. Slow body past readTimeout (SocketTimeoutException): still keeps 503 + header deadline.
+        mutableClock.set(NOW);
+        server.enqueue(new MockResponse().setResponseCode(503).setHeader("Retry-After", "120")
+                .setBody("{}").setBodyDelay(450, TimeUnit.MILLISECONDS));
+        deliveries.set(0);
+        AtomicReference<PostResult> timeoutResult = new AtomicReference<>();
+        CountDownLatch timeoutDone = new CountDownLatch(1);
+        timedAdapter.read(r, value -> { deliveries.incrementAndGet(); timeoutResult.set(value); timeoutDone.countDown(); });
+        assertTrue("terminal background callback", timeoutDone.await(5, TimeUnit.SECONDS));
+        assertEquals(1, deliveries.get());
+        assertEquals(Status.FAILURE, timeoutResult.get().status);
+        assertEquals(Failure.PROVIDER_ERROR, timeoutResult.get().failure);
+        missing(timeoutResult.get(), Metric.REACTION_COUNT, MissingReason.NETWORK_ERROR);
+        assertEquals(SocialError.NextAction.WAIT, timeoutResult.get().error.nextAction);
+        assertEquals(Long.valueOf(NOW + 120_000L), timeoutResult.get().retryAfterAt);
+
+        // 3. Truncated / mid-body I/O disconnect: still keeps 503 + header deadline.
+        mutableClock.set(NOW);
+        server.enqueue(new MockResponse().setResponseCode(503).setHeader("Retry-After", "120")
+                .setBody("{\"truncated_payload_1234567890\":\"abc\"}")
+                .setSocketPolicy(SocketPolicy.DISCONNECT_DURING_RESPONSE_BODY));
+        deliveries.set(0);
+        AtomicReference<PostResult> ioResult = new AtomicReference<>();
+        CountDownLatch ioDone = new CountDownLatch(1);
+        timedAdapter.read(r, value -> { deliveries.incrementAndGet(); ioResult.set(value); ioDone.countDown(); });
+        assertTrue("terminal background callback", ioDone.await(5, TimeUnit.SECONDS));
+        assertEquals(1, deliveries.get());
+        assertEquals(Status.FAILURE, ioResult.get().status);
+        assertEquals(Failure.PROVIDER_ERROR, ioResult.get().failure);
+        missing(ioResult.get(), Metric.REACTION_COUNT, MissingReason.NETWORK_ERROR);
+        assertEquals(SocialError.NextAction.WAIT, ioResult.get().error.nextAction);
+        assertEquals(Long.valueOf(NOW + 120_000L), ioResult.get().retryAfterAt);
+
+        // 4. Disconnect while 503 body is arriving must still reject.
+        CountDownLatch bodyStarted = new CountDownLatch(1), disconnected = new CountDownLatch(1);
+        OkHttpClient raceClient = client.newBuilder().eventListener(new EventListener() {
+            @Override public void responseBodyStart(Call call) {
+                bodyStarted.countDown();
+                try { disconnected.await(5, TimeUnit.SECONDS); }
+                catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+            }
+        }).build();
+        PostMetricAdapter raceAdapter = new PostMetricAdapter(raceClient, ignored -> connection.get(),
+                channel -> "MO_PHONG-token", () -> NOW, server.url("/"), server.url("/rest/"),
+                FollowerResult.Source.MO_PHONG, "sp045-race-503");
+        server.enqueue(new MockResponse().setResponseCode(503).setHeader("Retry-After", "120").setBody("{\"wait\":1}"));
+        AtomicReference<PostResult> raceResult = new AtomicReference<>();
+        CountDownLatch raceDone = new CountDownLatch(1);
+        raceAdapter.read(r, value -> { raceResult.set(value); raceDone.countDown(); });
+        assertTrue(bodyStarted.await(5, TimeUnit.SECONDS));
+        ChannelInfo old = channel(r);
+        connection.set(new PostMetricAdapter.Binding(
+                new ChannelInfo(old.channelId, old.platform, old.externalAccountId, old.accountType,
+                        old.displayName, ConnectionStatus.DISCONNECTED, old.connectionRevision, null),
+                r, capability(SocialOperation.READ_POST_METRICS, CapabilityAvailability.AVAILABLE), null, grants(r)));
+        disconnected.countDown();
+        assertTrue(raceDone.await(5, TimeUnit.SECONDS));
+        assertEquals(Status.REJECTED, raceResult.get().status);
+        assertEquals(Failure.CHANNEL_DISCONNECTED, raceResult.get().failure);
+
+        // 5. Cancellation while 503 body is arriving suppresses callback.
+        bind(r);
+        CountDownLatch cancelBodyStarted = new CountDownLatch(1), cancelIssued = new CountDownLatch(1);
+        OkHttpClient cancelClient = client.newBuilder().eventListener(new EventListener() {
+            @Override public void responseBodyStart(Call call) {
+                cancelBodyStarted.countDown();
+                try { cancelIssued.await(5, TimeUnit.SECONDS); }
+                catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+            }
+        }).build();
+        PostMetricAdapter cancelAdapter = new PostMetricAdapter(cancelClient, ignored -> connection.get(),
+                channel -> "MO_PHONG-token", () -> NOW, server.url("/"), server.url("/rest/"),
+                FollowerResult.Source.MO_PHONG, "sp045-cancel-503");
+        server.enqueue(new MockResponse().setResponseCode(503).setHeader("Retry-After", "120").setBody("{\"wait\":1}"));
+        CountDownLatch cancelledCallback = new CountDownLatch(1);
+        Cancelable handle = cancelAdapter.read(r, ignored -> cancelledCallback.countDown());
+        assertTrue(cancelBodyStarted.await(5, TimeUnit.SECONDS));
+        handle.cancel();
+        cancelIssued.countDown();
+        assertFalse(cancelledCallback.await(150, TimeUnit.MILLISECONDS));
     }
     @Test public void graphRateAndAuthEnvelopeOn200AreFailures() throws Exception {
         PostRequest r = request(FB_REACTIONS); bind(r);

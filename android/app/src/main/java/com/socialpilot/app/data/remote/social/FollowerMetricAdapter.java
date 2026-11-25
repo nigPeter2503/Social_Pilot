@@ -7,11 +7,7 @@ import com.socialpilot.app.domain.contract.Cancelable;
 import com.socialpilot.app.domain.contract.social.*;
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.Locale;
 import java.util.Objects;
-import java.util.TimeZone;
 import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.HttpUrl;
@@ -79,8 +75,8 @@ public final class FollowerMetricAdapter {
     FollowerMetricAdapter(OkHttpClient client, ConnectionSource connections,
             CredentialSource credentials, Clock clock, HttpUrl facebook, HttpUrl linkedin,
             Source source, String sourceRef) {
-        // Do not follow a redirect carrying Authorization to an unapproved endpoint.
-        this.client = client.newBuilder().followRedirects(false).followSslRedirects(false).build();
+        // Do not follow a redirect carrying Authorization or auto-retry HTTP 503 inside OkHttp.
+        this.client = MetricHttpClient.forAdapter(client);
         this.connections = Objects.requireNonNull(connections, "connections");
         this.credentials = Objects.requireNonNull(credentials, "credentials");
         this.clock = Objects.requireNonNull(clock, "clock");
@@ -131,26 +127,32 @@ public final class FollowerMetricAdapter {
         if (!pending.attach(call)) return;
         call.enqueue(new Callback() {
             @Override public void onFailure(Call call, IOException exception) {
-                FollowerResult guard = responseGuard(request, binding);
-                pending.deliver(guard != null ? guard : failed(request, MissingReason.NETWORK_ERROR,
-                        Failure.NETWORK_ERROR, error(SocialError.Code.NETWORK_ERROR,
-                                SocialError.NextAction.RETRY_WHEN_SAFE), null, clock.nowMillis()));
+                FollowerResult result;
+                try {
+                    if (pending.stopped()) return;
+                    FollowerResult guard = responseGuard(request, binding);
+                    result = guard != null ? guard : failed(request, MissingReason.NETWORK_ERROR,
+                            Failure.NETWORK_ERROR, error(SocialError.Code.NETWORK_ERROR,
+                                    SocialError.NextAction.RETRY_WHEN_SAFE), null, clock.nowMillis());
+                } catch (RuntimeException ignored) { result = rejected(Failure.LOCAL_ERROR, null); }
+                pending.deliver(result);
             }
 
             @Override public void onResponse(Call call, Response response) throws IOException {
                 FollowerResult result;
                 try (Response received = response) {
-                    String body = received.body() == null ? "" : received.body().string();
+                    int code = received.code();
+                    String retryAfter = received.header("Retry-After");
                     long receivedAt = clock.nowMillis();
-                    FollowerResult guard = responseGuard(request, binding);
-                    result = guard != null ? guard : normalize(request, binding, received.code(), body,
-                            received.header("Retry-After"), receivedAt);
+                    String body = MetricHttpClient.readBody(received, code == 503);
+                    if (pending.stopped()) return;
+                    Binding receivedBinding = connections.current(request.channelId);
+                    FollowerResult guard = responseGuard(request, binding, receivedBinding);
+                    result = guard != null ? guard : normalize(request, receivedBinding, code, body,
+                            retryAfter, receivedAt);
                 } catch (IOException exception) {
-                    FollowerResult guard = responseGuard(request, binding);
-                    result = guard != null ? guard : failed(request, MissingReason.NETWORK_ERROR,
-                            Failure.NETWORK_ERROR, error(SocialError.Code.NETWORK_ERROR,
-                                    SocialError.NextAction.RETRY_WHEN_SAFE), null, clock.nowMillis());
-                }
+                    onFailure(call, exception); return;
+                } catch (RuntimeException ignored) { result = rejected(Failure.LOCAL_ERROR, null); }
                 pending.deliver(result);
             }
         });
@@ -169,7 +171,10 @@ public final class FollowerMetricAdapter {
     }
 
     private FollowerResult responseGuard(FollowerRequest request, Binding sent) {
-        Binding current = connections.current(request.channelId);
+        return responseGuard(request, sent, connections.current(request.channelId));
+    }
+
+    private FollowerResult responseGuard(FollowerRequest request, Binding sent, Binding current) {
         FollowerResult blocked = admission(request, current);
         if (blocked != null) return blocked;
         return sent.channel.tokenReference.equals(current.channel.tokenReference)
@@ -308,17 +313,7 @@ public final class FollowerMetricAdapter {
     }
 
     private static Long retryAt(String header, long receivedAt) {
-        if (header == null) return null;
-        try {
-            long seconds = Long.parseLong(header);
-            return seconds < 0 ? null : Math.addExact(receivedAt, Math.multiplyExact(seconds, 1000));
-        } catch (NumberFormatException ignored) {
-            SimpleDateFormat format = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss 'GMT'", Locale.US);
-            format.setLenient(false);
-            format.setTimeZone(TimeZone.getTimeZone("GMT"));
-            try { return format.parse(header).getTime(); }
-            catch (ParseException ignoredDate) { return null; }
-        } catch (ArithmeticException ignored) { return null; }
+        return MetricHttpClient.retryAt(header, receivedAt);
     }
 
     private static final class Pending implements Cancelable {
