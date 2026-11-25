@@ -33,6 +33,7 @@ public final class MainActivity extends AppCompatActivity {
         String page = model.connectedPageSummary();
         if (page != null) binding.facebookPageStatus.setText(getString(R.string.facebook_connected, page));
         binding.connectFacebookButton.setOnClickListener(view -> model.connectFacebook());
+        binding.openAiKeysButton.setOnClickListener(view -> startActivity(new Intent(this, AiKeysActivity.class)));
         binding.connectInstagramButton.setOnClickListener(view -> model.connectInstagram());
         model.oauthState().observe(this, state -> {
             if (state.status == MainViewModel.OAuthStatus.AUTHORIZATION_READY) {

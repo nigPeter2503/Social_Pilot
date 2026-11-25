@@ -70,4 +70,36 @@
   <string name="instagram_cancelled">Kết nối đã thay đổi. Hãy duyệt lại nội dung.</string>
   <string name="instagram_publish_error">Chưa kiểm tra được bài hoặc kết nối Instagram.</string>
   <string name="instagram_open_error">Chưa mở được bài gốc trong trình duyệt.</string>
+
+  <string name="open_ai_keys">Cấu hình khóa AI (BYOK)</string>
+  <string name="ai_keys_title">Khóa API AI của bạn</string>
+  <string name="ai_keys_intro">Key được mã hóa bằng khóa trong Android Keystore và chỉ gửi trực tiếp tới đúng nhà cung cấp. Key không đi qua máy chủ SocialPilot, không được sao lưu và chỉ hiện dạng che.</string>
+  <string name="provider_openai">OpenAI</string>
+  <string name="provider_gemini">Google Gemini</string>
+  <string name="ai_key_hint">Dán API key</string>
+  <string name="ai_key_save">Lưu và kiểm tra</string>
+  <string name="ai_key_check">Kiểm tra lại</string>
+  <string name="ai_key_delete">Xóa key</string>
+  <string name="ai_key_loading">Đang tải trạng thái…</string>
+  <string name="ai_key_saving">Đang mã hóa và lưu key…</string>
+  <string name="ai_key_checking">Đang kiểm tra key với nhà cung cấp…</string>
+  <string name="ai_key_deleting">Đang xóa key…</string>
+  <string name="ai_key_state_not_set">Chưa có key.</string>
+  <string name="ai_key_state_unverified">Đã lưu key %1$s, chưa xác nhận với nhà cung cấp.</string>
+  <string name="ai_key_state_valid">Key %1$s hợp lệ (kiểm tra lúc %2$s).</string>
+  <string name="ai_key_state_invalid">Key %1$s bị từ chối: sai hoặc đã bị thu hồi. Vui lòng nhập key mới.</string>
+  <string name="ai_key_state_permission">Key %1$s không có quyền gọi API/model này. Kiểm tra dự án và quyền ở nhà cung cấp.</string>
+  <string name="ai_key_state_unreadable">Không đọc được key đã lưu (kho bảo mật của thiết bị đã thay đổi). Vui lòng nhập lại hoặc xóa key.</string>
+  <string name="ai_key_outcome_rate_limited">Nhà cung cấp đang giới hạn tần suất nên chưa xác định được key. Thử lại sau.</string>
+  <string name="ai_key_outcome_provider_unavailable">Nhà cung cấp đang gặp sự cố nên chưa xác định được key.</string>
+  <string name="ai_key_outcome_timeout">Hết thời gian chờ nên chưa xác định được key. Thử lại sau.</string>
+  <string name="ai_key_outcome_network">Lỗi kết nối mạng nên chưa xác định được key. Key không bị coi là sai.</string>
+  <string name="ai_key_outcome_unexpected">Phản hồi không như mong đợi (mạng/proxy). Chưa xác định được key.</string>
+  <string name="ai_key_outcome_offline">Thiết bị đang offline. Key đã lưu an toàn; hãy kiểm tra lại khi có mạng.</string>
+  <string name="ai_key_outcome_superseded">Key hoặc lượt kiểm tra đã thay đổi nên kết quả cũ được bỏ qua.</string>
+  <string name="ai_key_outcome_status_storage_failed">Không ghi được trạng thái kiểm tra key. Hãy thử kiểm tra lại.</string>
+  <string name="ai_key_format_error">Key không hợp lệ: cần 20–512 ký tự, không chứa khoảng trắng.</string>
+  <string name="ai_key_store_error">Chưa lưu được key vào kho bảo mật. Vui lòng thử lại.</string>
+  <string name="ai_key_delete_error">Chưa xóa được key. Vui lòng thử lại.</string>
+  <string name="ai_key_deleted">Đã xóa key của nhà cung cấp này.</string>
 </resources>
