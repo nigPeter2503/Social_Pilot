@@ -52,6 +52,7 @@
   <string name="facebook_verified">Đã xác minh Facebook Page %1$s</string>
   <string name="facebook_check_failed">Chưa kiểm tra được Facebook Page %1$s. Thử lại khi có mạng.</string>
   <string name="oauth_error">Chưa kết nối được tài khoản (%1$s).</string>
+  <string name="oauth_grant_expired">Quyền truy cập của lượt kết nối đã hết hạn. Hãy kết nối lại.</string>
   <string name="connect_instagram">Kết nối Instagram</string>
   <string name="instagram_not_connected">Chưa kết nối Instagram.</string>
   <string name="instagram_connected">Đã kết nối %1$s\nFacebook Page %2$s\nQuyền %3$s\nHết hạn %4$s\nGraph API %5$s</string>

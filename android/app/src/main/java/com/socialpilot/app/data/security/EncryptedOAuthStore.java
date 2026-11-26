@@ -68,8 +68,7 @@ public final class EncryptedOAuthStore {
         ConnectedRecord legacy = connected(platform.name());
         if (legacy == null) return true;
         try {
-            Snapshot current = channels.selected(platform);
-            if (current == null) current = channels.save(legacy.connection);
+            Snapshot current = channels.importLegacy(legacy.connection);
             // A selected connection can supersede the legacy record. Retire only a proven matching
             // Room/Keystore pair here. An explicit reconnect can retire a superseded record.
             if (current.info.externalAccountId.equals(legacy.connection.externalAccountId)

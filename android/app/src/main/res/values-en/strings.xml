@@ -52,6 +52,7 @@
   <string name="facebook_verified">Verified Facebook Page %1$s</string>
   <string name="facebook_check_failed">Could not check Facebook Page %1$s. Try again when online.</string>
   <string name="oauth_error">Could not connect the account (%1$s).</string>
+  <string name="oauth_grant_expired">Access for this connection attempt has expired. Please reconnect.</string>
   <string name="connect_instagram">Connect Instagram</string>
   <string name="instagram_not_connected">No Instagram account connected.</string>
   <string name="instagram_connected">Connected to %1$s\nFacebook Page %2$s\nPermissions %3$s\nExpires %4$s\nGraph API %5$s</string>

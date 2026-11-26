@@ -95,7 +95,7 @@ public final class MainActivityConnectionDeviceTest {
         app.registerActivityLifecycleCallbacks(installModel);
         try {
             channels.save(connection("permission", null));
-            channels.save(new OAuthExchangeResponse("expired-page", "FACEBOOK", "1234567890", "PAGE",
+            channels.importLegacy(new OAuthExchangeResponse("expired-page", "FACEBOOK", "1234567890", "PAGE",
                     "Test Page", "expired-fake", null, "bearer", "2020-01-01T00:00:00Z"));
             setTestLocale(app, locales, "vi");
             assertPermissionAfterApproval(worker, "Đã duyệt nội dung hiện tại. Chỉnh sửa sẽ hủy duyệt.",
@@ -180,7 +180,7 @@ public final class MainActivityConnectionDeviceTest {
         try {
             setTestLocale(app, locales, "vi");
             assertInstagramState("Chưa kết nối Instagram.");
-            Snapshot expired = container.channels.save(connection("expired", "2020-01-01T00:00:00Z"));
+            Snapshot expired = container.channels.importLegacy(connection("expired", "2020-01-01T00:00:00Z"));
             assertInstagramState("Cần kết nối lại Instagram @fixture (" + ACCOUNT + ").");
 
             Snapshot revoked = container.channels.save(connection("revoked", null));

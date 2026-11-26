@@ -99,7 +99,9 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private void showOAuthError(String code) {
-        Toast.makeText(this, getString(R.string.oauth_error, code), Toast.LENGTH_LONG).show();
+        String message = FacebookOAuthCoordinator.GRANT_EXPIRED.equals(code)
+                ? getString(R.string.oauth_grant_expired) : getString(R.string.oauth_error, code);
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
     }
 
     private void renderFacebookConnection() {

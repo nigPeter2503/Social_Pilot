@@ -44,6 +44,10 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class ChannelRepository {
     public enum PageCheck { IDLE, CHECKING, VERIFIED, RECONNECT, PERMISSION_REQUIRED, FAILED }
 
+    public static final class ExpiredGrantException extends IllegalStateException {
+        private ExpiredGrantException() { super("OAuth grant has expired"); }
+    }
+
     private final AppDatabase database;
     private final ChannelDao channels;
     private final SecretStore secrets;
@@ -121,12 +125,28 @@ public final class ChannelRepository {
         return PageCheck.RECONNECT;
     }
 
+    public synchronized Snapshot save(OAuthExchangeResponse response) {
+        return save(response, true);
+    }
+
+    /** Recover a persisted identity even if its old grant expired, without replacing a selection. */
+    public synchronized Snapshot importLegacy(OAuthExchangeResponse response) {
+        Platform platform = Platform.valueOf(response.provider);
+        Snapshot current = selected(platform);
+        if (current != null) return current;
+        refreshSelected(platform);
+        current = selected(platform);
+        return current == null ? save(response, false) : current;
+    }
+
     /**
      * The cleanup row is durable before writing the secret. Promotion removes it and enqueues the
      * previous ref in the same transaction as the Channel update.
      */
-    public synchronized Snapshot save(OAuthExchangeResponse response) {
+    private Snapshot save(OAuthExchangeResponse response, boolean requireFreshGrant) {
         Grant grant = ConnectionLifecycle.fromExchange(response.sessionId, response.provider, response);
+        Long expiry = grant.effectiveExpiryMillis();
+        if (requireFreshGrant) requireUnexpired(expiry);
         SecretRef ref = new SecretRef(SecretNamespace.SOCIAL_TOKEN, UUID.randomUUID().toString());
         channels.queueCleanup(new ChannelSecretCleanup(ref.opaque()));
         Snapshot committed;
@@ -162,13 +182,15 @@ public final class ChannelRepository {
                 next.graphApiVersion = grant.graphApiVersion;
                 next.tokenExpiresAtMillis = grant.tokenExpiresAtMillis;
                 next.dataAccessExpiresAtMillis = grant.dataAccessExpiresAtMillis;
-                next.effectiveExpiresAtMillis = grant.effectiveExpiryMillis();
+                next.effectiveExpiresAtMillis = expiry;
                 channels.clearSelection(next.platform);
                 channels.save(next);
                 channels.finishCleanup(ref.opaque());
                 if (previous != null && previous.credentialRef != null) {
                     channels.queueCleanup(new ChannelSecretCleanup(previous.credentialRef));
                 }
+                // Credential and database I/O may have crossed the expiry boundary.
+                if (requireFreshGrant) requireUnexpired(expiry);
                 return snapshot(next, SecretRead.Status.SUCCESS);
             });
         } catch (SecretStoreException exception) {
@@ -251,6 +273,10 @@ public final class ChannelRepository {
                 row.connectionRevision, row.credentialRef);
         return new Snapshot(info, row, credentialStatus,
                 Arrays.asList(gson.fromJson(row.scopesJson, String[].class)), new ArrayList<>(capabilities(row).values()));
+    }
+
+    private static void requireUnexpired(Long expiry) {
+        if (expiry != null && System.currentTimeMillis() >= expiry) throw new ExpiredGrantException();
     }
 
     private static boolean usable(ChannelEntity row) {

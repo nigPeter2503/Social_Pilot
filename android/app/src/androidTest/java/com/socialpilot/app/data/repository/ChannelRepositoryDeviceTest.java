@@ -14,6 +14,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 import com.socialpilot.app.data.local.AppDatabase;
 import com.socialpilot.app.data.local.ChannelSecretCleanup;
+import com.socialpilot.app.data.repository.ChannelRepository.ExpiredGrantException;
 import com.socialpilot.app.data.remote.instagram.ControlledInstagramGraph;
 import com.socialpilot.app.data.security.EncryptedOAuthStore;
 import com.socialpilot.app.data.security.EncryptedSecretStore;
@@ -129,7 +130,7 @@ public class ChannelRepositoryDeviceTest {
         assertNull(store.selectedInstagramMetadata());
         ChannelRepository.Snapshot page = channels.save(page("fb-a", "facebook-fake"));
         OAuthExchangeResponse profile = instagram("ig-old", "expired-fake");
-        ChannelRepository.Snapshot expired = channels.save(new OAuthExchangeResponse(profile.sessionId,
+        ChannelRepository.Snapshot expired = channels.importLegacy(new OAuthExchangeResponse(profile.sessionId,
                 profile.provider, profile.externalAccountId, profile.accountType, profile.displayName,
                 profile.accessToken, null, "bearer", "2020-01-01T00:00:00Z",
                 profile.linkedPageId, profile.grantedScopes, profile.graphApiVersion));
@@ -230,8 +231,9 @@ public class ChannelRepositoryDeviceTest {
         assertEquals(SecretRead.Status.MISSING, channels.find(next.info.channelId).credentialStatus);
     }
 
-    @Test public void expiredPageCredentialRequiresReconnectAfterRestart() {
+    @Test public void expiredPageReconnectPreservesTheWorkingCredentialAfterRestart() {
         ChannelRepository channels = open();
+        ChannelRepository.Snapshot previous = channels.save(page("page-working", "old-fake"));
         OAuthExchangeResponse exchange = new Gson().fromJson("""
                 {"sessionId":"page-expired","provider":"FACEBOOK","externalAccountId":"1234567890",
                 "accountType":"PAGE","displayName":"Test Page","accessToken":"fake-page-token",
@@ -239,20 +241,43 @@ public class ChannelRepositoryDeviceTest {
                 "tokenExpiresAt":"2030-01-01T00:00:00Z","dataAccessExpiresAt":"2020-01-01T00:00:00Z"}
                 """, OAuthExchangeResponse.class);
         exchange.validate();
-        ChannelRepository.Snapshot expired = channels.save(exchange);
-        var persisted = database.channels().selected("FACEBOOK");
-        assertEquals(Long.valueOf(1893456000000L), persisted.tokenExpiresAtMillis);
-        assertEquals(Long.valueOf(1577836800000L), persisted.dataAccessExpiresAtMillis);
-        assertEquals(persisted.dataAccessExpiresAtMillis, persisted.effectiveExpiresAtMillis);
-        assertEquals(ConnectionStatus.REAUTH_REQUIRED, expired.info.connectionStatus);
-        assertNull(channels.credential(expired.scope));
+        assertThrows(ExpiredGrantException.class, () -> channels.save(exchange));
+        assertSame(previous, channels.selected(Platform.FACEBOOK));
+        assertEquals("old-fake", channels.credential(previous.scope).accessToken);
+        assertTrue(database.channels().pendingCleanup().isEmpty());
         database.close();
 
         ChannelRepository reopened = open();
         reopened.restore();
-        assertEquals(ConnectionStatus.REAUTH_REQUIRED,
-                reopened.selected(Platform.FACEBOOK).info.connectionStatus);
-        assertFalse(reopened.isCurrent(expired.scope));
+        ChannelRepository.Snapshot restored = reopened.selected(Platform.FACEBOOK);
+        assertTrue(previous.scope.matches(restored.scope));
+        assertEquals("page-working", restored.sessionId);
+        assertEquals(ConnectionStatus.CONNECTED, restored.info.connectionStatus);
+        assertEquals("old-fake", reopened.credential(previous.scope).accessToken);
+    }
+
+    @Test public void unexpiredPageReconnectPromotesTheNewRevision() {
+        ChannelRepository channels = open();
+        ChannelRepository.Snapshot previous = channels.save(page("page-working", "old-fake"));
+        OAuthExchangeResponse exchange = new OAuthExchangeResponse(
+                "page-replacement", "FACEBOOK", "1234567890", "PAGE", "Test Page",
+                "new-fake", null, "bearer", "2099-01-01T00:00:00Z", null, null, null,
+                "2099-02-01T00:00:00Z", "2099-01-01T00:00:00Z");
+        ChannelRepository.Snapshot next = channels.save(exchange);
+
+        assertEquals(previous.scope.channelId, next.scope.channelId);
+        assertEquals(2, next.scope.connectionRevision);
+        assertTrue(next.connected());
+        assertEquals("2099-01-01T00:00:00Z", next.expiresAt);
+        assertNull(channels.credential(previous.scope));
+        assertEquals(SecretRead.Status.MISSING, secrets.read(SecretRef.parse(previous.info.tokenReference)).status);
+        assertEquals("new-fake", channels.credential(next.scope).accessToken);
+
+        database.close();
+        ChannelRepository reopened = open();
+        reopened.restore();
+        assertTrue(next.scope.matches(reopened.selected(Platform.FACEBOOK).scope));
+        assertEquals("new-fake", reopened.credential(next.scope).accessToken);
     }
 
     @Test public void failedSecretWriteLeavesOldChannelAndCredentialUsable() {

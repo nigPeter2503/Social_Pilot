@@ -6,6 +6,7 @@ import android.os.Looper;
 import android.util.Base64;
 import com.google.gson.Gson;
 import com.socialpilot.app.data.remote.oauth.OAuthApi;
+import com.socialpilot.app.data.repository.ChannelRepository.ExpiredGrantException;
 import com.socialpilot.app.data.security.EncryptedOAuthStore;
 import com.socialpilot.app.data.security.EncryptedOAuthStore.Pending;
 import com.socialpilot.app.domain.contract.oauth.OAuthContract.OAuthExchangeResponse;
@@ -27,6 +28,8 @@ import retrofit2.Retrofit;
 import retrofit2.converter.gson.GsonConverterFactory;
 
 public final class FacebookOAuthCoordinator {
+    public static final String GRANT_EXPIRED = "GRANT_EXPIRED";
+
     public interface Listener {
         void onAuthorizationUrl(String url);
         void onConnected(String provider, String displayName, String accountId, String sessionId);
@@ -43,14 +46,22 @@ public final class FacebookOAuthCoordinator {
 
     /** The executor serializes session creation, callback consumption and connection writes. */
     public FacebookOAuthCoordinator(EncryptedOAuthStore store, ExecutorService io, String baseUrl) {
+        this(store, io, createApi(baseUrl));
+    }
+
+    FacebookOAuthCoordinator(EncryptedOAuthStore store, ExecutorService io, OAuthApi api) {
         this.io = io;
         this.store = store;
+        this.api = api;
+    }
+
+    private static OAuthApi createApi(String baseUrl) {
         URI uri = URI.create(baseUrl);
         if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null
                 || uri.getUserInfo() != null || uri.getQuery() != null || uri.getFragment() != null
                 || !baseUrl.endsWith("/")) throw new IllegalArgumentException("OAuth API must use an HTTPS base URL");
         OkHttpClient client = new OkHttpClient.Builder().followRedirects(false).followSslRedirects(false).build();
-        api = new Retrofit.Builder().baseUrl(baseUrl).client(client)
+        return new Retrofit.Builder().baseUrl(baseUrl).client(client)
                 .addConverterFactory(GsonConverterFactory.create()).build().create(OAuthApi.class);
     }
 
@@ -107,6 +118,8 @@ public final class FacebookOAuthCoordinator {
                 store.saveConnected(result);
                 main.post(() -> listener.onConnected(result.provider, result.displayName,
                         result.externalAccountId, result.sessionId));
+            } catch (ExpiredGrantException expired) {
+                postFailure(listener, GRANT_EXPIRED);
             } catch (Exception exception) {
                 postFailure(listener, exception instanceof OAuthRequestException
                         ? ((OAuthRequestException) exception).code : "PROVIDER_ERROR");

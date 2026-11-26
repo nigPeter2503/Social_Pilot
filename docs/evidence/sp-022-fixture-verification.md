@@ -230,3 +230,17 @@ Phép thử này xác nhận điểm xung đột Git. Ca migration trên bản t
 cần schema hợp nhất và thiết bị. Grant mới từ Business Portfolio qua app,
 refresh được Meta cấp và rà log runtime của bản tích hợp còn mở ở
 [Issue #24](https://github.com/nigPeter2503/Social_Pilot/issues/24).
+
+
+### Giữ credential đang dùng khi reconnect trả grant hết hạn
+
+- Fixture Facebook Page ở revision 1 nhận token mới còn hạn nhưng
+  `dataAccessExpiresAt` đã qua. Callback phát lỗi `GRANT_EXPIRED`.
+  Room và Keystore giữ revision 1 và credential cũ sau khi mở lại.
+- Fixture handoff còn hạn giữ cùng channel ID, tăng lên revision 2,
+  dọn credential cũ và đọc được credential mới sau khi mở lại.
+- Android build, APK instrumentation và lint đạt với 180/180 unit test,
+  0 lỗi và 14 cảnh báo lint. Backend `test bootJar` đạt 51/51.
+  Instrumentation trên Samsung SM-G990E, API 36 với package QA
+  `com.socialpilot.app.sp022review` đạt 48/48, không có skip.
+  Các phản hồi OAuth ở lượt này dùng fixture.
