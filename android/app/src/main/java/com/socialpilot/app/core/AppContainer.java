@@ -11,6 +11,8 @@ import com.socialpilot.app.data.ai.AiKeyRepository;
 import com.socialpilot.app.data.ai.ByokKeyVerifier;
 import com.socialpilot.app.data.ai.ModelRegistryParser;
 import com.socialpilot.app.data.ai.ModelSelectionStore;
+import com.socialpilot.app.data.ai.ledger.BudgetLedger;
+import com.socialpilot.app.data.ai.ledger.LedgerDatabase;
 import com.socialpilot.app.data.local.AppDatabase;
 import com.socialpilot.app.data.prototype.PrototypeDatabase;
 import com.socialpilot.app.data.prototype.SampleRepository;
@@ -19,15 +21,14 @@ import com.socialpilot.app.data.repository.ChannelRepository;
 import com.socialpilot.app.data.repository.InstagramPublishRepository;
 import com.socialpilot.app.data.security.EncryptedOAuthStore;
 import com.socialpilot.app.data.security.EncryptedSecretStore;
+import com.socialpilot.app.domain.contract.ai.AttemptLedger;
 import com.socialpilot.app.domain.contract.ai.ModelRegistry;
-import com.socialpilot.app.domain.contract.ai.UsageLog;
 import com.socialpilot.app.domain.contract.secret.SecretNamespace;
 import com.socialpilot.app.domain.contract.secret.SecretStore;
 import com.socialpilot.app.prototype.DemoStreamCoordinator;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.TimeZone;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -47,8 +48,8 @@ public final class AppContainer {
     public final AiKeyRepository aiKeys;
     public final ModelRegistry modelRegistry;
     public final ModelSelectionStore modelSelections;
-    /** Null until the SP-029 ledger exists; the gateway then rejects every dispatch. */
-    public final UsageLog usageLog = null;
+    /** One shared budget and usage ledger for every provider, task and channel ({@code ai_ledger.db}). */
+    public final AttemptLedger ledger;
     public final AiGateway ai;
 
     public AppContainer(Context context) {
@@ -78,9 +79,13 @@ public final class AppContainer {
         modelRegistry = loadRegistry(app);
         modelSelections = new ModelSelectionStore(
                 app.getSharedPreferences("ai_model_selection_v1", Context.MODE_PRIVATE), modelRegistry);
+        BudgetLedger budgetLedger = new BudgetLedger(
+                LedgerDatabase.open(app, LedgerDatabase.FILE_NAME).store(), System::currentTimeMillis);
+        // Only rows of earlier processes are touched, so this may run while new calls reserve.
+        io.execute(budgetLedger::recoverInterrupted);
+        ledger = budgetLedger;
         ai = new AiGateway(modelSelections, AiGateway.adapters(aiKeys, modelRegistry),
-                provider -> aiKeys.status(provider).usable(), null, usageLog, io,
-                System::currentTimeMillis, () -> TimeZone.getDefault().getID());
+                provider -> aiKeys.status(provider).usable(), ledger, io, System::currentTimeMillis);
     }
 
     private static ModelRegistry loadRegistry(Context context) {

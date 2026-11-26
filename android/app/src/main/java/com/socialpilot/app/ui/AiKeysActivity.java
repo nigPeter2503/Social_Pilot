@@ -15,7 +15,9 @@ import com.socialpilot.app.data.ai.ByokKeyVerifier.Outcome;
 import com.socialpilot.app.databinding.ActivityAiKeysBinding;
 import com.socialpilot.app.databinding.ItemAiKeyBinding;
 import com.socialpilot.app.databinding.ItemTaskModelBinding;
+import com.socialpilot.app.domain.ai.BudgetInput;
 import com.socialpilot.app.domain.ai.UsageSummary;
+import com.socialpilot.app.domain.contract.ai.AttemptLedger;
 import com.socialpilot.app.domain.contract.ai.AiTaskType;
 import com.socialpilot.app.domain.contract.ai.ModelEntry;
 import com.socialpilot.app.domain.contract.ai.AiRequest.Provider;
@@ -44,6 +46,8 @@ public final class AiKeysActivity extends AppCompatActivity {
         bind(binding.geminiKey, Provider.GEMINI, R.string.provider_gemini);
         AiModelsViewModel models = new ViewModelProvider(this).get(AiModelsViewModel.class);
         models.state().observe(this, state -> renderModels(binding, models, state));
+        binding.saveBudgetButton.setOnClickListener(view -> models.setLimits(
+                String.valueOf(binding.dailyLimitInput.getText()), String.valueOf(binding.monthlyLimitInput.getText())));
     }
 
     private void renderModels(ActivityAiKeysBinding binding, AiModelsViewModel models, AiModelsViewModel.State state) {
@@ -79,6 +83,38 @@ public final class AiKeysActivity extends AppCompatActivity {
         }
         if (state.saveFailed) Toast.makeText(this, R.string.ai_model_save_error, Toast.LENGTH_SHORT).show();
         binding.usageSummary.setText(usageText(state));
+        renderBudget(binding, state);
+    }
+
+    private void renderBudget(ActivityAiKeysBinding binding, AiModelsViewModel.State state) {
+        AttemptLedger.Limits limits = state.limits;
+        AttemptLedger.Spend spend = state.spend;
+        if (limits == null || spend == null) {
+            binding.budgetStatus.setText(R.string.ai_budget_not_set);
+        } else {
+            binding.budgetStatus.setText(getString(R.string.ai_budget_status, spend.period.dayKey,
+                    BudgetInput.format(spend.dayMicros), BudgetInput.format(limits.dailyMicros), limits.currency,
+                    BudgetInput.format(Math.max(0, limits.dailyMicros - spend.dayMicros)), spend.period.monthKey,
+                    BudgetInput.format(spend.monthMicros), BudgetInput.format(limits.monthlyMicros),
+                    BudgetInput.format(Math.max(0, limits.monthlyMicros - spend.monthMicros)), limits.zoneId,
+                    spend.uncertainAttempts));
+            // Prefill once; never overwrite what the user is typing.
+            if (isEmpty(binding.dailyLimitInput)) binding.dailyLimitInput.setText(BudgetInput.format(limits.dailyMicros));
+            if (isEmpty(binding.monthlyLimitInput)) binding.monthlyLimitInput.setText(BudgetInput.format(limits.monthlyMicros));
+        }
+        int notice;
+        switch (state.budgetNotice) {
+            case SAVED: notice = R.string.ai_budget_saved; break;
+            case INVALID_AMOUNT: notice = R.string.ai_budget_invalid; break;
+            case DAILY_ABOVE_MONTHLY: notice = R.string.ai_budget_daily_above_monthly; break;
+            case SAVE_FAILED: notice = R.string.ai_budget_save_error; break;
+            default: return;
+        }
+        Toast.makeText(this, notice, Toast.LENGTH_SHORT).show();
+    }
+
+    private static boolean isEmpty(android.widget.EditText input) {
+        return input.getText() == null || input.getText().length() == 0;
     }
 
     private String modelStatus(AiModelsViewModel.TaskRow row) {
@@ -101,7 +137,7 @@ public final class AiKeysActivity extends AppCompatActivity {
         for (java.util.List<UsageSummary.Row> rows : java.util.Arrays.asList(state.today, state.month)) {
             for (UsageSummary.Row row : rows) {
                 text.append(getString(R.string.ai_usage_row, providerName(row.provider), row.periodKey,
-                        java.math.BigDecimal.valueOf(row.estimatedMicros, 6).stripTrailingZeros().toPlainString(),
+                        BudgetInput.format(row.estimatedMicros),
                         row.currency, row.settledRequests, row.uncertainRequests, row.releasedRequests)).append("\n");
             }
         }

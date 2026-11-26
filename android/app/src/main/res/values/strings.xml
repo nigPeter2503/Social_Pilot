@@ -112,7 +112,7 @@
 
   <string name="ai_models_title">Model theo tác vụ</string>
   <string name="ai_dispatch_locked">Gọi AI đang tạm khóa cho đến khi bật kiểm soát ngân sách dùng chung. Có thể chọn trước model cho từng tác vụ.</string>
-  <string name="ai_dispatch_enabled">Gọi AI đi qua kiểm soát ngân sách dùng chung.</string>
+  <string name="ai_dispatch_enabled">Mọi lượt gọi AI đi qua một sổ ngân sách dùng chung. Chưa đặt hạn mức ngày và tháng thì không lượt nào được gửi.</string>
   <string name="ai_registry_revision">Registry model: %1$s</string>
   <string name="ai_task_content_text">Viết và chỉnh nội dung</string>
   <string name="ai_task_comment_classification">Phân loại bình luận</string>
@@ -131,7 +131,7 @@
   <string name="ai_model_block_price">Chưa có bảng giá có nguồn; không ước tính được chi phí nên chưa dùng được.</string>
   <string name="ai_model_save_error">Chưa lưu được lựa chọn model. Vui lòng thử lại.</string>
   <string name="ai_usage_title">Chi phí ước tính</string>
-  <string name="ai_usage_unavailable">Chưa có sổ ghi usage. Chưa có lượt gọi AI nào được thực hiện.</string>
+  <string name="ai_usage_unavailable">Chưa mở được sổ ghi usage.</string>
   <string name="ai_usage_empty">Chưa có lượt gọi AI trong kỳ này.</string>
   <string name="ai_usage_row">%1$s · %2$s: ước tính %3$s %4$s; đã quyết toán: %5$d, chưa xác định chi phí: %6$d, không gửi: %7$d</string>
   <string name="ai_dispatch_status">%1$s\n%2$s</string>
@@ -143,4 +143,14 @@
   <string name="instagram_account_reconnect">Cần kết nối lại Instagram %1$s.</string>
   <string name="instagram_permission_required">Thiếu quyền cho thao tác Instagram này. Kiểm tra quyền đã cấp cho ứng dụng.</string>
   <string name="instagram_permission_check_required">Thiếu quyền để xác nhận kết quả đăng. Kiểm tra quyền đã cấp, rồi đối soát bài đăng.</string>
+  <string name="ai_budget_title">Hạn mức chi phí AI</string>
+  <string name="ai_budget_daily_hint">Hạn mức mỗi ngày (USD)</string>
+  <string name="ai_budget_monthly_hint">Hạn mức mỗi tháng (USD)</string>
+  <string name="ai_budget_save">Lưu hạn mức</string>
+  <string name="ai_budget_not_set">Chưa đặt hạn mức. Mọi lượt gọi AI đều bị chặn cho đến khi bạn đặt hạn mức ngày và tháng.</string>
+  <string name="ai_budget_status">Hôm nay %1$s: đã dùng/giữ %2$s / %3$s %4$s, còn %5$s.\nTháng %6$s: đã dùng/giữ %7$s / %8$s %4$s, còn %9$s.\nMúi giờ: %10$s · lượt chưa xác định chi phí: %11$d</string>
+  <string name="ai_budget_saved">Đã lưu hạn mức.</string>
+  <string name="ai_budget_invalid">Số tiền không hợp lệ: nhập số dương, tối đa 6 chữ số thập phân.</string>
+  <string name="ai_budget_daily_above_monthly">Hạn mức ngày không được lớn hơn hạn mức tháng.</string>
+  <string name="ai_budget_save_error">Chưa lưu được hạn mức. Vui lòng thử lại.</string>
 </resources>
