@@ -11,12 +11,16 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 import com.socialpilot.app.core.FacebookOAuthCoordinator;
 import com.socialpilot.app.data.local.AppDatabase;
+import com.socialpilot.app.data.repository.ChannelRepository;
+import com.socialpilot.app.data.repository.ChannelRepository.PageCheck;
 import com.socialpilot.app.data.repository.ControlledInstagramPublishRepository;
 import com.socialpilot.app.data.repository.BriefRepository;
 import com.socialpilot.app.data.repository.DraftRepository;
 import com.socialpilot.app.data.repository.InstagramPublishRepository;
 import com.socialpilot.app.data.security.EncryptedOAuthStore;
+import com.socialpilot.app.data.security.EncryptedSecretStore;
 import com.socialpilot.app.domain.contract.oauth.OAuthContract.OAuthExchangeResponse;
+import com.socialpilot.app.domain.contract.secret.SecretNamespace;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -24,6 +28,7 @@ import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import okhttp3.Protocol;
 import okhttp3.Request;
 import okhttp3.Response;
@@ -42,6 +47,63 @@ public final class MainViewModelInstagramDeviceTest {
     private static final String ACCOUNT_B = "2222222222";
     private static final String LINK_A = "https://www.instagram.com/p/post-a/";
     private static final String LINK_B = "https://www.instagram.com/p/post-b/";
+
+    @Test public void pageVerificationCannotFollowACommittedReconnect() throws Exception {
+        Instrumentation device = InstrumentationRegistry.getInstrumentation();
+        Application app = (Application) device.getTargetContext().getApplicationContext();
+        AppDatabase database = Room.inMemoryDatabaseBuilder(app, AppDatabase.class).build();
+        ExecutorService worker = Executors.newSingleThreadExecutor();
+        // The test writes only generated secret references and removes them via the test namespace.
+        String prefix = "sp022_page_test_" + UUID.randomUUID() + "_";
+        Context isolated = new ContextWrapper(app) {
+            @Override public Context getApplicationContext() { return this; }
+            @Override public SharedPreferences getSharedPreferences(String name, int mode) {
+                return super.getSharedPreferences(prefix + name, mode);
+            }
+        };
+        AtomicInteger calls = new AtomicInteger();
+        ChannelRepository channels = ControlledInstagramPublishRepository.channels(database,
+                new EncryptedSecretStore(isolated, SecretNamespace.SOCIAL_TOKEN), chain -> {
+                    calls.incrementAndGet();
+                    return new Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1)
+                            .code(200).message("Fixture")
+                            .body(ResponseBody.create("{\"id\":\"1234567890\"}", null)).build();
+                });
+        MainViewModel model = new MainViewModel(app, null, null, null, null, worker, channels);
+        try {
+            worker.submit(() -> channels.save(page("one"))).get(5, TimeUnit.SECONDS);
+            device.runOnMainSync(() -> {
+                model.checkFacebookPage();
+                awaitWorker(worker);
+            });
+            device.runOnMainSync(() -> assertEquals(PageCheck.VERIFIED, model.currentFacebookPageCheck()));
+            worker.submit(() -> channels.save(page("two"))).get(5, TimeUnit.SECONDS);
+            device.runOnMainSync(() -> assertEquals(PageCheck.IDLE, model.currentFacebookPageCheck()));
+            device.runOnMainSync(() -> {
+                model.checkFacebookPage();
+                awaitWorker(worker);
+                worker.submit(() -> channels.save(page("three")));
+                awaitWorker(worker);
+                assertEquals(PageCheck.IDLE, model.currentFacebookPageCheck());
+            });
+            device.runOnMainSync(() -> {
+                assertEquals(PageCheck.IDLE, model.currentFacebookPageCheck());
+                model.checkFacebookPage();
+                awaitWorker(worker);
+            });
+            device.runOnMainSync(() -> assertEquals(PageCheck.VERIFIED, model.currentFacebookPageCheck()));
+            assertEquals(3, calls.get());
+        } finally {
+            worker.shutdownNow();
+            database.close();
+            isolated.getSharedPreferences("secrets_social_v1", Context.MODE_PRIVATE).edit().clear().commit();
+        }
+    }
+
+    private static OAuthExchangeResponse page(String session) {
+        return new OAuthExchangeResponse(session, "FACEBOOK", "1234567890", "PAGE", "Fixture Page",
+                "test-token-" + session, null, "bearer", null);
+    }
 
     @Test public void completionQueuedBeforeReconnectCannotExposeOldPost() {
         Instrumentation device = InstrumentationRegistry.getInstrumentation();

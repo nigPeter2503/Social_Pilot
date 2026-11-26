@@ -62,6 +62,8 @@
         android:layout_marginTop="16dp" android:text="@string/targets_title" />
     <TextView android:id="@+id/targetStatus" android:layout_width="match_parent"
         android:layout_height="wrap_content" android:text="@string/no_target_available" />
+    <LinearLayout android:id="@+id/targetList" android:orientation="vertical"
+        android:layout_width="match_parent" android:layout_height="wrap_content" />
     <com.google.android.material.button.MaterialButton android:id="@+id/saveButton"
         android:layout_width="match_parent" android:layout_height="wrap_content"
         android:layout_marginTop="12dp" android:text="@string/save" />
@@ -79,6 +81,10 @@
     <TextView android:id="@+id/facebookPageStatus" android:layout_width="match_parent"
         android:layout_height="wrap_content" android:layout_marginTop="8dp"
         android:text="@string/facebook_not_connected" />
+    <com.google.android.material.button.MaterialButton android:id="@+id/checkFacebookButton"
+        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="@string/check_facebook" />
     <com.google.android.material.button.MaterialButton android:id="@+id/openAiKeysButton"
         style="@style/Widget.MaterialComponents.Button.OutlinedButton"
         android:layout_width="match_parent" android:layout_height="wrap_content"

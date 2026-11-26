@@ -32,6 +32,8 @@ public class OAuthContractTest {
         assertTrue(legacyExchange.remove("linkedPageId").isJsonNull());
         assertTrue(legacyExchange.remove("grantedScopes").isJsonNull());
         assertTrue(legacyExchange.remove("graphApiVersion").isJsonNull());
+        assertTrue(legacyExchange.remove("tokenExpiresAt").isJsonNull());
+        assertTrue(legacyExchange.remove("dataAccessExpiresAt").isJsonNull());
         assertEquals(examples.get("oauthExchangeResponse"), legacyExchange);
         OAuthContract.OAuthExchangeResponse instagram = gson.fromJson(examples.get("instagramOAuthExchangeResponse"),
                 OAuthContract.OAuthExchangeResponse.class);

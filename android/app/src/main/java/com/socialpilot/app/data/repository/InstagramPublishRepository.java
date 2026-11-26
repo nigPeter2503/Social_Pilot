@@ -5,8 +5,10 @@ import android.content.SharedPreferences;
 import com.google.gson.Gson;
 import com.socialpilot.app.data.remote.instagram.InstagramGraphClient;
 import com.socialpilot.app.data.remote.instagram.InstagramGraphClient.AuthorizationExpired;
+import com.socialpilot.app.data.remote.instagram.InstagramGraphClient.PermissionDenied;
 import com.socialpilot.app.data.security.EncryptedOAuthStore;
 import com.socialpilot.app.data.security.EncryptedOAuthStore.InstagramSession;
+import com.socialpilot.app.data.security.EncryptedOAuthStore.InstagramMetadata;
 import com.socialpilot.app.domain.contract.oauth.OAuthContract.OAuthExchangeResponse;
 import com.socialpilot.app.domain.editor.ContentVersion;
 import java.io.IOException;
@@ -18,7 +20,7 @@ import java.util.TimeZone;
 /** Stores one feed test attempt per connected Instagram account, including its reconciliation result. */
 public final class InstagramPublishRepository {
     public enum Status { READY, PUBLISHED, CHECK_REQUIRED, PUBLISHED_ID_UNKNOWN, PROVEN_UNPUBLISHED,
-        RECONNECT, CANCELLED, ERROR }
+        RECONNECT, PERMISSION_REQUIRED, PERMISSION_CHECK_REQUIRED, CANCELLED, ERROR }
 
     public static final class Result {
         public final Status status;
@@ -40,7 +42,7 @@ public final class InstagramPublishRepository {
             return connections.isCurrentInstagramSession(visibleSession);
         }
 
-        public boolean matchesConnection(OAuthExchangeResponse connection) {
+        public boolean matchesConnection(InstagramMetadata connection) {
             return visibleSession.matches(connection);
         }
     }
@@ -72,6 +74,10 @@ public final class InstagramPublishRepository {
                 if (previous.versionId.equals(version.versionId())) return currentResult(session, published(session, previous));
             }
             if (!connections.isCurrentInstagramSession(session)) return cancelled(session);
+            if (connection.expiresAt == null) {
+                graph.validateConnection(connection);
+                if (!connections.isCurrentInstagramSession(session)) return cancelled(session);
+            }
             String container = graph.createContainer(connection, version.imageReference(), version.text());
             Attempt attempt = new Attempt(version.versionId(), container, null, null);
             synchronized (connections) {
@@ -81,6 +87,8 @@ public final class InstagramPublishRepository {
             return publishSavedContainer(session, connection, attempt);
         } catch (AuthorizationExpired failure) {
             return reconnect(session);
+        } catch (PermissionDenied failure) {
+            return currentResult(session, result(session, Status.PERMISSION_REQUIRED));
         } catch (IOException | RuntimeException failure) {
             return currentResult(session, result(session, Status.ERROR));
         }
@@ -96,6 +104,8 @@ public final class InstagramPublishRepository {
             return currentResult(session, reconcileAttempt(session, connection, load(session.accountId)));
         } catch (AuthorizationExpired failure) {
             return reconnect(session);
+        } catch (PermissionDenied failure) {
+            return currentResult(session, result(session, Status.PERMISSION_REQUIRED));
         } catch (IOException | RuntimeException failure) {
             return currentResult(session, result(session, Status.ERROR));
         }
@@ -137,6 +147,8 @@ public final class InstagramPublishRepository {
             return currentResult(session, resolvePermalink(session, connection, published));
         } catch (AuthorizationExpired failure) {
             return reconnect(session);
+        } catch (PermissionDenied failure) {
+            return currentResult(session, result(session, Status.PERMISSION_CHECK_REQUIRED));
         } catch (IOException | RuntimeException failure) {
             // The provider may already have published. The container remains available for read-only reconciliation.
             return currentResult(session, result(session, Status.CHECK_REQUIRED));

@@ -6,19 +6,29 @@ import android.os.Looper;
 import androidx.room.Room;
 import androidx.work.WorkManager;
 import com.socialpilot.app.BuildConfig;
+import com.socialpilot.app.data.ai.AiGateway;
 import com.socialpilot.app.data.ai.AiKeyRepository;
 import com.socialpilot.app.data.ai.ByokKeyVerifier;
+import com.socialpilot.app.data.ai.ModelRegistryParser;
+import com.socialpilot.app.data.ai.ModelSelectionStore;
 import com.socialpilot.app.data.local.AppDatabase;
 import com.socialpilot.app.data.prototype.PrototypeDatabase;
 import com.socialpilot.app.data.prototype.SampleRepository;
 import com.socialpilot.app.data.repository.BriefRepository;
 import com.socialpilot.app.data.repository.DraftRepository;
+import com.socialpilot.app.data.repository.ChannelRepository;
 import com.socialpilot.app.data.repository.InstagramPublishRepository;
 import com.socialpilot.app.data.security.EncryptedOAuthStore;
 import com.socialpilot.app.data.security.EncryptedSecretStore;
+import com.socialpilot.app.domain.contract.ai.ModelRegistry;
+import com.socialpilot.app.domain.contract.ai.UsageLog;
 import com.socialpilot.app.domain.contract.secret.SecretNamespace;
 import com.socialpilot.app.domain.contract.secret.SecretStore;
 import com.socialpilot.app.prototype.DemoStreamCoordinator;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.TimeZone;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -35,12 +45,18 @@ public final class AppContainer {
     public final InstagramPublishRepository instagram;
     /** Social-token namespace for SP-022; separate file and Keystore key from AI keys. */
     public final SecretStore socialSecrets;
+    public final ChannelRepository channels;
     public final AiKeyRepository aiKeys;
+    public final ModelRegistry modelRegistry;
+    public final ModelSelectionStore modelSelections;
+    /** Null until the SP-029 ledger exists; the gateway then rejects every dispatch. */
+    public final UsageLog usageLog = null;
+    public final AiGateway ai;
 
     public AppContainer(Context context) {
         Context app = context.getApplicationContext();
         database = Room.databaseBuilder(app, AppDatabase.class, "socialpilot.db")
-                .addMigrations(AppDatabase.MIGRATION_1_2).build();
+                .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3).build();
         drafts = new DraftRepository(database.drafts(), io);
         briefs = new BriefRepository(database.briefs(), io);
         prototypeDatabase = Room.databaseBuilder(app, PrototypeDatabase.class, "socialpilot-prototype.db")
@@ -53,12 +69,31 @@ public final class AppContainer {
                 main.postDelayed(action, delay));
         sampleResults.markInterruptedOnOpen();
         sampleResults.reconcileWorkOnOpen(WorkManager.getInstance(app));
-        oauthStore = new EncryptedOAuthStore(app);
-        instagram = new InstagramPublishRepository(app, oauthStore);
-        facebookOAuth = new FacebookOAuthCoordinator(oauthStore, io, BuildConfig.OAUTH_API_BASE_URL);
         socialSecrets = new EncryptedSecretStore(app, SecretNamespace.SOCIAL_TOKEN);
+        channels = new ChannelRepository(database, socialSecrets);
+        oauthStore = new EncryptedOAuthStore(app, channels);
+        instagram = new InstagramPublishRepository(app, oauthStore);
+        facebookOAuth = new FacebookOAuthCoordinator(oauthStore, Executors.newSingleThreadExecutor(),
+                BuildConfig.OAUTH_API_BASE_URL);
         aiKeys = new AiKeyRepository(new EncryptedSecretStore(app, SecretNamespace.AI_PROVIDER),
                 app.getSharedPreferences("ai_key_status_v1", Context.MODE_PRIVATE),
                 new ByokKeyVerifier(), NetworkStatus.of(app), System::currentTimeMillis);
+        modelRegistry = loadRegistry(app);
+        modelSelections = new ModelSelectionStore(
+                app.getSharedPreferences("ai_model_selection_v1", Context.MODE_PRIVATE), modelRegistry);
+        ai = new AiGateway(modelSelections, AiGateway.adapters(aiKeys, modelRegistry),
+                provider -> aiKeys.status(provider).usable(), null, usageLog, io,
+                System::currentTimeMillis, () -> TimeZone.getDefault().getID());
+    }
+
+    private static ModelRegistry loadRegistry(Context context) {
+        try (InputStream input = context.getAssets().open("ai_model_registry.json")) {
+            java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+            byte[] buffer = new byte[4096];
+            for (int read; (read = input.read(buffer)) != -1; ) bytes.write(buffer, 0, read);
+            return ModelRegistryParser.parseOrEmpty(new String(bytes.toByteArray(), StandardCharsets.UTF_8));
+        } catch (IOException missing) {
+            return ModelRegistryParser.parseOrEmpty("");
+        }
     }
 }

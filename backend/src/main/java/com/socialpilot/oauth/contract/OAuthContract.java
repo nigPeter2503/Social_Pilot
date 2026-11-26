@@ -158,12 +158,16 @@ public final class OAuthContract {
         public final List<String> grantedScopes;
         @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
         public final String graphApiVersion;
+        @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+        public final String tokenExpiresAt;
+        @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+        public final String dataAccessExpiresAt;
 
         public OAuthExchangeResponse(String sessionId, String provider, String externalAccountId,
                 String accountType, String displayName, String accessToken, String refreshToken,
                 String tokenType, String expiresAt) {
             this(sessionId, provider, externalAccountId, accountType, displayName, accessToken,
-                    refreshToken, tokenType, expiresAt, null, null, null);
+                    refreshToken, tokenType, expiresAt, null, null, null, null, null);
         }
 
         @JsonCreator
@@ -179,7 +183,9 @@ public final class OAuthContract {
                 @JsonProperty("expiresAt") String expiresAt,
                 @JsonProperty("linkedPageId") String linkedPageId,
                 @JsonProperty("grantedScopes") List<String> grantedScopes,
-                @JsonProperty("graphApiVersion") String graphApiVersion) {
+                @JsonProperty("graphApiVersion") String graphApiVersion,
+                @JsonProperty("tokenExpiresAt") String tokenExpiresAt,
+                @JsonProperty("dataAccessExpiresAt") String dataAccessExpiresAt) {
             this.sessionId = sessionId;
             this.provider = provider;
             this.externalAccountId = externalAccountId;
@@ -193,6 +199,8 @@ public final class OAuthContract {
             this.grantedScopes = grantedScopes == null ? null
                     : java.util.Collections.unmodifiableList(new java.util.ArrayList<>(grantedScopes));
             this.graphApiVersion = graphApiVersion;
+            this.tokenExpiresAt = tokenExpiresAt;
+            this.dataAccessExpiresAt = dataAccessExpiresAt;
             validate();
         }
 
@@ -217,6 +225,8 @@ public final class OAuthContract {
             text(displayName, "displayName"); text(accessToken, "accessToken"); text(tokenType, "tokenType");
             if (refreshToken != null) text(refreshToken, "refreshToken");
             if (expiresAt != null) timestamp(expiresAt);
+            if (tokenExpiresAt != null) timestamp(tokenExpiresAt);
+            if (dataAccessExpiresAt != null) timestamp(dataAccessExpiresAt);
         }
 
         private static boolean numericId(String id) {

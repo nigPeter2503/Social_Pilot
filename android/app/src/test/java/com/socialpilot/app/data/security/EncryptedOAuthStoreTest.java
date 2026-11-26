@@ -101,9 +101,50 @@ public class EncryptedOAuthStoreTest {
         assertNull(store.getPending());
         assertNull(new EncryptedOAuthStore(preferences.reboot(), cipher).getPending());
         store.savePending("valid-session", "c".repeat(43));
-        store.clearPending();
+        assertEquals("valid-session", store.takePending("valid-session").sessionId);
         assertNull(store.getPending());
         assertNull(new EncryptedOAuthStore(preferences.reboot(), cipher).getPending());
+    }
+
+    @Test public void pendingIsScopedByProviderAndConsumedOnceAcrossReload() {
+        store.savePending("fb-old", "a".repeat(43), "FACEBOOK");
+        store.savePending("ig-current", "b".repeat(43), "INSTAGRAM");
+        store.savePending("fb-current", "c".repeat(43), "FACEBOOK");
+
+        EncryptedOAuthStore reloaded = new EncryptedOAuthStore(preferences.reboot(), cipher);
+        assertNull(reloaded.takePending("fb-old"));
+        EncryptedOAuthStore.Pending instagram = reloaded.takePending("ig-current");
+        assertEquals("INSTAGRAM", instagram.provider);
+        assertEquals("b".repeat(43), instagram.verifier);
+        assertNull(reloaded.takePending("ig-current"));
+        assertEquals("FACEBOOK", reloaded.takePending("fb-current").provider);
+        assertNull(reloaded.getPending());
+    }
+
+    @Test public void olderSharedPendingRemainsAvailableOnlyForItsProvider() throws Exception {
+        preferences.edit().putString("pending_v2", cipher.encrypt("pending_v2",
+                "{\"version\":2,\"sessionId\":\"old-ig\",\"provider\":\"INSTAGRAM\",\"verifier\":\""
+                        + "a".repeat(43) + "\"}")).commit();
+        store.savePending("new-fb", "b".repeat(43), "FACEBOOK");
+        assertEquals("INSTAGRAM", store.takePending("old-ig").provider);
+        assertEquals("FACEBOOK", store.takePending("new-fb").provider);
+        assertNull(store.takePending("old-ig"));
+    }
+
+    @Test public void supersededSharedPendingCannotReappearAfterNewSessionIsConsumed() throws Exception {
+        preferences.edit().putString("pending_v2", cipher.encrypt("pending_v2",
+                "{\"version\":2,\"sessionId\":\"old-fb\",\"verifier\":\"" + "a".repeat(43) + "\"}")).commit();
+        store.savePending("new-fb", "b".repeat(43), "FACEBOOK");
+        assertNull(store.takePending("old-fb"));
+        assertNotNull(store.takePending("new-fb"));
+        assertNull(new EncryptedOAuthStore(preferences.reboot(), cipher).takePending("old-fb"));
+    }
+
+    @Test public void failedConsumptionNeverReleasesVerifier() {
+        store.savePending("current", "a".repeat(43));
+        preferences.failCommits = 1;
+        assertThrows(IllegalStateException.class, () -> store.takePending("current"));
+        assertNull(store.takePending("current"));
     }
 
     @Test public void corruptedCiphertextInvalidatesWholeConnectionButKeepsPending() {
@@ -145,7 +186,7 @@ public class EncryptedOAuthStoreTest {
     @Test public void swappingRecordCiphertextsFailsAuthentication() {
         store.saveConnected(connection("old-page", "fake-old-token"));
         store.savePending("pending-session", "a".repeat(43));
-        preferences.edit().putString("pending_v2", preferences.getString("connected_v2", null)).commit();
+        preferences.edit().putString("facebook_pending_v2", preferences.getString("connected_v2", null)).commit();
         assertNull(store.getPending());
         assertEquals("fake-old-token", store.accessToken());
     }

@@ -15,6 +15,7 @@ import okio.BufferedSink;
 
 /** Graph requests for the Instagram feed spike. Provider payloads and credentials stay out of logs. */
 public final class InstagramGraphClient {
+    private static final String DEFAULT_PAGE_GRAPH_VERSION = "v27.0";
     private final OkHttpClient http;
 
     public InstagramGraphClient() {
@@ -46,9 +47,22 @@ public final class InstagramGraphClient {
     }
 
     public void validateConnection(OAuthExchangeResponse connection) throws IOException {
+        validateIdentity(connection, connection.graphApiVersion);
+    }
+
+    public void validatePageConnection(OAuthExchangeResponse connection) throws IOException {
+        if (!"FACEBOOK".equals(connection.provider) || !"PAGE".equals(connection.accountType)) {
+            throw new IllegalArgumentException("Facebook Page credential required");
+        }
+        validateIdentity(connection, connection.graphApiVersion == null
+                ? DEFAULT_PAGE_GRAPH_VERSION : connection.graphApiVersion);
+    }
+
+    private void validateIdentity(OAuthExchangeResponse connection, String version) throws IOException {
         String accountId = connection.externalAccountId;
-        JsonObject data = call(connection.accessToken, url(connection, accountId).addQueryParameter("fields", "id").build(), null);
-        if (!accountId.equals(id(data))) throw new IOException("Unexpected Instagram account");
+        HttpUrl identity = graphUrl(version, accountId).addQueryParameter("fields", "id").build();
+        JsonObject data = call(connection.accessToken, identity, null);
+        if (!accountId.equals(id(data))) throw new IOException("Unexpected Graph account");
     }
 
     public String permalink(OAuthExchangeResponse connection, String mediaId) throws IOException {
@@ -66,8 +80,12 @@ public final class InstagramGraphClient {
     }
 
     private static HttpUrl.Builder url(OAuthExchangeResponse connection, String id) {
+        return graphUrl(connection.graphApiVersion, id);
+    }
+
+    private static HttpUrl.Builder graphUrl(String version, String id) {
         return new HttpUrl.Builder().scheme("https").host("graph.facebook.com")
-                .addPathSegment(connection.graphApiVersion).addPathSegment(id);
+                .addPathSegment(version).addPathSegment(id);
     }
 
     private JsonObject call(String token, HttpUrl url, RequestBody body) throws IOException {
@@ -86,10 +104,12 @@ public final class InstagramGraphClient {
             JsonObject data = JsonParser.parseString(response.body().string()).getAsJsonObject();
             if (data.has("error")) {
                 JsonObject error = data.getAsJsonObject("error");
-                if (error.has("code") && error.get("code").getAsInt() == 190) throw new AuthorizationExpired();
-                throw new IOException("Instagram operation failed");
+                int code = error.has("code") ? error.get("code").getAsInt() : 0;
+                if (code == 190) throw new AuthorizationExpired();
+                if (code == 10 || (code >= 200 && code <= 299)) throw new PermissionDenied();
+                throw new IOException("Graph operation failed");
             }
-            if (!response.isSuccessful()) throw new IOException("Instagram operation failed");
+            if (!response.isSuccessful()) throw new IOException("Graph operation failed");
             return data;
         } catch (RuntimeException exception) {
             throw new IOException("Invalid Graph response");
@@ -98,9 +118,10 @@ public final class InstagramGraphClient {
 
     private static String id(JsonObject data) throws IOException {
         String id = data.has("id") && data.get("id").isJsonPrimitive() ? data.get("id").getAsString() : "";
-        if (!id.matches("[0-9]{5,30}")) throw new IOException("Missing Instagram ID");
+        if (!id.matches("[0-9]{5,30}")) throw new IOException("Missing Graph ID");
         return id;
     }
 
     public static final class AuthorizationExpired extends IOException {}
+    public static final class PermissionDenied extends IOException {}
 }

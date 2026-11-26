@@ -150,6 +150,8 @@ public final class OAuthContract {
         public final String linkedPageId;
         public final List<String> grantedScopes;
         public final String graphApiVersion;
+        public final String tokenExpiresAt;
+        public final String dataAccessExpiresAt;
 
         public OAuthExchangeResponse(String sessionId, String provider, String externalAccountId,
                 String accountType, String displayName, String accessToken, String refreshToken,
@@ -171,6 +173,14 @@ public final class OAuthContract {
                 String linkedPageId,
                 List<String> grantedScopes,
                 String graphApiVersion) {
+            this(sessionId, provider, externalAccountId, accountType, displayName, accessToken,
+                    refreshToken, tokenType, expiresAt, linkedPageId, grantedScopes, graphApiVersion, null, null);
+        }
+
+        public OAuthExchangeResponse(String sessionId, String provider, String externalAccountId,
+                String accountType, String displayName, String accessToken, String refreshToken,
+                String tokenType, String expiresAt, String linkedPageId, List<String> grantedScopes,
+                String graphApiVersion, String tokenExpiresAt, String dataAccessExpiresAt) {
             this.sessionId = sessionId;
             this.provider = provider;
             this.externalAccountId = externalAccountId;
@@ -184,6 +194,8 @@ public final class OAuthContract {
             this.grantedScopes = grantedScopes == null ? null
                     : java.util.Collections.unmodifiableList(new java.util.ArrayList<>(grantedScopes));
             this.graphApiVersion = graphApiVersion;
+            this.tokenExpiresAt = tokenExpiresAt;
+            this.dataAccessExpiresAt = dataAccessExpiresAt;
             validate();
         }
 
@@ -208,6 +220,8 @@ public final class OAuthContract {
             text(displayName, "displayName"); text(accessToken, "accessToken"); text(tokenType, "tokenType");
             if (refreshToken != null) text(refreshToken, "refreshToken");
             if (expiresAt != null) timestamp(expiresAt);
+            if (tokenExpiresAt != null) timestamp(tokenExpiresAt);
+            if (dataAccessExpiresAt != null) timestamp(dataAccessExpiresAt);
         }
 
         private static boolean numericId(String id) {

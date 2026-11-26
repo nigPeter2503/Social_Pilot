@@ -157,12 +157,18 @@ public final class FacebookOAuthSessionService {
             if (session.instagram) {
                 return new OAuthExchangeResponse(session.id, "INSTAGRAM", page.instagramId, "PROFESSIONAL",
                         page.instagramUsername, page.accessToken, null, "bearer",
-                        page.expiresAt == null ? null : UTC_SECONDS.format(page.expiresAt), page.id,
-                        page.grantedScopes, properties.getGraphApiVersion());
+                        formatExpiry(page.effectiveExpiry()), page.id, page.grantedScopes,
+                        properties.getGraphApiVersion(), formatExpiry(page.tokenExpiresAt),
+                        formatExpiry(page.dataAccessExpiresAt));
             }
             return new OAuthExchangeResponse(session.id, "FACEBOOK", page.id, "PAGE", page.name,
-                    page.accessToken, null, "bearer", null);
+                    page.accessToken, null, "bearer", formatExpiry(page.effectiveExpiry()),
+                    null, null, null, formatExpiry(page.tokenExpiresAt), formatExpiry(page.dataAccessExpiresAt));
         }
+    }
+
+    private static String formatExpiry(Instant expiry) {
+        return expiry == null ? null : UTC_SECONDS.format(expiry);
     }
 
     private URI androidError(String sessionId, String errorCode) {

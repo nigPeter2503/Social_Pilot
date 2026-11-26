@@ -80,6 +80,19 @@ Room chỉ lưu opaque credential reference khi cần. Key/token nằm trong kho
 
 ## 6. Thứ tự migration từ v1 và kiểm thử
 
+SP-022 hiện thực bước Channel bằng `AppDatabase.MIGRATION_1_2` trên main
+`c5b8b17`. Migration thêm `channels` và `channel_secret_cleanup`, giữ bảng
+`drafts` nguyên cấu trúc và dữ liệu. `channels` có khóa danh tính duy nhất
+`(platform, accountType, externalAccountId)` và ID nội bộ dạng UUID. Chỉ
+tham chiếu và revision của credential được lưu trong Room. Token nằm trong
+namespace `SOCIAL_TOKEN` của SP-027. Hạn token và hạn truy cập dữ liệu lưu
+theo epoch millisecond. Hạn hiệu lực cũng giữ được cho bản ghi OAuth cũ.
+
+Nhánh riêng SP-035 đang dùng v2 cho Brief, còn SP-036 đang dùng v3 cho Version.
+Khi đưa các nhánh đó lên main có SP-022, dời migration Brief thành bước kế sau
+Channel và cập nhật Version theo schema đã tích hợp. Bàn giao này dùng thứ tự
+Channel trước Brief theo xác nhận của Minh ngày 25/11/2026.
+
 | Thứ tự | Owner và đầu vào | Thay đổi dự kiến |
 |---|---|---|
 | Hiện tại | Đạt, SP-012 | Hợp đồng và walkthrough trên schema `1.json`. Database đang ở v1 |
