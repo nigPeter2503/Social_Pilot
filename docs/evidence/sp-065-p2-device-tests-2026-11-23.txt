@@ -1,0 +1,32 @@
+SP-065 P2 Android device verification
+Run completed 2026-11-23 22:02:29 UTC+07:00
+Source revision a6c29ea5dd79b66f1f657b70d0e77587adc27e0b
+Samsung SM-G990E, Android 16, API 36
+Transport, OAuth credentials and Preferences records use isolated test fixtures.
+
+App APK SHA-256: 74F52C3F5AD503DDAD90B4A88CA0D799259197DE2FE590265394E639F5E1D321
+Test APK SHA-256: 43C54021F48B8ADCC7BD8895ACC1258AAE0620DDEC4CB8B4967621C798A2B775
+adb -s <device> shell am instrument -w -r com.socialpilot.app.test/androidx.test.runner.AndroidJUnitRunner
+
+PASS com.socialpilot.app.data.repository.InstagramPublishRepositoryDeviceTest#losingPublishResponseKeepsContainerAndPreventsAnotherPost
+PASS com.socialpilot.app.data.repository.InstagramPublishRepositoryDeviceTest#stalePermalinkIsDiscardedAndCanBeReadAgainWithNewSession
+PASS com.socialpilot.app.data.repository.InstagramPublishRepositoryDeviceTest#lateReadyIsDiscardedAfterSameAccountReconnect
+PASS com.socialpilot.app.data.repository.InstagramPublishRepositoryDeviceTest#staleIoFailureIsDiscardedAfterReconnect
+PASS com.socialpilot.app.data.repository.InstagramPublishRepositoryDeviceTest#publishResponseAfterReconnectKeepsMediaForReadOnlyReconciliation
+PASS com.socialpilot.app.data.repository.InstagramPublishRepositoryDeviceTest#lateReadyIsDiscardedAfterSwitchingAccounts
+PASS com.socialpilot.app.data.repository.InstagramPublishRepositoryDeviceTest#deniedCallbackKeepsPriorInstagramAndFacebookConnections
+PASS com.socialpilot.app.data.repository.InstagramPublishRepositoryDeviceTest#staleAuthorizationFailureCannotInvalidateNewSession
+PASS com.socialpilot.app.data.repository.InstagramPublishRepositoryDeviceTest#staleContainerExpiryCannotRemoveAttemptForReconnectedAccount
+PASS com.socialpilot.app.data.repository.InstagramPublishRepositoryDeviceTest#expiredInstagramRequiresReconnectWithoutCallingGraph
+PASS com.socialpilot.app.data.repository.InstagramPublishRepositoryDeviceTest#revokedInstagramAndNewSessionLeaveFacebookCredentialsUntouched
+PASS com.socialpilot.app.data.security.EncryptedOAuthStoreDeviceTest#keystoreRoundTripKeepsReconnectAndPendingRecordsWhole
+PASS com.socialpilot.app.data.security.EncryptedOAuthStoreDeviceTest#damagedRecordNeverLeavesConnectedPageMetadata
+PASS com.socialpilot.app.ui.MainViewModelInstagramDeviceTest#completionQueuedBeforeReconnectCannotExposeOldPost
+
+Time: 1.503
+OK (14 tests)
+INSTRUMENTATION_CODE: -1
+
+Both original APKs were restored using adb install -r and verified by pulling the installed APKs.
+com.socialpilot.app original and restored SHA-256: 128047ED8DB13D11245D6A3E20B22D91F5B4C8B75BED82E91871535C879C95D2
+com.socialpilot.app.test original and restored SHA-256: 47F1929D9D16AE97D8FAA86C9EB09C761A62426E197779D0B572C584A8274854

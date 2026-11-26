@@ -59,7 +59,7 @@ ChannelInfo:
 | channelId | ID nội bộ SocialPilot |
 | platform | FACEBOOK / INSTAGRAM |
 | externalAccountId | Page ID hoặc Instagram user ID của tài khoản Professional liên kết |
-| accountType | PAGE cho Facebook; kiểu wire của Instagram Professional cần chốt ở SP-022 |
+| accountType | `PAGE` cho Facebook; spike SP-065 dùng `PROFESSIONAL` cho Instagram, SP-022 xác nhận mapping khi tích hợp production |
 | displayName | Tên hiển thị, không dùng làm khóa |
 | connectionStatus | CONNECTED / REAUTH_REQUIRED / DISCONNECTED |
 | connectionRevision | Revision kết nối; thay khi ngắt hoặc thay kết nối |
@@ -199,12 +199,29 @@ Android lưu token vào kho bí mật, tạo tokenReference cho ChannelInfo
 | OAuthExchangeResponse | sessionId, provider, externalAccountId, accountType, displayName, accessToken, refreshToken, tokenType, expiresAt |
 | OAuthFailure | code |
 
-SP-022 cần thống nhất giá trị provider cho handoff Instagram qua Facebook Login và kiểm thử hai phía. redirectId tra cấu hình cho phép ở backend, không phải URL tùy ý.
+DTO trên nhánh SP-065 nhận `FACEBOOK`, `INSTAGRAM` và giữ giá trị `LINKEDIN` của hợp đồng cũ.
+Backend tra `redirectId` theo danh sách cấu hình đã cho phép.
+SP-065 bắt đầu phiên bằng `POST /api/oauth/instagram/start`, rồi dùng chung callback
+`GET /api/oauth/facebook/callback` và handoff `POST /api/oauth/facebook/exchange`.
+Phiên phía backend xác định provider. Android kiểm tra provider và sessionId trả về khớp phiên đang chờ.
+Phản hồi Instagram có `accountType=PROFESSIONAL`, `externalAccountId` là ID Instagram,
+`linkedPageId` là ID Page cấp quyền, `grantedScopes` là quyền được Meta trả khi kiểm tra token
+và `graphApiVersion` là phiên bản Graph dùng cho lần kết nối. Các trường bổ sung này thuộc phản hồi Instagram.
+SP-022 đối chiếu các giá trị wire của handoff và kiểm thử trên cả Android và backend trước khi nối production.
+
 authorizationUrl phải HTTPS; adapter phải thêm kiểm tra host provider được cấu hình.
 expiresAt bắt buộc ở phiên; ở token có thể null khi provider không cung cấp. Không coi null là không hết hạn.
+Với Facebook Page và Instagram, handoff có thể gửi riêng `tokenExpiresAt` và `dataAccessExpiresAt` theo
+UTC khi Meta cung cấp từng giá trị cho Page token đã được dùng để xác minh kênh.
+Trường thiếu hoặc bằng 0 được biểu diễn là chưa biết. Backend từ chối Page token
+không hợp lệ hoặc thuộc app khác. Lỗi đọc metadata từ Graph đi theo lỗi provider.
+`expiresAt` vẫn là hạn hiệu lực sớm nhất đã biết
+cho app cũ. Android đọc được handoff cũ chỉ có `expiresAt` và giữ nó như hạn hiệu lực
+chưa rõ nguồn. Android lưu pending riêng cho Facebook và Instagram. Callback chỉ
+tiêu thụ pending khớp session và gửi handoff sau khi đã xác nhận xóa verifier khỏi
+kho cục bộ.
 refreshToken có thể null: không được cấp refresh không đồng nghĩa kết nối lại là refresh thành công.
 Token response nhạy cảm là ngoại lệ có chủ đích của luồng xác thực; không đưa vào DTO nghiệp vụ.
-Các endpoint/path chưa được định nghĩa ở task này để tránh giả vờ backend đã phục vụ chúng.
 
 ### Ràng buộc phiên và TTL
 
