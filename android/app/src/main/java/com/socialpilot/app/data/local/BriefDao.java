@@ -7,6 +7,7 @@ import androidx.room.Query;
 import androidx.room.Embedded;
 import androidx.room.Relation;
 import androidx.room.Transaction;
+import com.socialpilot.app.domain.contract.social.ConnectionLifecycle.Scope;
 import java.util.List;
 
 @Dao
@@ -18,6 +19,31 @@ public abstract class BriefDao {
     @Transaction
     public void insert(BriefEntity brief, List<BriefSourceEntity> sources,
             List<BriefTargetEntity> targets) {
+        insertBrief(brief);
+        if (!sources.isEmpty()) insertSources(sources);
+        if (!targets.isEmpty()) insertTargets(targets);
+    }
+
+    @Query("SELECT COUNT(*) FROM channels WHERE channelId = :channelId AND platform = :platform "
+            + "AND connectionRevision = :revision AND status = 'CONNECTED' "
+            + "AND (effectiveExpiresAtMillis IS NULL OR effectiveExpiresAtMillis > :now)")
+    protected abstract int currentChannel(String channelId, String platform, long revision, long now);
+
+    /** A reconnect cannot slip between target validation and the brief write. */
+    @Transaction
+    public void insertScoped(BriefEntity brief, List<BriefSourceEntity> sources,
+            List<BriefTargetEntity> targets, List<Scope> scopes) {
+        if (targets.size() != scopes.size()) throw new IllegalArgumentException("Target scope mismatch");
+        long now = System.currentTimeMillis();
+        for (int index = 0; index < targets.size(); index++) {
+            BriefTargetEntity target = targets.get(index);
+            Scope scope = scopes.get(index);
+            if (scope == null || !target.channelId.equals(scope.channelId)
+                    || !target.platform.equals(scope.platform)
+                    || currentChannel(scope.channelId, scope.platform, scope.connectionRevision, now) != 1) {
+                throw new IllegalStateException("Target connection changed");
+            }
+        }
         insertBrief(brief);
         if (!sources.isEmpty()) insertSources(sources);
         if (!targets.isEmpty()) insertTargets(targets);
