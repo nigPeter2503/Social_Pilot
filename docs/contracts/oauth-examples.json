@@ -37,7 +37,9 @@
     "accessToken": "FAKE_TEST_INSTAGRAM_TOKEN",
     "refreshToken": null,
     "tokenType": "bearer",
-    "expiresAt": null,
+    "expiresAt": "2026-12-07T13:00:00Z",
+    "tokenExpiresAt": "2026-12-08T13:00:00Z",
+    "dataAccessExpiresAt": "2026-12-07T13:00:00Z",
     "linkedPageId": "1234567890",
     "grantedScopes": ["instagram_basic", "instagram_content_publish", "pages_read_engagement"],
     "graphApiVersion": "v27.0"

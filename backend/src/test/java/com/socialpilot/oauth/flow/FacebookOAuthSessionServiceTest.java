@@ -24,6 +24,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
 import static org.hamcrest.Matchers.startsWith;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
@@ -65,6 +66,12 @@ class FacebookOAuthSessionServiceTest {
                         + "\"access_token\":\"fake-page-token\",\"tasks\":[\"CREATE_CONTENT\"]}]}", MediaType.APPLICATION_JSON));
         server.expect(requestTo(startsWith("https://graph.facebook.com/v27.0/1234567890?")))
                 .andRespond(withSuccess("{\"id\":\"1234567890\",\"name\":\"Test Page\"}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo("https://graph.facebook.com/v27.0/debug_token?input_token=fake-page-token"))
+                .andExpect(header("Authorization", "Bearer 123456789|fake-secret"))
+                .andRespond(withSuccess("""
+                        {"data":{"is_valid":true,"app_id":"123456789",
+                        "expires_at":1893456000,"data_access_expires_at":1577836800}}
+                        """, MediaType.APPLICATION_JSON));
     }
 
     private OAuthHandoffExchangeRequest handoffAt(long elapsedSeconds) throws Exception {
@@ -78,6 +85,17 @@ class FacebookOAuthSessionServiceTest {
 
     private void assertCode(String code, org.junit.jupiter.api.function.Executable action) {
         assertEquals(code, assertThrows(OAuthFlowException.class, action).getCode());
+    }
+
+    @Test void facebookExchangeSerializesThePageTokenAndDataAccessExpiry() throws Exception {
+        OAuthExchangeResponse exchange = service.exchange(handoffAt(0));
+        var json = new com.fasterxml.jackson.databind.ObjectMapper().valueToTree(exchange);
+        assertEquals("FACEBOOK", json.path("provider").asText());
+        assertEquals("1234567890", json.path("externalAccountId").asText());
+        assertEquals("fake-page-token", json.path("accessToken").asText());
+        assertEquals("2030-01-01T00:00:00Z", json.path("tokenExpiresAt").asText());
+        assertEquals("2020-01-01T00:00:00Z", json.path("dataAccessExpiresAt").asText());
+        assertEquals("2020-01-01T00:00:00Z", json.path("expiresAt").asText());
     }
 
     @Test void instagramHandoffKeepsPageAndProfessionalIdentitySeparate() throws Exception {
@@ -106,7 +124,7 @@ class FacebookOAuthSessionServiceTest {
                 .andExpect(request -> assertEquals("Bearer 123456789|fake-secret",
                         request.getHeaders().getFirst("Authorization")))
                 .andRespond(withSuccess("""
-                        {"data":{"app_id":"123456789","is_valid":true,"expires_at":0,"data_access_expires_at":2000000000,
+                        {"data":{"app_id":"123456789","is_valid":true,"expires_at":2000000001,"data_access_expires_at":2000000000,
                         "scopes":["instagram_basic","instagram_content_publish","pages_read_engagement"]}}
                         """, MediaType.APPLICATION_JSON));
         OAuthStartResponse start = service.start(startRequest("INSTAGRAM"));
@@ -120,6 +138,8 @@ class FacebookOAuthSessionServiceTest {
         assertEquals("1234567890", exchange.linkedPageId);
         assertEquals("17841459976957663", exchange.externalAccountId);
         assertEquals("2033-05-18T03:33:20Z", exchange.expiresAt);
+        assertEquals("2033-05-18T03:33:21Z", exchange.tokenExpiresAt);
+        assertEquals("2033-05-18T03:33:20Z", exchange.dataAccessExpiresAt);
         assertTrue(exchange.grantedScopes.contains("instagram_content_publish"));
         server.verify();
     }
@@ -245,6 +265,12 @@ class FacebookOAuthSessionServiceTest {
                         + "\"access_token\":\"fake-page-token\",\"tasks\":[\"CREATE_CONTENT\"]}]}", MediaType.APPLICATION_JSON));
         server.expect(requestTo(startsWith("https://graph.facebook.com/v27.0/1234567890?")))
                 .andRespond(withSuccess("{\"id\":\"1234567890\",\"name\":\"Test Page\"}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo("https://graph.facebook.com/v27.0/debug_token?input_token=fake-page-token"))
+                .andExpect(header("Authorization", "Bearer 123456789|fake-secret"))
+                .andRespond(withSuccess("""
+                        {"data":{"is_valid":true,"app_id":"123456789",
+                        "expires_at":1893456000,"data_access_expires_at":1577836800}}
+                        """, MediaType.APPLICATION_JSON));
         OAuthStartResponse start = service.start(startRequest());
         ExecutorService workers = Executors.newSingleThreadExecutor();
         try {

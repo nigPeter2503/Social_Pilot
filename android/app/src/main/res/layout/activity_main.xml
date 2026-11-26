@@ -28,6 +28,10 @@
     <TextView android:id="@+id/facebookPageStatus" android:layout_width="match_parent"
         android:layout_height="wrap_content" android:layout_marginTop="8dp"
         android:text="@string/facebook_not_connected" />
+    <com.google.android.material.button.MaterialButton android:id="@+id/checkFacebookButton"
+        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="@string/check_facebook" />
     <com.google.android.material.button.MaterialButton android:id="@+id/openAiKeysButton"
         style="@style/Widget.MaterialComponents.Button.OutlinedButton"
         android:layout_width="match_parent" android:layout_height="wrap_content"

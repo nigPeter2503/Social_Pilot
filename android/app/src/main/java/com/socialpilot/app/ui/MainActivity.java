@@ -14,8 +14,10 @@ import com.socialpilot.app.R;
 import com.socialpilot.app.core.FacebookOAuthCoordinator;
 import com.socialpilot.app.databinding.ActivityMainBinding;
 import com.socialpilot.app.data.repository.InstagramPublishRepository;
+import com.socialpilot.app.data.repository.ChannelRepository.PageCheck;
 import com.socialpilot.app.domain.DraftValidator;
-import com.socialpilot.app.domain.contract.oauth.OAuthContract.OAuthExchangeResponse;
+import com.socialpilot.app.data.security.EncryptedOAuthStore.InstagramMetadata;
+import com.socialpilot.app.domain.contract.social.Platform;
 
 public final class MainActivity extends AppCompatActivity {
     private ActivityMainBinding binding;
@@ -30,11 +32,18 @@ public final class MainActivity extends AppCompatActivity {
             view.setPadding(bars.left, bars.top, bars.right, bars.bottom); return insets;
         });
         model = new ViewModelProvider(this).get(MainViewModel.class);
-        String page = model.connectedPageSummary();
-        if (page != null) binding.facebookPageStatus.setText(getString(R.string.facebook_connected, page));
         binding.connectFacebookButton.setOnClickListener(view -> model.connectFacebook());
+        binding.checkFacebookButton.setOnClickListener(view -> model.checkFacebookPage());
+        model.facebookPageCheck().observe(this, result -> {
+            renderFacebookConnection();
+            renderInstagramControls();
+        });
         binding.openAiKeysButton.setOnClickListener(view -> startActivity(new Intent(this, AiKeysActivity.class)));
         binding.connectInstagramButton.setOnClickListener(view -> model.connectInstagram());
+        model.restoreFailures().observe(this, failures -> {
+            renderFacebookConnection();
+            renderInstagramControls();
+        });
         model.oauthState().observe(this, state -> {
             if (state.status == MainViewModel.OAuthStatus.AUTHORIZATION_READY) {
                 String url = state.value;
@@ -51,6 +60,7 @@ public final class MainActivity extends AppCompatActivity {
                 showOAuthError(state.value == null ? "PROVIDER_ERROR" : state.value);
                 model.acknowledgeOAuth();
             }
+            renderFacebookConnection();
             renderInstagramControls();
         });
         setupInstagram();
@@ -89,7 +99,35 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private void showOAuthError(String code) {
-        Toast.makeText(this, getString(R.string.oauth_error, code), Toast.LENGTH_LONG).show();
+        String message = FacebookOAuthCoordinator.GRANT_EXPIRED.equals(code)
+                ? getString(R.string.oauth_grant_expired) : getString(R.string.oauth_error, code);
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+    }
+
+    private void renderFacebookConnection() {
+        String page = model.connectedPageSummary();
+        PageCheck check = model.currentFacebookPageCheck();
+        String reconnectingPage = model.facebookPageRequiringReconnect();
+        if (reconnectingPage != null) {
+            binding.facebookPageStatus.setText(getString(R.string.facebook_page_reconnect, reconnectingPage));
+        } else if (page == null && check == PageCheck.RECONNECT) {
+            binding.facebookPageStatus.setText(R.string.facebook_reconnect);
+        } else if (check == PageCheck.CHECKING) {
+            binding.facebookPageStatus.setText(R.string.facebook_checking);
+        } else if (page == null) {
+            binding.facebookPageStatus.setText(model.restoreFailures().getValue() == null
+                    ? R.string.social_connections_loading
+                    : model.restoreFailed(Platform.FACEBOOK)
+                            ? R.string.facebook_restore_failed : R.string.facebook_not_connected);
+        } else if (check == PageCheck.VERIFIED) {
+            binding.facebookPageStatus.setText(getString(R.string.facebook_verified, page));
+        } else if (check == PageCheck.FAILED) {
+            binding.facebookPageStatus.setText(getString(R.string.facebook_check_failed, page));
+        } else if (check == PageCheck.PERMISSION_REQUIRED) {
+            binding.facebookPageStatus.setText(getString(R.string.facebook_check_permission, page));
+        } else {
+            binding.facebookPageStatus.setText(getString(R.string.facebook_connected, page));
+        }
     }
 
     private void setupInstagram() {
@@ -128,11 +166,15 @@ public final class MainActivity extends AppCompatActivity {
         boolean oauthBusy = oauth != null && (oauth.status == MainViewModel.OAuthStatus.STARTING
                 || oauth.status == MainViewModel.OAuthStatus.EXCHANGING);
         boolean busy = Boolean.TRUE.equals(model.instagramBusy().getValue());
-        OAuthExchangeResponse connection = model.instagramConnection();
+        InstagramMetadata selected = model.selectedInstagramConnection();
+        InstagramMetadata connection = selected != null && selected.connected ? selected : null;
         boolean connected = connection != null;
         boolean approved = model.isInstagramApprovedFor(connection);
-        binding.connectFacebookButton.setEnabled(!oauthBusy && !busy);
-        binding.connectInstagramButton.setEnabled(!oauthBusy && !busy);
+        boolean checkingPage = model.currentFacebookPageCheck() == PageCheck.CHECKING;
+        binding.connectFacebookButton.setEnabled(!oauthBusy && !busy && !checkingPage);
+        binding.checkFacebookButton.setEnabled(!oauthBusy && !busy && !checkingPage
+                && model.connectedPageSummary() != null);
+        binding.connectInstagramButton.setEnabled(!oauthBusy && !busy && !checkingPage);
         binding.instagramImageUrl.setEnabled(connected && !busy && !oauthBusy);
         binding.instagramCaption.setEnabled(connected && !busy && !oauthBusy);
         binding.instagramApprove.setEnabled(connected && !busy && !oauthBusy);
@@ -146,11 +188,21 @@ public final class MainActivity extends AppCompatActivity {
             String summary = FacebookOAuthCoordinator.instagramSummary(connection.displayName, connection.externalAccountId);
             binding.instagramAccountStatus.setText(getString(R.string.instagram_connected,
                     summary, connection.linkedPageId, scopes, expiry, connection.graphApiVersion));
+        } else if (selected != null) {
+            String summary = FacebookOAuthCoordinator.instagramSummary(selected.displayName, selected.externalAccountId);
+            binding.instagramAccountStatus.setText(getString(R.string.instagram_account_reconnect, summary));
         } else {
-            binding.instagramAccountStatus.setText(R.string.instagram_not_connected);
+            binding.instagramAccountStatus.setText(model.restoreFailures().getValue() == null
+                    ? R.string.social_connections_loading
+                    : model.restoreFailed(Platform.INSTAGRAM)
+                            ? R.string.instagram_restore_failed : R.string.instagram_not_connected);
         }
         if (busy) binding.instagramPublishStatus.setText(R.string.instagram_working);
-        else if (approved) binding.instagramPublishStatus.setText(R.string.instagram_approved);
+        else if (selected != null && !connected) binding.instagramPublishStatus.setText(R.string.instagram_reconnect);
+        else if (result != null && (result.status == InstagramPublishRepository.Status.PERMISSION_REQUIRED
+                || result.status == InstagramPublishRepository.Status.PERMISSION_CHECK_REQUIRED)) {
+            binding.instagramPublishStatus.setText(instagramStatusText(result.status));
+        } else if (approved) binding.instagramPublishStatus.setText(R.string.instagram_approved);
         else if (result != null && result.status == InstagramPublishRepository.Status.PUBLISHED) {
             binding.instagramPublishStatus.setText(getString(R.string.instagram_published, result.mediaId));
         } else if (result != null) {
@@ -165,6 +217,8 @@ public final class MainActivity extends AppCompatActivity {
             case PUBLISHED_ID_UNKNOWN: return R.string.instagram_published_id_unknown;
             case PROVEN_UNPUBLISHED: return R.string.instagram_unpublished;
             case RECONNECT: return R.string.instagram_reconnect;
+            case PERMISSION_REQUIRED: return R.string.instagram_permission_required;
+            case PERMISSION_CHECK_REQUIRED: return R.string.instagram_permission_check_required;
             case CANCELLED: return R.string.instagram_cancelled;
             default: return R.string.instagram_publish_error;
         }

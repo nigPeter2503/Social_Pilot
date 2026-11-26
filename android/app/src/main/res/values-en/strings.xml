@@ -45,7 +45,14 @@
   <string name="facebook_not_connected">No Facebook Page connected.</string>
   <string name="facebook_connected">Connected Page: %1$s</string>
   <string name="facebook_connected_short">Facebook Page connected.</string>
+  <string name="check_facebook">Check Facebook Page connection</string>
+  <string name="facebook_checking">Checking the Facebook Page connection…</string>
+  <string name="facebook_reconnect">Reconnect your Facebook Page.</string>
+  <string name="facebook_page_reconnect">Reconnect Facebook Page %1$s.</string>
+  <string name="facebook_verified">Verified Facebook Page %1$s</string>
+  <string name="facebook_check_failed">Could not check Facebook Page %1$s. Try again when online.</string>
   <string name="oauth_error">Could not connect the account (%1$s).</string>
+  <string name="oauth_grant_expired">Access for this connection attempt has expired. Please reconnect.</string>
   <string name="connect_instagram">Connect Instagram</string>
   <string name="instagram_not_connected">No Instagram account connected.</string>
   <string name="instagram_connected">Connected to %1$s\nFacebook Page %2$s\nPermissions %3$s\nExpires %4$s\nGraph API %5$s</string>
@@ -129,4 +136,11 @@
   <string name="ai_usage_row">%1$s · %2$s: estimated %3$s %4$s; settled: %5$d, unknown cost: %6$d, not sent: %7$d</string>
   <string name="ai_dispatch_status">%1$s\n%2$s</string>
   <string name="ai_usage_note">This is the app\'s estimate from the pinned price sheet, not a provider invoice. Calls with missing usage are never counted as 0.</string>
+  <string name="social_connections_loading">Loading connections…</string>
+  <string name="facebook_restore_failed">Could not restore the Facebook Page connection. Reopen the app to try again.</string>
+  <string name="instagram_restore_failed">Could not restore the Instagram connection. Reopen the app to try again.</string>
+  <string name="facebook_check_permission">Permission is required to check Facebook Page %1$s. Review the app’s access to this Page.</string>
+  <string name="instagram_account_reconnect">Reconnect Instagram account %1$s.</string>
+  <string name="instagram_permission_required">Permission is required for this Instagram action. Review the access granted to the app.</string>
+  <string name="instagram_permission_check_required">Permission is required to verify the publish result. Review the app’s access, then check the post status.</string>
 </resources>
