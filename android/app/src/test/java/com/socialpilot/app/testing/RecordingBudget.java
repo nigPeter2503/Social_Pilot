@@ -29,6 +29,8 @@ public final class RecordingBudget implements AttemptLedger {
     public Clock clock = System::currentTimeMillis;
     /** Fault injection: the next complete() throws and stores nothing. */
     public volatile boolean failNextComplete;
+    /** Runs right after an admitted reserve, like another thread changing the caps. */
+    public volatile Runnable afterReserve;
     private final Map<String, Pinned> pinned = new HashMap<>();
 
     public interface Clock {
@@ -64,6 +66,8 @@ public final class RecordingBudget implements AttemptLedger {
             pinned.put(request.requestId, new Pinned(request, taskType,
                     BudgetPeriod.of(clock.nowMillis(), zone), upperBound));
         }
+        Runnable hook = afterReserve;
+        if (admission == Admission.RESERVED && hook != null) hook.run();
         return admission;
     }
 
