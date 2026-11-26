@@ -15,6 +15,7 @@ import com.socialpilot.app.databinding.ItemChannelCapabilityBinding;
 import com.socialpilot.app.domain.contract.social.CapabilityAvailability;
 import com.socialpilot.app.domain.contract.social.ChannelCapability;
 import com.socialpilot.app.domain.contract.social.ConnectionStatus;
+import com.socialpilot.app.domain.contract.social.Platform;
 import com.socialpilot.app.domain.contract.social.SocialOperation;
 import com.socialpilot.app.ui.MainActivity;
 import com.socialpilot.app.ui.channels.MyChannelsViewModel.State;
@@ -36,7 +37,8 @@ public final class MyChannelsActivity extends AppCompatActivity {
         model = new ViewModelProvider(this).get(MyChannelsViewModel.class);
         binding.channelsBack.setOnClickListener(view -> finish());
         binding.channelsRefresh.setOnClickListener(view -> model.refresh());
-        binding.channelsConnectFacebook.setOnClickListener(view -> MainActivity.openFacebookConnection(this));
+        binding.channelsConnectFacebook.setOnClickListener(view -> MainActivity.openConnection(this, Platform.FACEBOOK));
+        binding.channelsConnectInstagram.setOnClickListener(view -> MainActivity.openConnection(this, Platform.INSTAGRAM));
         model.state().observe(this, this::render);
     }
 
@@ -52,8 +54,9 @@ public final class MyChannelsActivity extends AppCompatActivity {
         binding.channelsRefresh.setEnabled(!loading);
         binding.channelsRefresh.setText(state.status == Status.ERROR || state.status == Status.OFFLINE
                 ? R.string.channels_retry : R.string.channels_refresh);
-        binding.channelsConnectFacebook.setVisibility(
-                state.status == Status.READY && !hasChannels ? View.VISIBLE : View.GONE);
+        int emptyActions = state.status == Status.READY && !hasChannels ? View.VISIBLE : View.GONE;
+        binding.channelsConnectFacebook.setVisibility(emptyActions);
+        binding.channelsConnectInstagram.setVisibility(emptyActions);
 
         int message = switch (state.status) {
             case LOADING -> R.string.channels_loading;
@@ -86,7 +89,7 @@ public final class MyChannelsActivity extends AppCompatActivity {
             case DISCONNECTED -> R.string.channels_disconnected;
         });
         boolean connectionNeeded = channel.status != ConnectionStatus.CONNECTED;
-        item.channelCachedNotice.setVisibility(connectionNeeded ? View.VISIBLE : View.GONE);
+        item.channelCachedNotice.setVisibility(!online || connectionNeeded ? View.VISIBLE : View.GONE);
         boolean permissionRequired = false;
         for (SocialOperation operation : SocialOperation.values()) {
             ChannelCapability capability = channel.capability(operation);
@@ -96,13 +99,12 @@ public final class MyChannelsActivity extends AppCompatActivity {
         // F1.B2 includes mention, which does not yet have a SocialOperation in the shared contract.
         renderCapability(item, R.string.channels_op_mention, null);
 
-        if (connectionNeeded || permissionRequired) {
-            item.channelActionHint.setVisibility(View.VISIBLE);
-            item.channelActionHint.setText(R.string.channels_targeted_connection_pending);
-            if (facebookPage && online) {
-                item.channelOpenConnection.setVisibility(View.VISIBLE);
-                item.channelOpenConnection.setOnClickListener(view -> MainActivity.openFacebookConnection(this));
-            }
+        if (online && (connectionNeeded || permissionRequired) && (facebookPage || instagramProfessional)) {
+            item.channelOpenConnection.setVisibility(View.VISIBLE);
+            item.channelOpenConnection.setText(facebookPage
+                    ? R.string.channels_open_facebook : R.string.channels_open_instagram);
+            item.channelOpenConnection.setOnClickListener(view -> MainActivity.openConnection(this,
+                    facebookPage ? Platform.FACEBOOK : Platform.INSTAGRAM));
         }
         binding.channelsList.addView(item.getRoot());
     }

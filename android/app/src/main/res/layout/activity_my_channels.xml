@@ -25,6 +25,9 @@
     <com.google.android.material.button.MaterialButton android:id="@+id/channels_connect_facebook"
         android:layout_width="wrap_content" android:layout_height="wrap_content"
         android:visibility="gone" android:text="@string/channels_open_facebook" />
+    <com.google.android.material.button.MaterialButton android:id="@+id/channels_connect_instagram"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:visibility="gone" android:text="@string/channels_open_instagram" />
     <LinearLayout android:id="@+id/channels_list"
         android:layout_width="match_parent" android:layout_height="wrap_content"
         android:orientation="vertical" />

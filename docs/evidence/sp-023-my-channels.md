@@ -36,6 +36,19 @@ SP-065 tách kho theo đích.
   tạo Activity của Kênh của tôi. Lượt đầu bị hộp thoại ANR của System UI chiếm
   focus. Chạy lại toàn bộ sau khi khôi phục AVD.
 
+## Điều hướng trên nhánh Draft ngày 26/11/2026
+
+Nhánh #97 đã ghép `main` tại `c5b8b17`. Màn hình chính giữ Kênh của tôi, Khóa API AI
+và kết nối hai nền tảng. Kênh của tôi mở đúng mục Facebook hoặc Instagram và
+đợi thao tác xác nhận của người dùng. Tái tạo Activity sau khi đi tới mục
+kết nối không tự mở trình duyệt. Nhánh Draft đang dùng nguồn dữ liệu cũ
+trong lúc chờ đầu vào Room vào `main`.
+
+Android Gradle Wrapper đạt `assembleDebug`, `testDebugUnitTest`, `lintDebug` và
+`assembleDebugAndroidTest`. 170 unit test, lint 0 lỗi và 11 cảnh báo. API 36 chạy
+AndroidJUnitRunner đạt 35/35, gồm mở BYOK, định tuyến hai provider và kiểm màn
+hình chính vẫn khả dụng sau callback cũ thiếu phiên.
+
 ## Bàn giao còn mở
 
 | Phần còn mở | Điều kiện tiếp tục |

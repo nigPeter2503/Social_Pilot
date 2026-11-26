@@ -7,6 +7,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.view.View;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.view.ViewCompat;
@@ -18,17 +19,18 @@ import com.socialpilot.app.databinding.ActivityMainBinding;
 import com.socialpilot.app.data.repository.InstagramPublishRepository;
 import com.socialpilot.app.domain.DraftValidator;
 import com.socialpilot.app.domain.contract.oauth.OAuthContract.OAuthExchangeResponse;
+import com.socialpilot.app.domain.contract.social.Platform;
 import com.socialpilot.app.ui.channels.MyChannelsActivity;
 
 public final class MainActivity extends AppCompatActivity {
-    private static final String OPEN_FACEBOOK_CONNECTION = "open_facebook_connection";
+    private static final String OPEN_CONNECTION_PLATFORM = "open_connection_platform";
     private ActivityMainBinding binding;
     private MainViewModel model;
 
-    public static void openFacebookConnection(Context context) {
+    public static void openConnection(Context context, Platform platform) {
         Intent intent = new Intent(context, MainActivity.class)
                 .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                .putExtra(OPEN_FACEBOOK_CONNECTION, true);
+                .putExtra(OPEN_CONNECTION_PLATFORM, platform.name());
         context.startActivity(intent);
     }
 
@@ -87,21 +89,29 @@ public final class MainActivity extends AppCompatActivity {
         binding.openPrototype.setOnClickListener(view ->
                 startActivity(new Intent(this, PrototypeActivity.class)));
         handleOAuthIntent(getIntent());
-        showFacebookConnection(getIntent());
+        showConnection(getIntent());
     }
 
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent); setIntent(intent); handleOAuthIntent(intent);
-        showFacebookConnection(intent);
+        showConnection(intent);
     }
 
-    private void showFacebookConnection(Intent intent) {
-        if (!intent.getBooleanExtra(OPEN_FACEBOOK_CONNECTION, false)) return;
-        intent.removeExtra(OPEN_FACEBOOK_CONNECTION);
-        binding.connectFacebookButton.post(() -> {
+    private void showConnection(Intent intent) {
+        String platform = intent.getStringExtra(OPEN_CONNECTION_PLATFORM);
+        intent.removeExtra(OPEN_CONNECTION_PLATFORM);
+        View button;
+        if (Platform.FACEBOOK.name().equals(platform)) {
+            button = binding.connectFacebookButton;
+        } else if (Platform.INSTAGRAM.name().equals(platform)) {
+            button = binding.connectInstagramButton;
+        } else {
+            return;
+        }
+        button.post(() -> {
             Rect bounds = new Rect();
-            binding.connectFacebookButton.getDrawingRect(bounds);
-            binding.connectFacebookButton.requestRectangleOnScreen(bounds);
+            button.getDrawingRect(bounds);
+            button.requestRectangleOnScreen(bounds);
         });
     }
 
