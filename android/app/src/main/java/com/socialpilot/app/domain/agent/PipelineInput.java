@@ -1,6 +1,8 @@
 package com.socialpilot.app.domain.agent;
 
 import com.socialpilot.app.domain.editor.Brief;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -36,6 +38,8 @@ public final class PipelineInput {
     public final String language;
     public final List<Source> sources;
     public final List<ChannelTarget> targets;
+    /** Stable identity of the normalized brief fields consumed by the prompt builder. */
+    public final String briefFingerprint;
 
     public PipelineInput(String briefId, String topic, String goal, String audience, String tone, String language,
                          List<Source> sources, List<ChannelTarget> targets) {
@@ -50,6 +54,7 @@ public final class PipelineInput {
         Problem problem = check(targets);
         if (problem != null) throw new IllegalArgumentException(problem.name());
         this.targets = Collections.unmodifiableList(new ArrayList<>(targets));
+        this.briefFingerprint = computeBriefFingerprint();
     }
 
     /** 1–2 targets, at most one per platform, distinct channels. Null when valid. */
@@ -95,6 +100,48 @@ public final class PipelineInput {
         for (Brief.Source source : brief.sources()) sources.add(new Source("URL".equals(source.kind()), source.value()));
         return new Mapping(new PipelineInput(brief.briefId(), brief.topic(), brief.goal(), brief.audience(), brief.tone(),
                 brief.language(), sources, targets), null);
+    }
+
+    private String computeBriefFingerprint() {
+        final MessageDigest digest;
+        try {
+            digest = MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException unavailable) {
+            throw new IllegalStateException("SHA-256 is unavailable", unavailable);
+        }
+        // Version 1 hashes length-prefixed UTF-16 code units and ordered, typed sources.
+        appendString(digest, topic);
+        appendString(digest, goal);
+        appendString(digest, audience);
+        appendString(digest, tone);
+        appendString(digest, language);
+        appendLength(digest, sources.size());
+        for (Source source : sources) {
+            digest.update((byte) (source.url ? 1 : 0));
+            appendString(digest, source.value);
+        }
+        StringBuilder fingerprint = new StringBuilder("v1:");
+        for (byte value : digest.digest()) {
+            fingerprint.append(Character.forDigit((value & 0xff) >>> 4, 16));
+            fingerprint.append(Character.forDigit(value & 0xf, 16));
+        }
+        return fingerprint.toString();
+    }
+
+    private static void appendString(MessageDigest digest, String value) {
+        appendLength(digest, value.length());
+        for (int i = 0; i < value.length(); i++) {
+            char unit = value.charAt(i);
+            digest.update((byte) (unit >>> 8));
+            digest.update((byte) unit);
+        }
+    }
+
+    private static void appendLength(MessageDigest digest, int length) {
+        digest.update((byte) (length >>> 24));
+        digest.update((byte) (length >>> 16));
+        digest.update((byte) (length >>> 8));
+        digest.update((byte) length);
     }
 
     private static String required(String value, String name) {

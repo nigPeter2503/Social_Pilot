@@ -32,7 +32,7 @@ session.cancelBranch(channelId); session.cancel(); session.retry(channelId); ses
 - Lỗi provider ghi `AiError.Code` ở đúng bước. Bước `COMPLETED` nhưng không có text là `FAILED`/`INCOMPLETE`, không chạy tiếp trên dữ liệu rỗng.
 - Khi hủy thắng trước terminal, nhánh giữ text đã nhận, chặn delta và kết quả đến sau. Gateway vẫn quyết toán usage từ terminal theo contract. Vượt trần ngân sách giữa chừng → nhánh `FAILED`, `budgetStopped = true`, giữ partial.
 - **Không tự retry.** `retry(channelId)` là thao tác của người dùng: chạy lại từ bước text đầu tiên chưa xong, attempt mới, requestId mới, reservation mới; các bước đã xong giữ nguyên. Callback của attempt cũ không ghi đè (generation guard).
-- Session nằm trong bộ nhớ. Sau khi process chết, không tự gửi lại; checkpoint thuộc SP-033.
+- Session hoạt động trong bộ nhớ. Sau khi process chết, `restore` công bố checkpoint đã phục hồi và chờ người dùng retry. Store Room thuộc phần tích hợp tiếp theo của SP-033. [Hợp đồng checkpoint](agent-checkpoint-mapping.md)
 - Snapshot được xếp hàng theo `revision` và giao tuần tự ngoài khóa của session, kể cả khi đang stream. Observer đưa cập nhật giao diện về main thread. Nếu executor từ chối lượt giao, callback chạy trên luồng gọi để vẫn giao được trạng thái. Lỗi runtime của observer không dừng pipeline. Lỗi runtime ở bước admission được ghi `SUBMISSION_FAILED` để người dùng có thể retry. Nếu adapter ném lỗi trong `prepare()`, gateway ghi `PROVIDER_PREPARE_FAILED` và giải phóng khoản giữ. Ngoại lệ sau khi vào `run()` giữ partial và quyết toán `UNCERTAIN`.
 
 ## 4. Prompt và quy tắc
