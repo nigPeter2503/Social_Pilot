@@ -154,6 +154,7 @@ public final class AiKeysActivity extends AppCompatActivity {
             case COMMENT_CLASSIFICATION: return R.string.ai_task_comment_classification;
             case COMMENT_REPLY: return R.string.ai_task_comment_reply;
             case ANALYTICS_REPORT: return R.string.ai_task_analytics_report;
+            case IMAGE: return R.string.ai_task_image;
             default: return R.string.ai_task_content_text;
         }
     }

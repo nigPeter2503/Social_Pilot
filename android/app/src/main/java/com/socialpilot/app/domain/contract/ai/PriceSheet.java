@@ -14,16 +14,26 @@ public final class PriceSheet {
     public final BigDecimal uncachedInputPerMillion;
     public final BigDecimal cachedInputPerMillion;
     public final BigDecimal outputPerMillion;
+    /** Currency units per generated image; null when the model has no sourced image price. */
+    public final BigDecimal perImage;
     public final String priceRevision;
     public final String source;
     public final String capturedAt;
 
     public PriceSheet(Currency currency, BigDecimal uncachedInputPerMillion, BigDecimal cachedInputPerMillion,
                       BigDecimal outputPerMillion, String priceRevision, String source, String capturedAt) {
+        this(currency, uncachedInputPerMillion, cachedInputPerMillion, outputPerMillion, null, priceRevision, source,
+                capturedAt);
+    }
+
+    public PriceSheet(Currency currency, BigDecimal uncachedInputPerMillion, BigDecimal cachedInputPerMillion,
+                      BigDecimal outputPerMillion, BigDecimal perImage, String priceRevision, String source,
+                      String capturedAt) {
         this.currency = Objects.requireNonNull(currency);
         this.uncachedInputPerMillion = nonNegative(uncachedInputPerMillion);
         this.cachedInputPerMillion = nonNegative(cachedInputPerMillion);
         this.outputPerMillion = nonNegative(outputPerMillion);
+        this.perImage = perImage == null ? null : nonNegative(perImage);
         this.priceRevision = required(priceRevision);
         this.source = required(source);
         this.capturedAt = required(capturedAt);
@@ -64,6 +74,11 @@ public final class PriceSheet {
         } catch (ArithmeticException unpriceable) {
             return null;
         }
+    }
+
+    /** Estimate for {@code images} generated images, or null without a sourced per-image price. */
+    public AiCostEstimate imageCost(int images) {
+        return perImage == null ? null : AiCostEstimate.image(images, perImage, currency, priceRevision);
     }
 
     private static BigDecimal nonNegative(BigDecimal value) {

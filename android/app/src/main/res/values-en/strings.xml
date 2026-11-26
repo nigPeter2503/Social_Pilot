@@ -110,6 +110,7 @@
   <string name="ai_task_comment_classification">Classify comments</string>
   <string name="ai_task_comment_reply">Suggest comment replies</string>
   <string name="ai_task_analytics_report">Analytics report</string>
+  <string name="ai_task_image">Channel images (local template when unavailable)</string>
   <string name="ai_model_none">— Not selected —</string>
   <string name="ai_model_option">%1$s · %2$s</string>
   <string name="ai_model_not_selected">No model selected for this task.</string>
