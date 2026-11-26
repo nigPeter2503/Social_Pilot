@@ -2,6 +2,7 @@ package com.socialpilot.app.data.remote.instagram;
 
 import com.socialpilot.app.domain.contract.oauth.OAuthContract.OAuthExchangeResponse;
 import java.io.IOException;
+import java.net.SocketTimeoutException;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicInteger;
 import okhttp3.OkHttpClient;
@@ -70,15 +71,19 @@ public final class InstagramGraphClientTest {
                     assertEquals(Collections.singleton("fields"), request.url().queryParameterNames());
                     assertEquals("Bearer test-page-token", request.header("Authorization"));
                     int response = calls.getAndIncrement();
+                    if (response == 4) throw new SocketTimeoutException("fixture");
+                    int[] statuses = {200, 403, 401, 200};
+                    String[] bodies = {"{\"id\":\"1234567890\"}", "{\"error\":{\"code\":200}}",
+                            "{\"error\":{\"code\":190}}", "{\"id\":\"9999999999\"}"};
                     return new Response.Builder().request(request).protocol(Protocol.HTTP_1_1)
-                            .code(response == 0 ? 200 : response == 1 ? 403 : 401).message("Fixture")
-                            .body(ResponseBody.create(response == 0 ? "{\"id\":\"1234567890\"}"
-                                    : response == 1 ? "{\"error\":{\"code\":200}}"
-                                    : "{\"error\":{\"code\":190}}", null)).build();
+                            .code(statuses[response]).message("Fixture")
+                            .body(ResponseBody.create(bodies[response], null)).build();
                 }).build());
         graph.validatePageConnection(page);
-        IOException noPermission = assertThrows(IOException.class, () -> graph.validatePageConnection(page));
-        assertEquals(IOException.class, noPermission.getClass());
+        assertThrows(InstagramGraphClient.PermissionDenied.class, () -> graph.validatePageConnection(page));
         assertThrows(InstagramGraphClient.AuthorizationExpired.class, () -> graph.validatePageConnection(page));
+        assertEquals("Unexpected Graph account",
+                assertThrows(IOException.class, () -> graph.validatePageConnection(page)).getMessage());
+        assertThrows(SocketTimeoutException.class, () -> graph.validatePageConnection(page));
     }
 }

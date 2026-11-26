@@ -104,7 +104,9 @@ public final class InstagramGraphClient {
             JsonObject data = JsonParser.parseString(response.body().string()).getAsJsonObject();
             if (data.has("error")) {
                 JsonObject error = data.getAsJsonObject("error");
-                if (error.has("code") && error.get("code").getAsInt() == 190) throw new AuthorizationExpired();
+                int code = error.has("code") ? error.get("code").getAsInt() : 0;
+                if (code == 190) throw new AuthorizationExpired();
+                if (response.code() == 403 && code == 200) throw new PermissionDenied();
                 throw new IOException("Graph operation failed");
             }
             if (!response.isSuccessful()) throw new IOException("Graph operation failed");
@@ -121,4 +123,5 @@ public final class InstagramGraphClient {
     }
 
     public static final class AuthorizationExpired extends IOException {}
+    public static final class PermissionDenied extends IOException {}
 }

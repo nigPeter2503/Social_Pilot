@@ -170,6 +170,52 @@ public final class InstagramPublishRepositoryDeviceTest {
         assertEquals(3, requests.get());
     }
 
+    @Test public void permissionDeniedBeforePublishKeepsConnection() {
+        saveInstagram("permission-test", "test-ig-token", "2099-01-01T00:00:00Z");
+        AtomicInteger requests = new AtomicInteger();
+        InstagramPublishRepository repository = repository(ControlledInstagramGraph.withResponse(chain -> {
+            requests.incrementAndGet();
+            return json(chain.request(), 403, "{\"error\":{\"code\":200}}");
+        }));
+        ContentVersion version = new ContentVersion("test-version", "test-brief", INSTAGRAM_ID,
+                null, "Test caption", "https://example.test/image.jpg", 1L);
+        assertEquals(InstagramPublishRepository.Status.PERMISSION_REQUIRED,
+                repository.publish(version, connections.instagramSession()).status);
+        assertEquals(InstagramPublishRepository.Status.PERMISSION_REQUIRED, reconcile(repository).status);
+        assertEquals("test-ig-token", connections.instagramConnection().accessToken);
+        assertEquals(2, requests.get());
+    }
+
+    @Test public void permissionDeniedReadingPermalinkKeepsMediaForReconciliation() {
+        saveInstagram("permission-test", "test-ig-token", "2099-01-01T00:00:00Z");
+        AtomicInteger requests = new AtomicInteger();
+        InstagramPublishRepository repository = repository(ControlledInstagramGraph.withResponse(chain -> {
+            Request request = chain.request();
+            switch (requests.incrementAndGet()) {
+                case 1:
+                    assertEquals("POST", request.method());
+                    return json(request, 200, "{\"id\":\"5678901234\"}");
+                case 2:
+                    assertEquals("POST", request.method());
+                    return json(request, 200, "{\"id\":\"6789012345\"}");
+                case 3:
+                    assertEquals("GET", request.method());
+                    return json(request, 403, "{\"error\":{\"code\":200}}");
+                default:
+                    assertEquals("GET", request.method());
+                    assertEquals("/v27.0/6789012345", request.url().encodedPath());
+                    return json(request, 200, "{\"id\":\"6789012345\",\"permalink\":\"https://www.instagram.com/p/test/\"}");
+            }
+        }));
+        ContentVersion version = new ContentVersion("test-version", "test-brief", INSTAGRAM_ID,
+                null, "Test caption", "https://example.test/image.jpg", 1L);
+        assertEquals(InstagramPublishRepository.Status.PERMISSION_CHECK_REQUIRED,
+                repository.publish(version, connections.instagramSession()).status);
+        assertEquals(CHECK_REQUIRED, repository.publish(version, connections.instagramSession()).status);
+        assertEquals("6789012345", reconcile(repository).mediaId);
+        assertEquals(4, requests.get());
+    }
+
     @Test public void unknownExpiryChecksIdentityBeforeAnyPublishWrite() {
         saveInstagram("unknown-expiry", "test-ig-token", null);
         AtomicInteger requests = new AtomicInteger();

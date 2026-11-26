@@ -156,3 +156,25 @@ yêu cầu scope theo cấu hình.
 - [ ] Bên nhận xác nhận bàn giao production, hai reviewer approve, PR đã merge và Project đã cập nhật hoàn tất.
 
 F1.B1 và F1.B3 vẫn mở theo [ma trận yêu cầu](../requirements.md).
+
+## Sửa bốn mục review PR #96 ngày 26/11/2026
+
+Các ca dưới đây dùng Room/Keystore và phản hồi Graph giả `MO_PHONG`. Chạy trên
+Samsung SM-G990E, Android 16/API 36. Gradle đổi application ID sang
+`com.socialpilot.app.sp022review` bằng init script chỉ áp dụng cho lượt chạy QA.
+
+| Mục review | Hành vi và ca hồi quy |
+| --- | --- |
+| P2.1 | UI đọc danh tính kênh Instagram đã chọn độc lập với quyền thao tác. `MainActivityConnectionDeviceTest` mở Activity với AppContainer thật, kiểm trạng thái chưa kết nối, hết hạn và cần kết nối lại ở VI/EN. `ChannelRepositoryDeviceTest` mở lại Room sau hết hạn/thu hồi, kiểm ID, revision, session và tính độc lập của Facebook. |
+| P2.2 | Mỗi provider nhập legacy riêng và báo lỗi ghi riêng. `ChannelRepositoryDeviceTest` gây lỗi INSERT ở từng provider, kiểm kênh còn lại usable và bản ghi hỏng còn để thử lại. Ca nâng v1 kiểm draft, lần retry, revision không tăng thừa và cleanup journal. |
+| P2.3 | Kết quả kiểm Page giữ scope dùng gọi Graph. `MainViewModelInstagramDeviceTest` thử kết quả đã hiện rồi đổi revision và kết quả còn chờ main thread khi commit revision mới. Chỉ GET của revision đang dùng được hiện xác minh. |
+| P2.4 | Phân biệt 403/code 200, 401/code 190, timeout và ID lệch. `InstagramGraphClientTest` kiểm phân loại. `ChannelRepositoryDeviceTest` kiểm Page giữ credential và capability khác. `InstagramPublishRepositoryDeviceTest` kiểm thiếu quyền trước khi đăng, lúc đối soát và lúc đọc permalink sau đăng, đồng thời giữ media ID và tránh POST lần hai. |
+
+Android `assembleDebug`, `testDebugUnitTest`, `lintDebug` và
+`assembleDebugAndroidTest` đạt. Kết quả 179 unit test, lint 0 lỗi. Lượt
+`connectedDebugAndroidTest` trên package QA đạt 43/43, không bỏ qua ca nào.
+
+Ca cấp grant mới hoàn toàn qua app với Business Portfolio, refresh tự động
+và quét runtime của bản tích hợp Meta vẫn cần bằng chứng thật. Consumer cần xác
+nhận scope/revision và chuỗi migration Channel → Brief → Version. Nghị và Đạt
+cần review lại trên head mới của [PR #96](https://github.com/nigPeter2503/Social_Pilot/pull/96).

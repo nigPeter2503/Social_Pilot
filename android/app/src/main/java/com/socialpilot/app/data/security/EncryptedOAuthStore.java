@@ -6,7 +6,11 @@ import com.google.gson.Gson;
 import com.socialpilot.app.data.repository.ChannelRepository;
 import com.socialpilot.app.data.repository.ChannelRepository.Snapshot;
 import com.socialpilot.app.domain.contract.oauth.OAuthContract.OAuthExchangeResponse;
+import com.socialpilot.app.domain.contract.secret.SecretRead;
+import com.socialpilot.app.domain.contract.social.ConnectionLifecycle.Scope;
 import com.socialpilot.app.domain.contract.social.Platform;
+import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -50,19 +54,31 @@ public final class EncryptedOAuthStore {
     }
 
     /** Imports authenticated v2 records once, after opening the shared Room database. */
-    public synchronized void restoreChannels() {
-        if (channels == null) return;
+    public synchronized Set<Platform> restoreChannels() {
+        if (channels == null) return Collections.emptySet();
         channels.restore();
-        importLegacy(Platform.FACEBOOK, CONNECTED, LEGACY_CONNECTED);
-        importLegacy(Platform.INSTAGRAM, INSTAGRAM_CONNECTED, NO_LEGACY_KEYS);
+        EnumSet<Platform> failed = EnumSet.noneOf(Platform.class);
+        if (!importLegacy(Platform.FACEBOOK, CONNECTED, LEGACY_CONNECTED)) failed.add(Platform.FACEBOOK);
+        if (!importLegacy(Platform.INSTAGRAM, INSTAGRAM_CONNECTED, NO_LEGACY_KEYS)) failed.add(Platform.INSTAGRAM);
+        return Collections.unmodifiableSet(failed);
     }
 
-    private void importLegacy(Platform platform, String key, String[] fields) {
+    private boolean importLegacy(Platform platform, String key, String[] fields) {
         ConnectedRecord legacy = connected(platform.name());
-        if (legacy == null) return;
-        if (channels.selected(platform) == null) channels.save(legacy.connection);
-        // The Room/ref pair is already committed. Reopening after a failed deletion is idempotent.
-        invalidate(key, fields);
+        if (legacy == null) return true;
+        try {
+            Snapshot current = channels.selected(platform);
+            if (current == null) current = channels.save(legacy.connection);
+            // A selected connection can supersede the legacy record. Retire only a proven matching
+            // Room/Keystore pair here. An explicit reconnect can retire a superseded record.
+            if (current.info.externalAccountId.equals(legacy.connection.externalAccountId)
+                    && current.credentialStatus == SecretRead.Status.SUCCESS) {
+                invalidate(key, fields);
+            }
+            return true;
+        } catch (RuntimeException promotionFailed) {
+            return false;
+        }
     }
 
     public synchronized void savePending(String sessionId, String verifier) {
@@ -194,24 +210,33 @@ public final class EncryptedOAuthStore {
     }
 
     public synchronized InstagramMetadata instagramMetadata() {
+        InstagramMetadata selected = selectedInstagramMetadata();
+        return selected != null && selected.connected ? selected : null;
+    }
+
+    /** Display identity survives credential expiry. Session admission still uses instagramMetadata(). */
+    public synchronized InstagramMetadata selectedInstagramMetadata() {
         if (channels != null) {
             Snapshot profile = channels.selected(Platform.INSTAGRAM);
-            if (profile == null || !profile.connected()) return null;
-            return new InstagramMetadata(profile.sessionId, profile.info.externalAccountId, profile.info.displayName,
-                    profile.linkedPageId, profile.grantedScopes, profile.expiresAt, profile.graphApiVersion);
+            return profile == null ? null : new InstagramMetadata(profile.sessionId,
+                    profile.info.externalAccountId, profile.info.displayName, profile.linkedPageId,
+                    profile.grantedScopes, profile.expiresAt, profile.graphApiVersion, profile.scope, profile.connected());
         }
         OAuthExchangeResponse response = instagramConnection();
         return response == null ? null : new InstagramMetadata(response.sessionId, response.externalAccountId,
                 response.displayName, response.linkedPageId, response.grantedScopes, response.expiresAt,
-                response.graphApiVersion);
+                response.graphApiVersion, null, true);
     }
 
     public static final class InstagramMetadata {
         public final String sessionId, externalAccountId, displayName, linkedPageId, expiresAt, graphApiVersion;
         public final List<String> grantedScopes;
+        public final Scope scope;
+        public final boolean connected;
 
         private InstagramMetadata(String sessionId, String externalAccountId, String displayName,
-                String linkedPageId, List<String> grantedScopes, String expiresAt, String graphApiVersion) {
+                String linkedPageId, List<String> grantedScopes, String expiresAt, String graphApiVersion,
+                Scope scope, boolean connected) {
             this.sessionId = sessionId;
             this.externalAccountId = externalAccountId;
             this.displayName = displayName;
@@ -219,6 +244,8 @@ public final class EncryptedOAuthStore {
             this.grantedScopes = grantedScopes;
             this.expiresAt = expiresAt;
             this.graphApiVersion = graphApiVersion;
+            this.scope = scope;
+            this.connected = connected;
         }
     }
 

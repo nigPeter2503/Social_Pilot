@@ -134,4 +134,11 @@
   <string name="ai_usage_row">%1$s · %2$s: ước tính %3$s %4$s; đã quyết toán: %5$d, chưa xác định chi phí: %6$d, không gửi: %7$d</string>
   <string name="ai_dispatch_status">%1$s\n%2$s</string>
   <string name="ai_usage_note">Đây là ước tính của ứng dụng theo bảng giá đã ghim, không phải hóa đơn nhà cung cấp. Lượt thiếu usage không được tính là 0.</string>
+  <string name="social_connections_loading">Đang tải kết nối…</string>
+  <string name="facebook_restore_failed">Chưa khôi phục được kết nối Facebook Page. Mở lại ứng dụng để thử lại.</string>
+  <string name="instagram_restore_failed">Chưa khôi phục được kết nối Instagram. Mở lại ứng dụng để thử lại.</string>
+  <string name="facebook_check_permission">Thiếu quyền kiểm tra Facebook Page %1$s. Kiểm tra quyền của ứng dụng đối với Trang.</string>
+  <string name="instagram_account_reconnect">Cần kết nối lại Instagram %1$s.</string>
+  <string name="instagram_permission_required">Thiếu quyền cho thao tác Instagram này. Kiểm tra quyền đã cấp cho ứng dụng.</string>
+  <string name="instagram_permission_check_required">Thiếu quyền để xác nhận kết quả đăng. Kiểm tra quyền đã cấp, rồi đối soát bài đăng.</string>
 </resources>

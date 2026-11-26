@@ -11,6 +11,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 import com.socialpilot.app.data.local.AppDatabase;
 import com.socialpilot.app.data.local.ChannelSecretCleanup;
+import com.socialpilot.app.data.remote.instagram.ControlledInstagramGraph;
 import com.socialpilot.app.data.security.EncryptedOAuthStore;
 import com.socialpilot.app.data.security.EncryptedSecretStore;
 import com.socialpilot.app.domain.contract.oauth.OAuthContract.OAuthExchangeResponse;
@@ -26,6 +27,9 @@ import com.socialpilot.app.domain.contract.social.Platform;
 import com.socialpilot.app.domain.contract.social.SocialOperation;
 import java.util.Collections;
 import java.util.UUID;
+import okhttp3.Protocol;
+import okhttp3.Response;
+import okhttp3.ResponseBody;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -69,7 +73,14 @@ public class ChannelRepositoryDeviceTest {
         legacy.savePending("pending-session", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "INSTAGRAM");
         ChannelRepository channels = open();
         EncryptedOAuthStore store = new EncryptedOAuthStore(context, channels);
-        store.restoreChannels();
+        database.getOpenHelper().getWritableDatabase().execSQL(
+                "CREATE TRIGGER reject_facebook BEFORE INSERT ON channels"
+                        + " WHEN NEW.platform = 'FACEBOOK' BEGIN SELECT RAISE(ABORT, 'fixture'); END");
+        assertEquals(Collections.singleton(Platform.FACEBOOK), store.restoreChannels());
+        assertEquals("facebook-fake", legacy.accessToken());
+        assertNull(store.accessToken());
+        assertEquals("instagram-fake", store.instagramConnection().accessToken);
+        assertEquals(1, channels.selected(Platform.INSTAGRAM).scope.connectionRevision);
 
         try (android.database.Cursor rows = database.getOpenHelper().getReadableDatabase()
                 .query("SELECT id, topic, createdAt FROM drafts ORDER BY id")) {
@@ -83,18 +94,94 @@ public class ChannelRepositoryDeviceTest {
             assertEquals(200, rows.getLong(2));
         }
         assertEquals("pending-session", store.getPending().sessionId);
-        assertEquals("facebook-fake", store.accessToken());
-        assertEquals("instagram-fake", store.instagramConnection().accessToken);
-        assertNull(legacy.accessToken());
         assertNull(legacy.instagramConnection());
         String channelId = channels.selected(Platform.INSTAGRAM).info.channelId;
-        assertEquals(2, channels.list().size());
+        assertEquals(1, channels.list().size());
+        assertTrue(database.channels().pendingCleanup().isEmpty());
+        database.getOpenHelper().getWritableDatabase().execSQL("DROP TRIGGER reject_facebook");
 
         database.close();
         ChannelRepository reopened = open();
-        new EncryptedOAuthStore(context, reopened).restoreChannels();
+        EncryptedOAuthStore restored = new EncryptedOAuthStore(context, reopened);
+        assertTrue(restored.restoreChannels().isEmpty());
+        assertEquals("facebook-fake", restored.accessToken());
+        assertEquals("instagram-fake", restored.instagramConnection().accessToken);
+        assertNull(legacy.accessToken());
+        assertEquals(1, reopened.selected(Platform.FACEBOOK).scope.connectionRevision);
         assertEquals(channelId, reopened.selected(Platform.INSTAGRAM).info.channelId);
         assertEquals(1, reopened.find(channelId).scope.connectionRevision);
+        assertTrue(restored.restoreChannels().isEmpty());
+        assertEquals(2, reopened.list().size());
+        assertEquals(1, reopened.selected(Platform.FACEBOOK).scope.connectionRevision);
+        assertEquals(1, reopened.selected(Platform.INSTAGRAM).scope.connectionRevision);
+    }
+
+    @Test public void expiredAndRevokedInstagramKeepDisplayIdentityAfterRestart() {
+        ChannelRepository channels = open();
+        EncryptedOAuthStore store = new EncryptedOAuthStore(context, channels);
+        assertNull(store.selectedInstagramMetadata());
+        ChannelRepository.Snapshot page = channels.save(page("fb-a", "facebook-fake"));
+        OAuthExchangeResponse profile = instagram("ig-old", "expired-fake");
+        ChannelRepository.Snapshot expired = channels.save(new OAuthExchangeResponse(profile.sessionId,
+                profile.provider, profile.externalAccountId, profile.accountType, profile.displayName,
+                profile.accessToken, null, "bearer", "2020-01-01T00:00:00Z",
+                profile.linkedPageId, profile.grantedScopes, profile.graphApiVersion));
+        database.close();
+
+        ChannelRepository reopened = open();
+        EncryptedOAuthStore restored = new EncryptedOAuthStore(context, reopened);
+        assertTrue(restored.restoreChannels().isEmpty());
+        assertEquals(profile.externalAccountId, restored.selectedInstagramMetadata().externalAccountId);
+        assertTrue(expired.scope.matches(restored.selectedInstagramMetadata().scope));
+        assertFalse(restored.selectedInstagramMetadata().connected);
+        assertNull(restored.instagramSession().sessionId);
+        assertNull(restored.instagramConnection());
+
+        ChannelRepository.Snapshot next = reopened.save(instagram("ig-new", "new-fake"));
+        assertEquals(expired.scope.channelId, next.scope.channelId);
+        assertEquals(2, next.scope.connectionRevision);
+        assertTrue(restored.selectedInstagramMetadata().connected);
+        restored.invalidateInstagram(next.sessionId);
+        database.close();
+
+        ChannelRepository afterRevocation = open();
+        EncryptedOAuthStore revoked = new EncryptedOAuthStore(context, afterRevocation);
+        assertTrue(revoked.restoreChannels().isEmpty());
+        assertTrue(next.scope.matches(revoked.selectedInstagramMetadata().scope));
+        assertFalse(revoked.selectedInstagramMetadata().connected);
+        assertNull(revoked.instagramConnection());
+        assertEquals("facebook-fake", afterRevocation.credential(page.scope).accessToken);
+    }
+
+    @Test public void instagramImportFailureKeepsFacebookUsable() {
+        EncryptedOAuthStore legacy = new EncryptedOAuthStore(context);
+        legacy.saveConnected(page("fb-old", "facebook-fake"));
+        legacy.saveConnected(instagram("ig-old", "instagram-fake"));
+        ChannelRepository channels = open();
+        database.getOpenHelper().getWritableDatabase().execSQL(
+                "CREATE TRIGGER reject_instagram BEFORE INSERT ON channels"
+                        + " WHEN NEW.platform = 'INSTAGRAM' BEGIN SELECT RAISE(ABORT, 'fixture'); END");
+        EncryptedOAuthStore store = new EncryptedOAuthStore(context, channels);
+        assertEquals(Collections.singleton(Platform.INSTAGRAM), store.restoreChannels());
+        assertEquals("facebook-fake", store.accessToken());
+        assertEquals("instagram-fake", legacy.instagramConnection().accessToken);
+        assertTrue(database.channels().pendingCleanup().isEmpty());
+    }
+
+    @Test public void deniedPageIdentityCheckDoesNotRevokeConnectionOrChangeCapabilities() {
+        open();
+        ChannelRepository channels = new ChannelRepository(database, secrets,
+                ControlledInstagramGraph.withResponse(chain -> new Response.Builder()
+                        .request(chain.request()).protocol(Protocol.HTTP_1_1).code(403).message("Fixture")
+                        .body(ResponseBody.create("{\"error\":{\"code\":200}}", null)).build()));
+        ChannelRepository.Snapshot page = channels.save(page("fb-a", "facebook-fake"));
+        ChannelCapability verified = new ChannelCapability(SocialOperation.READ_COMMENTS,
+                CapabilityAvailability.AVAILABLE, "VERIFIED", "2026-11-25T08:00:00Z");
+        assertTrue(channels.recordCapability(page.scope, verified));
+        assertEquals(ChannelRepository.PageCheck.PERMISSION_REQUIRED, channels.checkFacebookPage(page.scope));
+        assertEquals("facebook-fake", channels.credential(page.scope).accessToken);
+        assertEquals(CapabilityAvailability.AVAILABLE,
+                channels.find(page.scope.channelId).capability(SocialOperation.READ_COMMENTS).availability);
     }
 
     @Test public void reconnectReusesIdentityAndRejectsOldScopeWhileCleaningSecrets() throws Exception {

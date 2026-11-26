@@ -20,12 +20,15 @@ import com.socialpilot.app.data.security.EncryptedOAuthStore;
 import com.socialpilot.app.data.security.EncryptedOAuthStore.InstagramSession;
 import com.socialpilot.app.data.security.EncryptedOAuthStore.InstagramMetadata;
 import com.socialpilot.app.domain.contract.social.Platform;
+import com.socialpilot.app.domain.contract.social.ConnectionLifecycle.Scope;
 import com.socialpilot.app.domain.editor.Brief;
 import com.socialpilot.app.domain.editor.ContentVersion;
 import com.socialpilot.app.domain.editor.VersionApprovalState;
 import java.net.URI;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
@@ -45,6 +48,16 @@ public final class MainViewModel extends AndroidViewModel {
         }
     }
 
+    private static final class ScopedPageCheck {
+        final Scope scope;
+        final PageCheck status;
+
+        ScopedPageCheck(Scope scope, PageCheck status) {
+            this.scope = scope;
+            this.status = status;
+        }
+    }
+
     private final DraftRepository repository;
     private final FacebookOAuthCoordinator facebookOAuth;
     private final EncryptedOAuthStore connections;
@@ -57,8 +70,8 @@ public final class MainViewModel extends AndroidViewModel {
     private final MutableLiveData<InstagramPublishRepository.Result> instagramResult = new MutableLiveData<>();
     private final MutableLiveData<Boolean> instagramBusy = new MutableLiveData<>(false);
     private final MutableLiveData<Boolean> instagramApproved = new MutableLiveData<>(false);
-    private final MutableLiveData<Boolean> connectionsLoaded = new MutableLiveData<>(false);
-    private final MutableLiveData<PageCheck> facebookPageCheck = new MutableLiveData<>(PageCheck.IDLE);
+    private final MutableLiveData<Set<Platform>> restoreFailures = new MutableLiveData<>();
+    private final MutableLiveData<ScopedPageCheck> facebookPageCheck = new MutableLiveData<>();
     private VersionApprovalState approval;
     private ContentVersion approvedVersion;
     private InstagramSession approvedSession;
@@ -72,11 +85,10 @@ public final class MainViewModel extends AndroidViewModel {
                 appContainer.instagram, appContainer.io, appContainer.channels);
         io.execute(() -> {
             try {
-                connections.restoreChannels();
+                restoreFailures.postValue(connections.restoreChannels());
             } catch (RuntimeException failure) {
-                main.post(() -> oauthState.setValue(new OAuthUiState(OAuthStatus.FAILED, "PROVIDER_ERROR")));
+                restoreFailures.postValue(EnumSet.of(Platform.FACEBOOK, Platform.INSTAGRAM));
             }
-            connectionsLoaded.postValue(true);
         });
     }
 
@@ -85,7 +97,7 @@ public final class MainViewModel extends AndroidViewModel {
         this(application, repository, facebookOAuth, connections, instagram, io, null);
     }
 
-    private MainViewModel(Application application, DraftRepository repository, FacebookOAuthCoordinator facebookOAuth,
+    MainViewModel(Application application, DraftRepository repository, FacebookOAuthCoordinator facebookOAuth,
             EncryptedOAuthStore connections, InstagramPublishRepository instagram, Executor io,
             ChannelRepository channels) {
         super(application);
@@ -101,27 +113,47 @@ public final class MainViewModel extends AndroidViewModel {
     public LiveData<SaveState> saveState() { return saveState; }
     public LiveData<OAuthUiState> oauthState() { return oauthState; }
     public String connectedPageSummary() { return facebookOAuth.connectedPageSummary(); }
-    public LiveData<PageCheck> facebookPageCheck() { return facebookPageCheck; }
+    LiveData<?> facebookPageCheck() { return facebookPageCheck; }
+
+    PageCheck currentFacebookPageCheck() {
+        ScopedPageCheck check = facebookPageCheck.getValue();
+        ChannelRepository.Snapshot page = channels == null ? null : channels.selected(Platform.FACEBOOK);
+        return check != null && page != null && check.scope.matches(page.scope) ? check.status : PageCheck.IDLE;
+    }
+
     public boolean facebookPageRequiresReconnect() {
         ChannelRepository.Snapshot page = channels == null ? null : channels.selected(Platform.FACEBOOK);
         return page != null && !page.connected();
     }
 
     public void checkFacebookPage() {
-        if (channels == null || facebookPageCheck.getValue() == PageCheck.CHECKING) return;
-        facebookPageCheck.setValue(PageCheck.CHECKING);
+        if (channels == null || currentFacebookPageCheck() == PageCheck.CHECKING) return;
+        ChannelRepository.Snapshot page = channels.selected(Platform.FACEBOOK);
+        if (page == null || !page.connected()) return;
+        ScopedPageCheck pending = new ScopedPageCheck(page.scope, PageCheck.CHECKING);
+        facebookPageCheck.setValue(pending);
         io.execute(() -> {
             PageCheck result;
             try {
-                result = channels.checkFacebookPage();
+                result = channels.checkFacebookPage(pending.scope);
             } catch (RuntimeException failure) {
                 result = PageCheck.FAILED;
             }
-            facebookPageCheck.postValue(result);
+            ScopedPageCheck completed = new ScopedPageCheck(pending.scope, result);
+            main.post(() -> {
+                if (facebookPageCheck.getValue() != pending) return;
+                facebookPageCheck.setValue(currentFacebookPageCheck() == PageCheck.CHECKING ? completed : null);
+            });
         });
     }
-    public LiveData<Boolean> connectionsLoaded() { return connectionsLoaded; }
+    LiveData<Set<Platform>> restoreFailures() { return restoreFailures; }
+    boolean restoreFailed(Platform platform) {
+        Set<Platform> failed = restoreFailures.getValue();
+        return failed != null && failed.contains(platform);
+    }
+
     public InstagramMetadata instagramConnection() { return connections.instagramMetadata(); }
+    InstagramMetadata selectedInstagramConnection() { return connections.selectedInstagramMetadata(); }
     public LiveData<InstagramPublishRepository.Result> instagramResult() { return instagramResult; }
     public InstagramPublishRepository.Result instagramResultFor(InstagramMetadata connection) {
         InstagramPublishRepository.Result result = instagramResult.getValue();
@@ -146,7 +178,7 @@ public final class MainViewModel extends AndroidViewModel {
     }
 
     public void connectFacebook() {
-        facebookPageCheck.setValue(PageCheck.IDLE);
+        facebookPageCheck.setValue(null);
         connect("FACEBOOK");
     }
 
@@ -253,10 +285,14 @@ public final class MainViewModel extends AndroidViewModel {
             @Override public void onConnected(String provider, String displayName, String accountId, String sessionId) {
                 String summary = displayName + " (" + accountId + ")";
                 if ("INSTAGRAM".equals(provider)) {
-                    if (!connections.instagramSession().matches(sessionId, accountId)) return;
+                    InstagramMetadata selected = selectedInstagramConnection();
+                    if (selected == null || !sessionId.equals(selected.sessionId)
+                            || !accountId.equals(selected.externalAccountId)) return;
                     clearInstagramApproval();
                     instagramResult.setValue(null);
                     summary = FacebookOAuthCoordinator.instagramSummary(displayName, accountId);
+                } else if (currentFacebookPageCheck() == PageCheck.IDLE) {
+                    facebookPageCheck.setValue(null);
                 }
                 oauthState.setValue(new OAuthUiState(OAuthStatus.CONNECTED, summary, provider));
             }

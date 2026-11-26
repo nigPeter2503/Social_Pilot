@@ -5,6 +5,7 @@ import android.content.SharedPreferences;
 import com.google.gson.Gson;
 import com.socialpilot.app.data.remote.instagram.InstagramGraphClient;
 import com.socialpilot.app.data.remote.instagram.InstagramGraphClient.AuthorizationExpired;
+import com.socialpilot.app.data.remote.instagram.InstagramGraphClient.PermissionDenied;
 import com.socialpilot.app.data.security.EncryptedOAuthStore;
 import com.socialpilot.app.data.security.EncryptedOAuthStore.InstagramSession;
 import com.socialpilot.app.data.security.EncryptedOAuthStore.InstagramMetadata;
@@ -19,7 +20,7 @@ import java.util.TimeZone;
 /** Stores one feed test attempt per connected Instagram account, including its reconciliation result. */
 public final class InstagramPublishRepository {
     public enum Status { READY, PUBLISHED, CHECK_REQUIRED, PUBLISHED_ID_UNKNOWN, PROVEN_UNPUBLISHED,
-        RECONNECT, CANCELLED, ERROR }
+        RECONNECT, PERMISSION_REQUIRED, PERMISSION_CHECK_REQUIRED, CANCELLED, ERROR }
 
     public static final class Result {
         public final Status status;
@@ -86,6 +87,8 @@ public final class InstagramPublishRepository {
             return publishSavedContainer(session, connection, attempt);
         } catch (AuthorizationExpired failure) {
             return reconnect(session);
+        } catch (PermissionDenied failure) {
+            return currentResult(session, result(session, Status.PERMISSION_REQUIRED));
         } catch (IOException | RuntimeException failure) {
             return currentResult(session, result(session, Status.ERROR));
         }
@@ -101,6 +104,8 @@ public final class InstagramPublishRepository {
             return currentResult(session, reconcileAttempt(session, connection, load(session.accountId)));
         } catch (AuthorizationExpired failure) {
             return reconnect(session);
+        } catch (PermissionDenied failure) {
+            return currentResult(session, result(session, Status.PERMISSION_REQUIRED));
         } catch (IOException | RuntimeException failure) {
             return currentResult(session, result(session, Status.ERROR));
         }
@@ -142,6 +147,8 @@ public final class InstagramPublishRepository {
             return currentResult(session, resolvePermalink(session, connection, published));
         } catch (AuthorizationExpired failure) {
             return reconnect(session);
+        } catch (PermissionDenied failure) {
+            return currentResult(session, result(session, Status.PERMISSION_CHECK_REQUIRED));
         } catch (IOException | RuntimeException failure) {
             // The provider may already have published. The container remains available for read-only reconciliation.
             return currentResult(session, result(session, Status.CHECK_REQUIRED));

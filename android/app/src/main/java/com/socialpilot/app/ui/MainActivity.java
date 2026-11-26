@@ -17,6 +17,7 @@ import com.socialpilot.app.data.repository.InstagramPublishRepository;
 import com.socialpilot.app.data.repository.ChannelRepository.PageCheck;
 import com.socialpilot.app.domain.DraftValidator;
 import com.socialpilot.app.data.security.EncryptedOAuthStore.InstagramMetadata;
+import com.socialpilot.app.domain.contract.social.Platform;
 
 public final class MainActivity extends AppCompatActivity {
     private ActivityMainBinding binding;
@@ -39,7 +40,7 @@ public final class MainActivity extends AppCompatActivity {
         });
         binding.openAiKeysButton.setOnClickListener(view -> startActivity(new Intent(this, AiKeysActivity.class)));
         binding.connectInstagramButton.setOnClickListener(view -> model.connectInstagram());
-        model.connectionsLoaded().observe(this, loaded -> {
+        model.restoreFailures().observe(this, failures -> {
             renderFacebookConnection();
             renderInstagramControls();
         });
@@ -103,17 +104,22 @@ public final class MainActivity extends AppCompatActivity {
 
     private void renderFacebookConnection() {
         String page = model.connectedPageSummary();
-        PageCheck check = model.facebookPageCheck().getValue();
+        PageCheck check = model.currentFacebookPageCheck();
         if (model.facebookPageRequiresReconnect() || (page == null && check == PageCheck.RECONNECT)) {
             binding.facebookPageStatus.setText(R.string.facebook_reconnect);
         } else if (check == PageCheck.CHECKING) {
             binding.facebookPageStatus.setText(R.string.facebook_checking);
         } else if (page == null) {
-            binding.facebookPageStatus.setText(R.string.facebook_not_connected);
+            binding.facebookPageStatus.setText(model.restoreFailures().getValue() == null
+                    ? R.string.social_connections_loading
+                    : model.restoreFailed(Platform.FACEBOOK)
+                            ? R.string.facebook_restore_failed : R.string.facebook_not_connected);
         } else if (check == PageCheck.VERIFIED) {
             binding.facebookPageStatus.setText(getString(R.string.facebook_verified, page));
         } else if (check == PageCheck.FAILED) {
             binding.facebookPageStatus.setText(getString(R.string.facebook_check_failed, page));
+        } else if (check == PageCheck.PERMISSION_REQUIRED) {
+            binding.facebookPageStatus.setText(getString(R.string.facebook_check_permission, page));
         } else {
             binding.facebookPageStatus.setText(getString(R.string.facebook_connected, page));
         }
@@ -155,10 +161,11 @@ public final class MainActivity extends AppCompatActivity {
         boolean oauthBusy = oauth != null && (oauth.status == MainViewModel.OAuthStatus.STARTING
                 || oauth.status == MainViewModel.OAuthStatus.EXCHANGING);
         boolean busy = Boolean.TRUE.equals(model.instagramBusy().getValue());
-        InstagramMetadata connection = model.instagramConnection();
+        InstagramMetadata selected = model.selectedInstagramConnection();
+        InstagramMetadata connection = selected != null && selected.connected ? selected : null;
         boolean connected = connection != null;
         boolean approved = model.isInstagramApprovedFor(connection);
-        boolean checkingPage = model.facebookPageCheck().getValue() == PageCheck.CHECKING;
+        boolean checkingPage = model.currentFacebookPageCheck() == PageCheck.CHECKING;
         binding.connectFacebookButton.setEnabled(!oauthBusy && !busy && !checkingPage);
         binding.checkFacebookButton.setEnabled(!oauthBusy && !busy && !checkingPage
                 && model.connectedPageSummary() != null);
@@ -176,10 +183,17 @@ public final class MainActivity extends AppCompatActivity {
             String summary = FacebookOAuthCoordinator.instagramSummary(connection.displayName, connection.externalAccountId);
             binding.instagramAccountStatus.setText(getString(R.string.instagram_connected,
                     summary, connection.linkedPageId, scopes, expiry, connection.graphApiVersion));
+        } else if (selected != null) {
+            String summary = FacebookOAuthCoordinator.instagramSummary(selected.displayName, selected.externalAccountId);
+            binding.instagramAccountStatus.setText(getString(R.string.instagram_account_reconnect, summary));
         } else {
-            binding.instagramAccountStatus.setText(R.string.instagram_not_connected);
+            binding.instagramAccountStatus.setText(model.restoreFailures().getValue() == null
+                    ? R.string.social_connections_loading
+                    : model.restoreFailed(Platform.INSTAGRAM)
+                            ? R.string.instagram_restore_failed : R.string.instagram_not_connected);
         }
         if (busy) binding.instagramPublishStatus.setText(R.string.instagram_working);
+        else if (selected != null && !connected) binding.instagramPublishStatus.setText(R.string.instagram_reconnect);
         else if (approved) binding.instagramPublishStatus.setText(R.string.instagram_approved);
         else if (result != null && result.status == InstagramPublishRepository.Status.PUBLISHED) {
             binding.instagramPublishStatus.setText(getString(R.string.instagram_published, result.mediaId));
@@ -195,6 +209,8 @@ public final class MainActivity extends AppCompatActivity {
             case PUBLISHED_ID_UNKNOWN: return R.string.instagram_published_id_unknown;
             case PROVEN_UNPUBLISHED: return R.string.instagram_unpublished;
             case RECONNECT: return R.string.instagram_reconnect;
+            case PERMISSION_REQUIRED: return R.string.instagram_permission_required;
+            case PERMISSION_CHECK_REQUIRED: return R.string.instagram_permission_check_required;
             case CANCELLED: return R.string.instagram_cancelled;
             default: return R.string.instagram_publish_error;
         }
