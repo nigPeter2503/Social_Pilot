@@ -194,3 +194,39 @@ Android build, build APK instrumentation, 180 unit test và lint đạt
 package QA riêng đạt 44/44, không bỏ qua ca nào. Các phản hồi Graph trên là fixture.
 
 [Review của Nghị trên PR #96](https://github.com/nigPeter2503/Social_Pilot/pull/96#pullrequestreview-6070638703)
+
+
+### Gia cố lưu kênh, thời hạn Page và đọc trạng thái UI
+
+- Sau khi Room commit, repository công bố snapshot từ credential đã kiểm tra.
+  Khi xóa secret cũ hoặc dòng journal gặp lỗi lưu trữ, lần lưu đã commit vẫn
+  trả revision mới. Restore đọc selection trước rồi dọn lại journal.
+- Backend dùng Page token đã xác minh để lấy hai mốc hạn từ Graph. Fixture
+  kiểm payload exchange Facebook Page, trường thiếu hoặc bằng 0, app sai,
+  token invalid, payload sai và timeout. Android đọc JSON cùng trường và mốc
+  thời gian, lưu Room rồi khởi động lại repository để kiểm hạn hiệu lực.
+- UI đọc metadata từ snapshot bộ nhớ và kiểm lại định danh phiên cùng
+  channel scope trước khi dùng kết quả. Fixture giữ worker ở bước xóa secret,
+  xác nhận main looper đọc được revision mới và từ chối phiên cùng session ID
+  của revision trước.
+
+Gate tại worktree SP-022 với JDK 21.0.7:
+
+- Backend: `.\gradlew.bat test bootJar`, 51/51 test.
+- Android: `.\gradlew.bat :app:assembleDebug :app:testDebugUnitTest :app:lintDebug :app:assembleDebugAndroidTest`,
+  180/180 unit test, lint 0 lỗi và 14 cảnh báo.
+- `:app:connectedDebugAndroidTest` với applicationId QA `com.socialpilot.app.sp022review`
+  trên Samsung SM-G990E, API 36 đạt 46/46, không có skip. Ca kiểm UI kiểm
+  tên Page khi hết hạn và lỗi quyền Instagram sau duyệt trên VI và EN.
+
+| Nhánh phụ thuộc đã đối chiếu | Điểm cần tích hợp |
+| --- | --- |
+| SP-023 #97 tại `66285db` | Merge thử gặp conflict ở AppContainer, MainActivity và strings. Consumer cần lấy identity/status từ Channel snapshot, dùng scope gồm platform, channel ID và revision cho tác vụ async. Hạn chưa biết vẫn có thể kiểm quyền. Hạn đã qua cần kết nối lại và giữ danh tính. |
+| SP-035 #82 tại `3d7fd25` | Cả hai nhánh có Room schema 2 với nội dung khác nhau. Owner phần schema cần chốt tuyến tích hợp, tạo lại schema export từ tập entity hợp nhất và xác nhận đường nâng cấp từ dữ liệu đang dùng. |
+| SP-036 #83 tại `bb220f6` | Xung đột schema 2 và AppDatabase. Sau khi chốt tuyến trên, kiểm tra migration vào version 3 và giữ Channel/Brief/Version của các DB nguồn đã được hỗ trợ. |
+
+Dùng `git merge-tree --write-tree` để xác định conflict theo từng HEAD.
+Phép thử này xác nhận điểm xung đột Git. Ca migration trên bản tích hợp
+cần schema hợp nhất và thiết bị. Grant mới từ Business Portfolio qua app,
+refresh được Meta cấp và rà log runtime của bản tích hợp còn mở ở
+[Issue #24](https://github.com/nigPeter2503/Social_Pilot/issues/24).

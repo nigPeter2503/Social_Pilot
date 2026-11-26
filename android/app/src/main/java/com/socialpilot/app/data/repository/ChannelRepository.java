@@ -1,5 +1,7 @@
 package com.socialpilot.app.data.repository;
 
+import android.database.SQLException;
+import android.util.Log;
 import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
 import com.socialpilot.app.data.local.AppDatabase;
@@ -36,6 +38,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.TimeZone;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /** The connection registry. Call database and credential operations on a worker. */
 public final class ChannelRepository {
@@ -46,7 +49,7 @@ public final class ChannelRepository {
     private final SecretStore secrets;
     private final InstagramGraphClient graph;
     private final Gson gson = new Gson();
-    private final EnumMap<Platform, Snapshot> selected = new EnumMap<>(Platform.class);
+    private final ConcurrentHashMap<Platform, Snapshot> selected = new ConcurrentHashMap<>();
 
     public ChannelRepository(AppDatabase database, SecretStore secrets) {
         this(database, secrets, new InstagramGraphClient());
@@ -60,14 +63,14 @@ public final class ChannelRepository {
     }
 
     public synchronized void restore() {
-        drainCleanup();
         for (Platform platform : new Platform[] {Platform.FACEBOOK, Platform.INSTAGRAM}) {
             refreshSelected(platform);
         }
+        drainCleanup();
     }
 
     /** Memory-only projection for the current app screen. */
-    public synchronized Snapshot selected(Platform platform) {
+    public Snapshot selected(Platform platform) {
         return selected.get(platform);
     }
 
@@ -126,15 +129,16 @@ public final class ChannelRepository {
         Grant grant = ConnectionLifecycle.fromExchange(response.sessionId, response.provider, response);
         SecretRef ref = new SecretRef(SecretNamespace.SOCIAL_TOKEN, UUID.randomUUID().toString());
         channels.queueCleanup(new ChannelSecretCleanup(ref.opaque()));
-        ChannelEntity row;
+        Snapshot committed;
         try {
             String secretRevision = secrets.write(ref,
                     gson.toJson(new Credential(response.accessToken, response.refreshToken)));
             SecretRead saved = secrets.read(ref);
-            if (saved.status != SecretRead.Status.SUCCESS || !secretRevision.equals(saved.revision)) {
+            if (saved.status != SecretRead.Status.SUCCESS || !secretRevision.equals(saved.revision)
+                    || decodeCredential(saved) == null) {
                 throw new IllegalStateException("Could not verify saved social credential");
             }
-            row = database.runInTransaction(() -> {
+            committed = database.runInTransaction(() -> {
                 ChannelEntity previous = channels.findIdentity(response.provider, response.accountType,
                         response.externalAccountId);
                 ChannelEntity next = new ChannelEntity();
@@ -165,15 +169,17 @@ public final class ChannelRepository {
                 if (previous != null && previous.credentialRef != null) {
                     channels.queueCleanup(new ChannelSecretCleanup(previous.credentialRef));
                 }
-                return next;
+                return snapshot(next, SecretRead.Status.SUCCESS);
             });
         } catch (SecretStoreException exception) {
-            throw new IllegalStateException("Could not store social credential", exception);
-        } finally {
             drainCleanup();
+            throw new IllegalStateException("Could not store social credential", exception);
+        } catch (RuntimeException exception) {
+            drainCleanup();
+            throw exception;
         }
-        Snapshot committed = snapshot(row);
         selected.put(committed.info.platform, committed);
+        drainCleanup();
         return committed;
     }
 
@@ -226,12 +232,16 @@ public final class ChannelRepository {
     }
 
     private Snapshot snapshot(ChannelEntity row) {
-        ConnectionStatus status = ConnectionStatus.valueOf(row.status);
         SecretRead secret = readSecret(row);
         SecretRead.Status credentialStatus = secret.status;
         if (credentialStatus == SecretRead.Status.SUCCESS && decodeCredential(secret) == null) {
             credentialStatus = SecretRead.Status.UNREADABLE;
         }
+        return snapshot(row, credentialStatus);
+    }
+
+    private Snapshot snapshot(ChannelEntity row, SecretRead.Status credentialStatus) {
+        ConnectionStatus status = ConnectionStatus.valueOf(row.status);
         if (status == ConnectionStatus.CONNECTED
                 && (!usable(row) || credentialStatus != SecretRead.Status.SUCCESS)) {
             status = ConnectionStatus.REAUTH_REQUIRED;
@@ -278,13 +288,20 @@ public final class ChannelRepository {
     }
 
     private void drainCleanup() {
-        for (String ref : channels.pendingCleanup()) {
-            if (channels.references(ref)) continue;
+        List<String> pending;
+        try {
+            pending = channels.pendingCleanup();
+        } catch (SQLException unavailable) {
+            Log.w("ChannelRepository", "Credential cleanup journal unavailable");
+            return;
+        }
+        for (String ref : pending) {
             try {
+                if (channels.references(ref)) continue;
                 secrets.delete(SecretRef.parse(ref));
                 channels.finishCleanup(ref);
-            } catch (SecretStoreException retryOnRestore) {
-                // Keep the journal entry for another attempt.
+            } catch (SecretStoreException | SQLException retryOnRestore) {
+                Log.w("ChannelRepository", "Credential cleanup deferred");
             }
         }
     }

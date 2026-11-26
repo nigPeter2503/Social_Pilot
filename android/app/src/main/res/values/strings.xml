@@ -48,6 +48,7 @@
   <string name="check_facebook">Kiểm tra kết nối Facebook Page</string>
   <string name="facebook_checking">Đang kiểm tra kết nối Facebook Page…</string>
   <string name="facebook_reconnect">Cần kết nối lại Facebook Page.</string>
+  <string name="facebook_page_reconnect">Cần kết nối lại Facebook Page %1$s.</string>
   <string name="facebook_verified">Đã xác minh Facebook Page %1$s</string>
   <string name="facebook_check_failed">Chưa kiểm tra được Facebook Page %1$s. Thử lại khi có mạng.</string>
   <string name="oauth_error">Chưa kết nối được tài khoản (%1$s).</string>

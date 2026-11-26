@@ -48,6 +48,7 @@
   <string name="check_facebook">Check Facebook Page connection</string>
   <string name="facebook_checking">Checking the Facebook Page connection…</string>
   <string name="facebook_reconnect">Reconnect your Facebook Page.</string>
+  <string name="facebook_page_reconnect">Reconnect Facebook Page %1$s.</string>
   <string name="facebook_verified">Verified Facebook Page %1$s</string>
   <string name="facebook_check_failed">Could not check Facebook Page %1$s. Try again when online.</string>
   <string name="oauth_error">Could not connect the account (%1$s).</string>

@@ -95,7 +95,7 @@ public final class FacebookGraphClient {
                     throw OAuthFlowException.accessDenied();
                 }
                 stage = "instagram_token";
-                JsonNode metadata = instagramTokenMetadata(pageToken);
+                JsonNode metadata = pageTokenMetadata(pageToken, stage);
                 List<String> scopes = new ArrayList<>();
                 for (JsonNode scope : metadata.path("scopes")) {
                     if (scope.isTextual() && scope.asText().matches("[a-z][a-z0-9_]*")) scopes.add(scope.asText());
@@ -120,7 +120,10 @@ public final class FacebookGraphClient {
             JsonNode identity = parseGraphJson(identityResponse, stage);
             if (!properties.getTargetPageId().equals(text(identity, "id"))
                     || !pageName.equals(text(identity, "name"))) throw OAuthFlowException.providerError();
-            return new PageIdentity(properties.getTargetPageId(), pageName, pageToken, null, null, List.of(), null, null);
+            stage = "page_token";
+            JsonNode metadata = pageTokenMetadata(pageToken, stage);
+            return new PageIdentity(properties.getTargetPageId(), pageName, pageToken, null, null, List.of(),
+                    positiveEpoch(metadata, "expires_at"), positiveEpoch(metadata, "data_access_expires_at"));
         } catch (OAuthFlowException exception) {
             LOGGER.warn("Facebook OAuth stopped at stage={} code={}", stage, exception.getCode());
             throw exception;
@@ -129,8 +132,9 @@ public final class FacebookGraphClient {
                     exception.stage, exception.httpStatus, exception.contentType, exception.bodyLength);
             throw OAuthFlowException.providerError();
         } catch (RestClientResponseException exception) {
-            if ("instagram_token".equals(stage) || "instagram_token_exchange".equals(stage)) {
-                LOGGER.warn("Instagram token request failed at stage={} httpStatus={}",
+            if ("page_token".equals(stage) || "instagram_token".equals(stage)
+                    || "instagram_token_exchange".equals(stage)) {
+                LOGGER.warn("Facebook OAuth token request failed at stage={} httpStatus={}",
                         stage, exception.getStatusCode().value());
                 throw OAuthFlowException.providerError();
             }
@@ -156,14 +160,15 @@ public final class FacebookGraphClient {
         }
     }
 
-    private JsonNode instagramTokenMetadata(String pageToken) {
+    private JsonNode pageTokenMetadata(String pageToken, String stage) {
         // Pass app credentials as an Authorization header. Do not log the request or its response.
         ResponseEntity<byte[]> response = graph.get().uri(uri -> uri
                 .pathSegment(properties.getGraphApiVersion(), "debug_token")
                 .queryParam("input_token", "{pageToken}").build(pageToken))
                 .headers(headers -> headers.setBearerAuth(properties.getAppId() + "|" + properties.getAppSecret()))
                 .retrieve().toEntity(byte[].class);
-        JsonNode data = parseGraphJson(response, "instagram_token").path("data");
+        JsonNode data = parseGraphJson(response, stage).path("data");
+        if (!data.isObject() || !data.path("is_valid").isBoolean()) throw OAuthFlowException.providerError();
         if (!data.path("is_valid").asBoolean(false) || !properties.getAppId().equals(data.path("app_id").asText())) {
             throw OAuthFlowException.accessDenied();
         }
@@ -171,7 +176,10 @@ public final class FacebookGraphClient {
     }
 
     private static Instant positiveEpoch(JsonNode metadata, String field) {
-        long expiry = metadata.path(field).asLong(0);
+        JsonNode value = metadata.path(field);
+        if (value.isMissingNode() || value.isNull()) return null;
+        if (!value.isIntegralNumber() || !value.canConvertToLong()) throw OAuthFlowException.providerError();
+        long expiry = value.longValue();
         return expiry > 0 ? Instant.ofEpochSecond(expiry) : null;
     }
 

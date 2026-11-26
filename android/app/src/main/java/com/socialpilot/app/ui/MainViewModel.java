@@ -121,9 +121,10 @@ public final class MainViewModel extends AndroidViewModel {
         return check != null && page != null && check.scope.matches(page.scope) ? check.status : PageCheck.IDLE;
     }
 
-    public boolean facebookPageRequiresReconnect() {
+    String facebookPageRequiringReconnect() {
         ChannelRepository.Snapshot page = channels == null ? null : channels.selected(Platform.FACEBOOK);
-        return page != null && !page.connected();
+        return page == null || page.connected() ? null
+                : page.info.displayName + " (" + page.info.externalAccountId + ")";
     }
 
     public void checkFacebookPage() {
@@ -266,12 +267,10 @@ public final class MainViewModel extends AndroidViewModel {
             }
             InstagramPublishRepository.Result completed = result;
             main.post(() -> {
-                // Order result delivery against OAuth credential replacement, even on different threads.
-                synchronized (connections) {
-                    boolean current = completed == null ? connections.isCurrentInstagramSession(session)
-                            : completed.isCurrent(connections);
-                    if (current) instagramResult.setValue(completed);
-                }
+                // The render path rechecks the same session against the latest published selection.
+                boolean current = completed == null ? connections.isCurrentInstagramSession(session)
+                        : completed.isCurrent(connections);
+                if (current) instagramResult.setValue(completed);
                 instagramBusy.setValue(false);
             });
         });

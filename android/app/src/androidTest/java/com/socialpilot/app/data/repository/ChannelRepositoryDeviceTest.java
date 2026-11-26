@@ -6,6 +6,9 @@ import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.SharedPreferences;
 import android.database.sqlite.SQLiteDatabase;
+import android.os.Handler;
+import android.os.Looper;
+import com.google.gson.Gson;
 import androidx.room.Room;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -27,6 +30,9 @@ import com.socialpilot.app.domain.contract.social.Platform;
 import com.socialpilot.app.domain.contract.social.SocialOperation;
 import java.util.Collections;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import okhttp3.Protocol;
 import okhttp3.Response;
@@ -226,9 +232,18 @@ public class ChannelRepositoryDeviceTest {
 
     @Test public void expiredPageCredentialRequiresReconnectAfterRestart() {
         ChannelRepository channels = open();
-        ChannelRepository.Snapshot expired = channels.save(new OAuthExchangeResponse(
-                "page-expired", "FACEBOOK", "1234567890", "PAGE", "Page",
-                "expired-fake", null, "bearer", "2020-01-01T00:00:00Z"));
+        OAuthExchangeResponse exchange = new Gson().fromJson("""
+                {"sessionId":"page-expired","provider":"FACEBOOK","externalAccountId":"1234567890",
+                "accountType":"PAGE","displayName":"Test Page","accessToken":"fake-page-token",
+                "tokenType":"bearer","expiresAt":"2020-01-01T00:00:00Z",
+                "tokenExpiresAt":"2030-01-01T00:00:00Z","dataAccessExpiresAt":"2020-01-01T00:00:00Z"}
+                """, OAuthExchangeResponse.class);
+        exchange.validate();
+        ChannelRepository.Snapshot expired = channels.save(exchange);
+        var persisted = database.channels().selected("FACEBOOK");
+        assertEquals(Long.valueOf(1893456000000L), persisted.tokenExpiresAtMillis);
+        assertEquals(Long.valueOf(1577836800000L), persisted.dataAccessExpiresAtMillis);
+        assertEquals(persisted.dataAccessExpiresAtMillis, persisted.effectiveExpiresAtMillis);
         assertEquals(ConnectionStatus.REAUTH_REQUIRED, expired.info.connectionStatus);
         assertNull(channels.credential(expired.scope));
         database.close();
@@ -268,6 +283,78 @@ public class ChannelRepositoryDeviceTest {
         assertEquals(previous.scope.channelId, database.channels().selected("FACEBOOK").channelId);
         assertEquals("old-fake", channels.credential(previous.scope).accessToken);
         assertTrue(database.channels().pendingCleanup().isEmpty());
+    }
+
+    @Test public void cleanupJournalFailureDoesNotUndoCommittedSelection() {
+        ChannelRepository channels = open();
+        ChannelRepository.Snapshot old = channels.save(page("fb-a", "old-fake"));
+        String ref = old.info.tokenReference;
+        database.getOpenHelper().getWritableDatabase().execSQL(
+                "CREATE TRIGGER reject_cleanup BEFORE DELETE ON channel_secret_cleanup"
+                        + " WHEN OLD.credentialRef = '" + ref + "' BEGIN SELECT RAISE(ABORT, 'fixture'); END");
+
+        ChannelRepository.Snapshot next = channels.save(page("fb-b", "new-fake"));
+
+        assertEquals(2, next.scope.connectionRevision);
+        assertTrue(next.scope.matches(channels.selected(Platform.FACEBOOK).scope));
+        assertEquals(2, database.channels().selected("FACEBOOK").connectionRevision);
+        assertEquals("new-fake", channels.credential(next.scope).accessToken);
+        assertEquals(SecretRead.Status.MISSING, secrets.read(SecretRef.parse(ref)).status);
+        assertEquals(Collections.singletonList(ref), database.channels().pendingCleanup());
+        database.close();
+
+        ChannelRepository reopened = open();
+        reopened.restore();
+        assertTrue(next.scope.matches(reopened.selected(Platform.FACEBOOK).scope));
+        database.getOpenHelper().getWritableDatabase().execSQL("DROP TRIGGER reject_cleanup");
+        reopened.restore();
+        reopened.restore();
+        assertTrue(database.channels().pendingCleanup().isEmpty());
+        assertEquals("new-fake", reopened.credential(next.scope).accessToken);
+    }
+
+    @Test public void mainReadsCommittedSnapshotWhileCredentialCleanupWaits() throws Exception {
+        open();
+        CountDownLatch deleting = new CountDownLatch(1);
+        CountDownLatch resume = new CountDownLatch(1);
+        SecretStore blockedCleanup = new SecretStore() {
+            @Override public SecretNamespace namespace() { return secrets.namespace(); }
+            @Override public String write(SecretRef ref, String value) throws SecretStoreException {
+                return secrets.write(ref, value);
+            }
+            @Override public SecretRead read(SecretRef ref) { return secrets.read(ref); }
+            @Override public void delete(SecretRef ref) throws SecretStoreException {
+                deleting.countDown();
+                try {
+                    assertTrue("Test did not release cleanup", resume.await(10, TimeUnit.SECONDS));
+                } catch (InterruptedException failure) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError(failure);
+                }
+                secrets.delete(ref);
+            }
+        };
+        ChannelRepository channels = new ChannelRepository(database, blockedCleanup);
+        EncryptedOAuthStore oauth = new EncryptedOAuthStore(context, channels);
+        oauth.saveConnected(instagram("ig-reused-session", "old-fake"));
+        EncryptedOAuthStore.InstagramSession old = oauth.instagramSession();
+        FutureTask<Void> reconnect = new FutureTask<>(() -> {
+            oauth.saveConnected(instagram("ig-reused-session", "new-fake"));
+            return null;
+        });
+        new Thread(reconnect, "fixture-reconnect").start();
+        try {
+            assertTrue(deleting.await(5, TimeUnit.SECONDS));
+            FutureTask<Long> readOnMain = new FutureTask<>(() -> {
+                assertFalse(oauth.isCurrentInstagramSession(old));
+                return oauth.selectedInstagramMetadata().scope.connectionRevision;
+            });
+            new Handler(Looper.getMainLooper()).post(readOnMain);
+            assertEquals(Long.valueOf(2), readOnMain.get(5, TimeUnit.SECONDS));
+        } finally {
+            resume.countDown();
+            reconnect.get(10, TimeUnit.SECONDS);
+        }
     }
 
     private ChannelRepository open() {

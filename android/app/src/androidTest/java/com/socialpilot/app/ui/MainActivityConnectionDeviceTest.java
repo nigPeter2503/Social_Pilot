@@ -95,12 +95,16 @@ public final class MainActivityConnectionDeviceTest {
         app.registerActivityLifecycleCallbacks(installModel);
         try {
             channels.save(connection("permission", null));
+            channels.save(new OAuthExchangeResponse("expired-page", "FACEBOOK", "1234567890", "PAGE",
+                    "Test Page", "expired-fake", null, "bearer", "2020-01-01T00:00:00Z"));
             setTestLocale(app, locales, "vi");
             assertPermissionAfterApproval(worker, "Đã duyệt nội dung hiện tại. Chỉnh sửa sẽ hủy duyệt.",
-                    "Thiếu quyền cho thao tác Instagram này. Kiểm tra quyền đã cấp cho ứng dụng.");
+                    "Thiếu quyền cho thao tác Instagram này. Kiểm tra quyền đã cấp cho ứng dụng.",
+                    "Cần kết nối lại Facebook Page Test Page (1234567890).");
             setTestLocale(app, locales, "en");
             assertPermissionAfterApproval(worker, "Current content approved. Editing it clears the approval.",
-                    "Permission is required for this Instagram action. Review the access granted to the app.");
+                    "Permission is required for this Instagram action. Review the access granted to the app.",
+                    "Reconnect Facebook Page Test Page (1234567890).");
             assertEquals(2, checks.get());
         } finally {
             app.unregisterActivityLifecycleCallbacks(installModel);
@@ -111,14 +115,15 @@ public final class MainActivityConnectionDeviceTest {
         }
     }
 
-    private static void assertPermissionAfterApproval(ExecutorService worker, String approved, String denied)
-            throws Exception {
+    private static void assertPermissionAfterApproval(ExecutorService worker, String approved, String denied,
+            String reconnectPage) throws Exception {
         try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
             scenario.onActivity(activity -> {
                 ((TextView) activity.findViewById(R.id.instagramCaption)).setText("Fixture caption");
                 ((TextView) activity.findViewById(R.id.instagramImageUrl)).setText("https://example.test/photo.jpg");
                 assertTrue(activity.findViewById(R.id.instagramApprove).performClick());
             });
+            onView(withId(R.id.facebookPageStatus)).check(matches(withText(reconnectPage)));
             onView(withId(R.id.instagramPublishStatus)).check(matches(withText(approved)));
             scenario.onActivity(activity -> {
                 View reconcile = activity.findViewById(R.id.instagramReconcile);

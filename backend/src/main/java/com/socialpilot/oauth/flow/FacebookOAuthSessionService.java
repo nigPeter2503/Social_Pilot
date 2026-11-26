@@ -162,7 +162,8 @@ public final class FacebookOAuthSessionService {
                         formatExpiry(page.dataAccessExpiresAt));
             }
             return new OAuthExchangeResponse(session.id, "FACEBOOK", page.id, "PAGE", page.name,
-                    page.accessToken, null, "bearer", null);
+                    page.accessToken, null, "bearer", formatExpiry(page.effectiveExpiry()),
+                    null, null, null, formatExpiry(page.tokenExpiresAt), formatExpiry(page.dataAccessExpiresAt));
         }
     }
 

@@ -105,7 +105,10 @@ public final class MainActivity extends AppCompatActivity {
     private void renderFacebookConnection() {
         String page = model.connectedPageSummary();
         PageCheck check = model.currentFacebookPageCheck();
-        if (model.facebookPageRequiresReconnect() || (page == null && check == PageCheck.RECONNECT)) {
+        String reconnectingPage = model.facebookPageRequiringReconnect();
+        if (reconnectingPage != null) {
+            binding.facebookPageStatus.setText(getString(R.string.facebook_page_reconnect, reconnectingPage));
+        } else if (page == null && check == PageCheck.RECONNECT) {
             binding.facebookPageStatus.setText(R.string.facebook_reconnect);
         } else if (check == PageCheck.CHECKING) {
             binding.facebookPageStatus.setText(R.string.facebook_checking);

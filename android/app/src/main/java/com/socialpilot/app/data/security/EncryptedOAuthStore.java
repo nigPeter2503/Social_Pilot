@@ -13,6 +13,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /** Versioned, authenticated OAuth records. A Page and its credentials are read/written together. */
@@ -152,14 +153,16 @@ public final class EncryptedOAuthStore {
         if (instagram) instagramGeneration++;
     }
 
-    public synchronized String pageSummary() {
+    public String pageSummary() {
         if (channels != null) {
             Snapshot page = channels.selected(Platform.FACEBOOK);
             return page == null || !page.connected() ? null
                     : page.info.displayName + " (" + page.info.externalAccountId + ")";
         }
-        ConnectedRecord record = connected("FACEBOOK");
-        return record == null ? null : record.connection.displayName + " (" + record.connection.externalAccountId + ")";
+        synchronized (this) {
+            ConnectedRecord record = connected("FACEBOOK");
+            return record == null ? null : record.connection.displayName + " (" + record.connection.externalAccountId + ")";
+        }
     }
 
     /** Token access is kept out of Room and should only be consumed by a provider adapter. */
@@ -182,25 +185,35 @@ public final class EncryptedOAuthStore {
         return record == null ? null : record.connection;
     }
 
-    public synchronized InstagramSession instagramSession() {
-        InstagramMetadata current = instagramMetadata();
-        return new InstagramSession(current, instagramGeneration);
+    public InstagramSession instagramSession() {
+        if (channels != null) {
+            InstagramMetadata selected = selectedInstagramMetadata();
+            return new InstagramSession(selected, 0);
+        }
+        synchronized (this) {
+            InstagramMetadata current = instagramMetadata();
+            return new InstagramSession(current, instagramGeneration);
+        }
     }
 
-    public synchronized boolean isCurrentInstagramSession(InstagramSession session) {
-        InstagramMetadata current = instagramMetadata();
-        return session.matches(current) && session.generation == instagramGeneration;
+    public boolean isCurrentInstagramSession(InstagramSession session) {
+        InstagramSession current = instagramSession();
+        return session.generation == current.generation
+                && Objects.equals(session.sessionId, current.sessionId)
+                && Objects.equals(session.accountId, current.accountId)
+                && (session.scope == null ? current.scope == null : session.scope.matches(current.scope));
     }
 
     public synchronized OAuthExchangeResponse instagramConnection(InstagramSession session) {
-        return isCurrentInstagramSession(session) ? instagramConnection() : null;
+        if (!isCurrentInstagramSession(session)) return null;
+        if (channels == null) return instagramConnection();
+        return session.sessionId == null ? null : channels.credential(session.scope);
     }
 
     public synchronized void invalidateInstagram(String sessionId) {
         if (channels != null) {
             Snapshot profile = channels.selected(Platform.INSTAGRAM);
-            if (profile != null && profile.sessionId.equals(sessionId)
-                    && channels.requireReconnect(profile.scope)) instagramGeneration++;
+            if (profile != null && profile.sessionId.equals(sessionId)) channels.requireReconnect(profile.scope);
             return;
         }
         OAuthExchangeResponse current = instagramConnection();
@@ -209,13 +222,13 @@ public final class EncryptedOAuthStore {
         }
     }
 
-    public synchronized InstagramMetadata instagramMetadata() {
+    public InstagramMetadata instagramMetadata() {
         InstagramMetadata selected = selectedInstagramMetadata();
         return selected != null && selected.connected ? selected : null;
     }
 
     /** Display identity survives credential expiry. Session admission still uses instagramMetadata(). */
-    public synchronized InstagramMetadata selectedInstagramMetadata() {
+    public InstagramMetadata selectedInstagramMetadata() {
         if (channels != null) {
             Snapshot profile = channels.selected(Platform.INSTAGRAM);
             return profile == null ? null : new InstagramMetadata(profile.sessionId,
@@ -320,15 +333,20 @@ public final class EncryptedOAuthStore {
         public final String sessionId;
         public final String accountId;
         private final long generation;
+        private final Scope scope;
 
         private InstagramSession(InstagramMetadata connection, long generation) {
-            sessionId = connection == null ? null : connection.sessionId;
-            accountId = connection == null ? null : connection.externalAccountId;
+            boolean connected = connection != null && connection.connected;
+            sessionId = connected ? connection.sessionId : null;
+            accountId = connected ? connection.externalAccountId : null;
+            scope = connection == null ? null : connection.scope;
             this.generation = generation;
         }
 
         public boolean matches(InstagramMetadata connection) {
-            return connection == null ? sessionId == null : matches(connection.sessionId, connection.externalAccountId);
+            return connection == null ? sessionId == null
+                    : matches(connection.sessionId, connection.externalAccountId)
+                            && (scope == null ? connection.scope == null : scope.matches(connection.scope));
         }
 
         public boolean matches(String expectedSessionId, String expectedAccountId) {

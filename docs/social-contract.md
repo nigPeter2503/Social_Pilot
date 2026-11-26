@@ -211,8 +211,11 @@ SP-022 đối chiếu các giá trị wire của handoff và kiểm thử trên 
 
 authorizationUrl phải HTTPS; adapter phải thêm kiểm tra host provider được cấu hình.
 expiresAt bắt buộc ở phiên; ở token có thể null khi provider không cung cấp. Không coi null là không hết hạn.
-Với Instagram, handoff có thể gửi riêng `tokenExpiresAt` và `dataAccessExpiresAt` theo
-UTC khi Meta cung cấp từng giá trị. `expiresAt` vẫn là hạn hiệu lực sớm nhất đã biết
+Với Facebook Page và Instagram, handoff có thể gửi riêng `tokenExpiresAt` và `dataAccessExpiresAt` theo
+UTC khi Meta cung cấp từng giá trị cho Page token đã được dùng để xác minh kênh.
+Trường thiếu hoặc bằng 0 được biểu diễn là chưa biết. Backend từ chối Page token
+không hợp lệ hoặc thuộc app khác. Lỗi đọc metadata từ Graph đi theo lỗi provider.
+`expiresAt` vẫn là hạn hiệu lực sớm nhất đã biết
 cho app cũ. Android đọc được handoff cũ chỉ có `expiresAt` và giữ nó như hạn hiệu lực
 chưa rõ nguồn. Android lưu pending riêng cho Facebook và Instagram. Callback chỉ
 tiêu thụ pending khớp session và gửi handoff sau khi đã xác nhận xóa verifier khỏi
