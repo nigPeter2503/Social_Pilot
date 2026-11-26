@@ -9,3 +9,5 @@
 - Instrumentation đổi app locale đối diện locale hiện tại, xác nhận chuỗi UI đổi ngôn ngữ, content language đã chọn không đổi qua tái tạo Activity; chạy trên API 23/36.
 - Build, JVM, lint và instrumentation trên AVD API 23/36 được ghi theo commit trên PR. Chưa thử trên điện thoại thật.
 - Queue state, cache analytics/comment và lần sync thành công cần dữ liệu thật từ SP-026 (Minh) và module Nghị. Không hiển thị fixture như job production; không đóng ca enqueue offline/restart của SP-052 bằng bản framework này. Các màn hình khác vẫn do owner module thêm resource VI/EN và cache tương ứng.
+
+Ngày 26/11/2026: đồng bộ PR #82 đã tích hợp SP-022. Giữ cả service lưu app locale, PrototypeActivity, theo dõi mạng và picker kênh trong MainActivity. Android assemble/unit/lint đạt; 183/183 unit test trong lượt chạy lại và 2/2 ca UI trên AVD API 36 đạt. Lượt unit đầu có một timeout 250 ms ở ca BYOK; ca này đạt khi chạy riêng và khi chạy lại toàn bộ.

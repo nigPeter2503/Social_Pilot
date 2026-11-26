@@ -1,0 +1,15 @@
+{
+  "data": [
+    {
+      "id": "18105580130575258",
+      "text": "SP066-C04 - API reply target",
+      "timestamp": "2026-11-21T09:14:43+0000"
+    }
+  ],
+  "paging": {
+    "cursors": {
+      "after": "[REDACTED_BY_USER]"
+    },
+    "next": "[REDACTED_BY_USER]"
+  }
+}

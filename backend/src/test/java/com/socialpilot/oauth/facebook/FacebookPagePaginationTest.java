@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.socialpilot.oauth.flow.OAuthFlowException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
@@ -61,15 +63,60 @@ class FacebookPagePaginationTest {
         server.expect(requestTo(startsWith("https://graph.facebook.com/v27.0/1234567890?")))
                 .andExpect(header("Authorization", "Bearer fake-page-token"))
                 .andRespond(withSuccess("{\"id\":\"1234567890\",\"name\":\"Target\"}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo("https://graph.facebook.com/v27.0/debug_token?input_token=fake-page-token"))
+                .andRespond(withSuccess("""
+                        {"data":{"is_valid":true,"app_id":"123456789","expires_at":0}}
+                        """, MediaType.APPLICATION_JSON));
         FacebookGraphClient.PageIdentity page = client.exchangeCodeForTargetPage("fake-code");
         assertEquals("1234567890", page.id);
         assertEquals("fake-page-token", page.accessToken);
+        assertNull(page.effectiveExpiry());
         server.verify();
+    }
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', textBlock = """
+            ACCESS_DENIED | {"data":{"is_valid":false}}
+            ACCESS_DENIED | {"data":{"is_valid":true,"app_id":"other-app"}}
+            PROVIDER_ERROR | {"data":{"is_valid":true,"app_id":"123456789","expires_at":"invalid"}}
+            PROVIDER_ERROR | {"data":{}}
+            """)
+    void rejectsInvalidPageTokenMetadata(String code, String response) {
+        expectTargetPage();
+        server.expect(requestTo("https://graph.facebook.com/v27.0/debug_token?input_token=fake-page-token"))
+                .andRespond(withSuccess(response, MediaType.APPLICATION_JSON));
+        assertFailure(code);
+    }
+
+    @Test void pageMetadataIoFailureIsAProviderError() {
+        expectTargetPage();
+        server.expect(requestTo("https://graph.facebook.com/v27.0/debug_token?input_token=fake-page-token"))
+                .andRespond(request -> { throw new java.net.SocketTimeoutException("fixture"); });
+        assertFailure("PROVIDER_ERROR");
+    }
+
+    private void expectTargetPage() {
+        page(null, """
+                {"data":[{"id":"1234567890","name":"Target","tasks":["CREATE_CONTENT"],
+                "access_token":"fake-page-token"}]}
+                """);
+        server.expect(requestTo(startsWith("https://graph.facebook.com/v27.0/1234567890?")))
+                .andRespond(withSuccess("""
+                        {"id":"1234567890","name":"Target"}
+                        """, MediaType.APPLICATION_JSON));
     }
 
     @Test void deniesOnlyAfterReachingTheLastPageWithoutTarget() {
         page(null, next("cursor-2"));
         page("cursor-2", "{\"data\":[],\"paging\":{\"cursors\":{\"after\":\"last-cursor\"}}}");
+        assertFailure("ACCESS_DENIED");
+    }
+
+    @Test void deniesTargetPageWithReadOnlyTasksBeforeUsingItsToken() {
+        page(null, """
+                {"data":[{"id":"1234567890","name":"Target","tasks":["ANALYZE"],
+                "access_token":"fake-page-token"}]}
+                """);
         assertFailure("ACCESS_DENIED");
     }
 

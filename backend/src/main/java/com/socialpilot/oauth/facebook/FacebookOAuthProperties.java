@@ -16,6 +16,7 @@ public class FacebookOAuthProperties {
     private String redirectUri = "";
     private String targetPageId = "";
     private String graphApiVersion = "v27.0";
+    private boolean businessManagedPage;
     private boolean appSecretHadOuterWhitespace;
 
     public String getAppId() { return appId; }
@@ -33,6 +34,8 @@ public class FacebookOAuthProperties {
     public void setTargetPageId(String targetPageId) { this.targetPageId = targetPageId == null ? "" : targetPageId.trim(); }
     public String getGraphApiVersion() { return graphApiVersion; }
     public void setGraphApiVersion(String graphApiVersion) { this.graphApiVersion = graphApiVersion == null ? "" : graphApiVersion.trim(); }
+    public boolean isBusinessManagedPage() { return businessManagedPage; }
+    public void setBusinessManagedPage(boolean businessManagedPage) { this.businessManagedPage = businessManagedPage; }
 
     @PostConstruct
     public void validateConfiguration() {
