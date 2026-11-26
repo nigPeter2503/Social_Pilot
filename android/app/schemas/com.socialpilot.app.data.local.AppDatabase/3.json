@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 3,
-    "identityHash": "ebad26f511a57ed66710844767aba2cb",
+    "identityHash": "c4f81219508e108579fa57502d1b8bf5",
     "entities": [
       {
         "tableName": "drafts",
@@ -30,6 +30,156 @@
           "autoGenerate": true,
           "columnNames": [
             "id"
+          ]
+        }
+      },
+      {
+        "tableName": "channels",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`channelId` TEXT NOT NULL, `platform` TEXT NOT NULL, `accountType` TEXT NOT NULL, `externalAccountId` TEXT NOT NULL, `displayName` TEXT NOT NULL, `status` TEXT NOT NULL, `sessionId` TEXT NOT NULL, `tokenType` TEXT NOT NULL, `scopesJson` TEXT NOT NULL, `capabilitiesJson` TEXT NOT NULL, `connectionRevision` INTEGER NOT NULL, `selected` INTEGER NOT NULL, `credentialRef` TEXT, `credentialRevision` TEXT, `linkedPageId` TEXT, `graphApiVersion` TEXT, `tokenExpiresAtMillis` INTEGER, `dataAccessExpiresAtMillis` INTEGER, `effectiveExpiresAtMillis` INTEGER, PRIMARY KEY(`channelId`))",
+        "fields": [
+          {
+            "fieldPath": "channelId",
+            "columnName": "channelId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "platform",
+            "columnName": "platform",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "accountType",
+            "columnName": "accountType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "externalAccountId",
+            "columnName": "externalAccountId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "displayName",
+            "columnName": "displayName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sessionId",
+            "columnName": "sessionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tokenType",
+            "columnName": "tokenType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "scopesJson",
+            "columnName": "scopesJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "capabilitiesJson",
+            "columnName": "capabilitiesJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "connectionRevision",
+            "columnName": "connectionRevision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "selected",
+            "columnName": "selected",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "credentialRef",
+            "columnName": "credentialRef",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "credentialRevision",
+            "columnName": "credentialRevision",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "linkedPageId",
+            "columnName": "linkedPageId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "graphApiVersion",
+            "columnName": "graphApiVersion",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "tokenExpiresAtMillis",
+            "columnName": "tokenExpiresAtMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "dataAccessExpiresAtMillis",
+            "columnName": "dataAccessExpiresAtMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "effectiveExpiresAtMillis",
+            "columnName": "effectiveExpiresAtMillis",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "channelId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_channels_platform_accountType_externalAccountId",
+            "unique": true,
+            "columnNames": [
+              "platform",
+              "accountType",
+              "externalAccountId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_channels_platform_accountType_externalAccountId` ON `${TABLE_NAME}` (`platform`, `accountType`, `externalAccountId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "channel_secret_cleanup",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`credentialRef` TEXT NOT NULL, PRIMARY KEY(`credentialRef`))",
+        "fields": [
+          {
+            "fieldPath": "credentialRef",
+            "columnName": "credentialRef",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "credentialRef"
           ]
         }
       },
@@ -187,7 +337,7 @@
       },
       {
         "tableName": "brief_targets",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`briefId` TEXT NOT NULL, `channelId` TEXT NOT NULL, `platform` TEXT NOT NULL, `currentVersionId` TEXT, `approvedVersionId` TEXT, PRIMARY KEY(`briefId`, `channelId`), FOREIGN KEY(`briefId`) REFERENCES `briefs`(`briefId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`briefId` TEXT NOT NULL, `channelId` TEXT NOT NULL, `platform` TEXT NOT NULL, PRIMARY KEY(`briefId`, `channelId`), FOREIGN KEY(`briefId`) REFERENCES `briefs`(`briefId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "briefId",
@@ -206,16 +356,6 @@
             "columnName": "platform",
             "affinity": "TEXT",
             "notNull": true
-          },
-          {
-            "fieldPath": "currentVersionId",
-            "columnName": "currentVersionId",
-            "affinity": "TEXT"
-          },
-          {
-            "fieldPath": "approvedVersionId",
-            "columnName": "approvedVersionId",
-            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -250,144 +390,11 @@
             ]
           }
         ]
-      },
-      {
-        "tableName": "content_versions",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`versionId` TEXT NOT NULL, `briefId` TEXT NOT NULL, `channelId` TEXT NOT NULL, `parentVersionId` TEXT, `text` TEXT NOT NULL, `imageReference` TEXT, `briefUpdatedAt` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, PRIMARY KEY(`versionId`), FOREIGN KEY(`briefId`, `channelId`) REFERENCES `brief_targets`(`briefId`, `channelId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
-        "fields": [
-          {
-            "fieldPath": "versionId",
-            "columnName": "versionId",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "briefId",
-            "columnName": "briefId",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "channelId",
-            "columnName": "channelId",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "parentVersionId",
-            "columnName": "parentVersionId",
-            "affinity": "TEXT"
-          },
-          {
-            "fieldPath": "text",
-            "columnName": "text",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "imageReference",
-            "columnName": "imageReference",
-            "affinity": "TEXT"
-          },
-          {
-            "fieldPath": "briefUpdatedAt",
-            "columnName": "briefUpdatedAt",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "createdAt",
-            "columnName": "createdAt",
-            "affinity": "INTEGER",
-            "notNull": true
-          }
-        ],
-        "primaryKey": {
-          "autoGenerate": false,
-          "columnNames": [
-            "versionId"
-          ]
-        },
-        "indices": [
-          {
-            "name": "index_content_versions_briefId_channelId",
-            "unique": false,
-            "columnNames": [
-              "briefId",
-              "channelId"
-            ],
-            "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_content_versions_briefId_channelId` ON `${TABLE_NAME}` (`briefId`, `channelId`)"
-          },
-          {
-            "name": "index_content_versions_briefId_channelId_createdAt",
-            "unique": false,
-            "columnNames": [
-              "briefId",
-              "channelId",
-              "createdAt"
-            ],
-            "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_content_versions_briefId_channelId_createdAt` ON `${TABLE_NAME}` (`briefId`, `channelId`, `createdAt`)"
-          }
-        ],
-        "foreignKeys": [
-          {
-            "table": "brief_targets",
-            "onDelete": "CASCADE",
-            "onUpdate": "NO ACTION",
-            "columns": [
-              "briefId",
-              "channelId"
-            ],
-            "referencedColumns": [
-              "briefId",
-              "channelId"
-            ]
-          }
-        ]
-      },
-      {
-        "tableName": "version_approvals",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`versionId` TEXT NOT NULL, `approvedAt` INTEGER NOT NULL, PRIMARY KEY(`versionId`), FOREIGN KEY(`versionId`) REFERENCES `content_versions`(`versionId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
-        "fields": [
-          {
-            "fieldPath": "versionId",
-            "columnName": "versionId",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "approvedAt",
-            "columnName": "approvedAt",
-            "affinity": "INTEGER",
-            "notNull": true
-          }
-        ],
-        "primaryKey": {
-          "autoGenerate": false,
-          "columnNames": [
-            "versionId"
-          ]
-        },
-        "foreignKeys": [
-          {
-            "table": "content_versions",
-            "onDelete": "CASCADE",
-            "onUpdate": "NO ACTION",
-            "columns": [
-              "versionId"
-            ],
-            "referencedColumns": [
-              "versionId"
-            ]
-          }
-        ]
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'ebad26f511a57ed66710844767aba2cb')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'c4f81219508e108579fa57502d1b8bf5')"
     ]
   }
 }

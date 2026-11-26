@@ -1,0 +1,16 @@
+{
+  "data": [
+    {
+      "id": "18111630677338097/insights/reach/lifetime",
+      "name": "reach",
+      "period": "lifetime",
+      "title": "Tài khoản đã tiếp cận",
+      "description": "Số tài khoản đã xem bài viết này ít nhất 1 lần. Số người tiếp cận khác với lượt hiển thị ở chỗ lượt hiển thị có thể bao gồm nhiều lượt xem bài viết đến từ cùng một tài khoản. Đây là số liệu ước tính.",
+      "values": [
+        {
+          "value": 0
+        }
+      ]
+    }
+  ]
+}

@@ -42,8 +42,9 @@ public final class BriefMigrationInstrumentedTest {
         old.execSQL("DELETE FROM drafts WHERE id = 50");
         old.close();
 
-        SupportSQLiteDatabase migrated = helper.runMigrationsAndValidate(name, 2, true,
-                AppDatabase.MIGRATION_1_2);
+        SupportSQLiteDatabase migrated = helper.runMigrationsAndValidate(name, 4, true,
+                AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3,
+                AppDatabase.MIGRATION_3_4);
         try (Cursor rows = migrated.query("SELECT id, topic, createdAt FROM drafts "
                 + "ORDER BY createdAt DESC, id DESC")) {
             assertEquals(3, rows.getCount());
@@ -61,7 +62,7 @@ public final class BriefMigrationInstrumentedTest {
 
         AppDatabase reopened = Room.databaseBuilder(context, AppDatabase.class, name)
                 .addMigrations(AppDatabase.MIGRATION_1_2,
-                        AppDatabase.MIGRATION_2_3).build();
+                        AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4).build();
         try {
             assertTrue(reopened.drafts().insert(new DraftEntity("new", 400)) > 50);
             assertNull(reopened.briefs().get("missing"));
@@ -116,6 +117,31 @@ public final class BriefMigrationInstrumentedTest {
         } finally {
             database.close();
             readIo.shutdownNow();
+            context.deleteDatabase(name);
+        }
+    }
+
+    @Test public void v2ChannelSurvivesBriefMigration() throws Exception {
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        String name = "sp035-channel-migration.db";
+        context.deleteDatabase(name);
+        SupportSQLiteDatabase old = helper.createDatabase(name, 2);
+        old.execSQL("INSERT INTO channels (channelId, platform, accountType, externalAccountId, "
+                + "displayName, status, sessionId, tokenType, scopesJson, capabilitiesJson, "
+                + "connectionRevision, selected) VALUES "
+                + "('channel-1', 'FACEBOOK', 'PAGE', 'page-1', 'Page', 'CONNECTED', "
+                + "'session-1', 'bearer', '[]', '[]', 4, 1)");
+        old.close();
+
+        SupportSQLiteDatabase migrated = helper.runMigrationsAndValidate(name, 4, true,
+                AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4);
+        try (Cursor rows = migrated.query("SELECT channelId, connectionRevision "
+                + "FROM channels WHERE externalAccountId = 'page-1'")) {
+            assertTrue(rows.moveToFirst());
+            assertEquals("channel-1", rows.getString(0));
+            assertEquals(4, rows.getLong(1));
+        } finally {
+            migrated.close();
             context.deleteDatabase(name);
         }
     }

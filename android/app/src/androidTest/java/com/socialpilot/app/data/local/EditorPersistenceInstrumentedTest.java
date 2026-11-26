@@ -107,21 +107,22 @@ public final class EditorPersistenceInstrumentedTest {
         }
     }
 
-    @Test public void v2MigratesLinksThenKeepsApprovalAfterReopen() throws Exception {
+    @Test public void v3MigratesLinksThenKeepsApprovalAfterReopen() throws Exception {
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         String name = "sp036-migration.db";
         context.deleteDatabase(name);
-        SupportSQLiteDatabase old = helper.createDatabase(name, 2);
+        SupportSQLiteDatabase old = helper.createDatabase(name, 3);
         old.execSQL("INSERT INTO briefs VALUES ('brief-1', NULL, 'Topic', 'Goal', "
                 + "'Audience', 'Tone', 'vi', 100, 100)");
         old.execSQL("INSERT INTO brief_targets VALUES ('brief-1', 'fb', 'FACEBOOK')");
         old.close();
-        SupportSQLiteDatabase migrated = helper.runMigrationsAndValidate(name, 3, true,
-                AppDatabase.MIGRATION_2_3);
+        SupportSQLiteDatabase migrated = helper.runMigrationsAndValidate(name, 4, true,
+                AppDatabase.MIGRATION_3_4);
         migrated.close();
 
         AppDatabase database = Room.databaseBuilder(context, AppDatabase.class, name)
-                .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3).build();
+                .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3,
+                        AppDatabase.MIGRATION_3_4).build();
         try {
             assertNull(database.editor().link("brief-1", "fb").currentVersionId);
             database.editor().saveVersion(version("fb-v1", "fb", null, "Text"), null, 100);
@@ -130,7 +131,8 @@ public final class EditorPersistenceInstrumentedTest {
             database.close();
         }
         database = Room.databaseBuilder(context, AppDatabase.class, name)
-                .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3).build();
+                .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3,
+                        AppDatabase.MIGRATION_3_4).build();
         try {
             assertEquals("fb-v1", database.editor()
                     .requireEnqueueable("brief-1", "fb", "fb-v1").versionId);

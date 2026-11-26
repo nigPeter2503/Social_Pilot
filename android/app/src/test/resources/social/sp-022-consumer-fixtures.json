@@ -1,0 +1,41 @@
+{
+  "source": "MO_PHONG",
+  "channelIdentity": {
+    "platform": "INSTAGRAM",
+    "accountType": "PROFESSIONAL",
+    "externalAccountId": "ig-user-demo",
+    "linkedPageId": "page-demo"
+  },
+  "events": {
+    "comments": {
+      "scope": {"platform": "INSTAGRAM", "channelId": "ig-demo", "connectionRevision": 7},
+      "status": "CONNECTED",
+      "capability": {
+        "operation": "READ_COMMENTS",
+        "availability": "AVAILABLE",
+        "verifiedAt": "2026-11-21T02:00:00Z"
+      }
+    },
+    "reauth": {
+      "scope": {"platform": "INSTAGRAM", "channelId": "ig-demo", "connectionRevision": 7},
+      "status": "REAUTH_REQUIRED",
+      "error": {"code": "AUTH_REQUIRED", "nextAction": "RECONNECT"}
+    },
+    "followerPermission": {
+      "scope": {"platform": "INSTAGRAM", "channelId": "ig-demo", "connectionRevision": 8},
+      "status": "CONNECTED",
+      "capability": {
+        "operation": "READ_FOLLOWER_COUNT",
+        "availability": "PERMISSION_REQUIRED",
+        "reasonCode": "MISSING_FOLLOWER_PERMISSION",
+        "verifiedAt": "2026-11-21T02:10:00Z"
+      },
+      "error": {"code": "PERMISSION_REQUIRED", "nextAction": "RESOLVE_PERMISSION"}
+    }
+  },
+  "rejectedWrite": {
+    "responseScope": {"platform": "INSTAGRAM", "channelId": "ig-demo", "connectionRevision": 7},
+    "currentScope": {"platform": "INSTAGRAM", "channelId": "ig-demo", "connectionRevision": 8},
+    "applied": false
+  }
+}

@@ -6,7 +6,7 @@
 
 Thiện sở hữu F3/F4, điều phối F9 và UI/ViewModel F7.B1/B2/B3/N1/N3; vận hành CI/đóng gói theo proposal. Trong cửa sổ này, tập trung brief form, editor/approval bền vững, khung/dashboard dữ liệu thật, lựa chọn ngôn ngữ/offline và URL/Sharesheet. Nghị sở hữu API, repository, công thức, snapshot/goal và cả UI báo cáo AI F7.N2. Không tính lại analytics trong View hoặc nhận thay mọi màn hình/offline của các thành viên.
 
-Tuần 1 và bảy PR #69/#70/#73/#74/#75/#76/#77 được coi là hoàn tất. Tái sử dụng contract brief/version/approval SP-016 và prototype UI/Room/Worker SP-017; không triển khai lại chúng. **SP-021 đã xong**, 2h tham chiếu trong baseline chung không phải việc mới. Bản report In Progress là kịch bản; các issue triển khai được đọc ngày 15/11 chưa có assignee, tài liệu không tự assign/cập nhật Project. Phê duyệt brief trong chat không phải GitHub human approval hay evidence đã nghiệm thu app.
+Ước lượng ngày 15/11 giả định tuần 1 hoàn tất. Từ 20/11, dùng Facebook Page và Instagram Professional; Minh và Nghị cần đối chiếu lại phần công tích hợp Instagram. Tái sử dụng contract brief/version/approval SP-016 và prototype UI/Room/Worker SP-017; không triển khai lại chúng. **SP-021 đã xong**, 2h tham chiếu trong baseline chung không phải việc mới. Bản report In Progress là kịch bản; các issue triển khai được đọc ngày 15/11 chưa có assignee, tài liệu không tự assign/cập nhật Project. Phê duyệt brief trong chat không phải GitHub human approval hay evidence đã nghiệm thu app.
 
 **Mốc:** phần tuần 2 bàn giao **thứ Hai, 16/11/2026**; phần tuần 3 **21/11**; tuần 4 **23–29/11**, hạn dự kiến **29/11**. Task nhiều giai đoạn chỉ giao phần giờ đã phân bổ ở từng mốc. Không biến mốc 16/11 thành hạn hoàn tất mọi chức năng của tuần 3–4 hoặc coi thời gian từ đầu tuần đã qua là capacity còn mới.
 
@@ -39,7 +39,7 @@ Giờ owner đã có design/code/test/integration/docs/VI-EN và cache của mod
 
 **Thực hiện:** mở rộng form topic sẵn có với mục tiêu, đối tượng, giọng văn, ngôn ngữ nội dung VI/EN và target channels theo contract. ViewModel quản lý validation/state; repository/Room lưu dữ liệu trên executor. Brief giữ sources và selected targets; ngôn ngữ nội dung không bị nhầm với ngôn ngữ UI.
 
-- [ ] Rỗng/sai được validate trước tạo tác vụ; lỗi nằm đúng field và có VI/EN. Chỉ nhận tổ hợp target hợp lệ theo SP-016, tối đa một target mỗi Facebook/LinkedIn.
+- [ ] Rỗng/sai được validate trước tạo tác vụ; lỗi nằm đúng field và có VI/EN. Chỉ nhận tổ hợp target hợp lệ theo SP-016, tối đa một target mỗi Facebook/Instagram.
 - [ ] Lưu/đọc/restart/offline giữ chính xác field/ID/thời gian và lựa chọn kênh; xoay không tạo thêm brief hoặc lệnh AI.
 - [ ] Migration bảo toàn draft v1: ID `long`, topic nullable, timestamp và thứ tự ổn định; hai draft cùng topic vẫn là hai dòng.
 - [ ] Nếu chuyển dữ liệu v1 sang brief mới, mapping legacy ID unique, nhập lại không nhân bản; không tự gán approval/kênh cho draft cũ chưa có thông tin đó.
@@ -59,7 +59,7 @@ Giờ owner đã có design/code/test/integration/docs/VI-EN và cache của mod
 
 **Thực hiện theo phần:**
 
-1. Tuần 2 tạo preview Facebook/LinkedIn, sửa text và hiển thị giới hạn từ capability/quy tắc đã xác minh; lưu version/current/approval vào repository production, tái sử dụng rule domain SP-016.
+1. Tuần 2 tạo preview bài Page và ảnh feed Instagram cùng caption, sửa text và hiển thị giới hạn từ capability/quy tắc đã xác minh; lưu version/current/approval vào repository production, tái sử dụng rule domain SP-016.
 2. Duyệt gắn đúng version bất biến của một brief-channel link; sửa text/ảnh tạo version mới chưa duyệt. Không approve toàn brief rồi cho cả hai kênh dùng tùy ý.
 3. Thiện sở hữu consumer text-output SP-031 → SP-036: nhận DTO/correlation sớm tuần 3 bằng fixture, áp dụng output thành version mới chưa duyệt qua expected-current guard; tích hợp thật khi Đạt giao packaging tuần 4, không tự lấy text từ View hoặc gọi provider. Giờ wiring/test phải đối soát cùng Minh/Đạt, chưa hứa đủ luồng AI ở 21/11.
 4. Tuần 3 hoàn thiện transaction/expected-current guard, boundary và restart; bàn giao resolver approved payload cho Minh. AI callback cũ chỉ được áp dụng nếu `expectedCurrentVersionId` còn khớp; stale callback không ghi đè current/approval mới.
