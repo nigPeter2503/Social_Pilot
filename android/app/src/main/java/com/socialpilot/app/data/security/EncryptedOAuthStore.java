@@ -2,89 +2,276 @@ package com.socialpilot.app.data.security;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.security.keystore.KeyGenParameterSpec;
-import android.security.keystore.KeyProperties;
-import android.util.Base64;
 import com.google.gson.Gson;
+import com.socialpilot.app.data.repository.ChannelRepository;
+import com.socialpilot.app.data.repository.ChannelRepository.Snapshot;
 import com.socialpilot.app.domain.contract.oauth.OAuthContract.OAuthExchangeResponse;
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-import java.security.KeyStore;
+import com.socialpilot.app.domain.contract.secret.SecretRead;
+import com.socialpilot.app.domain.contract.social.ConnectionLifecycle.Scope;
+import com.socialpilot.app.domain.contract.social.Platform;
+import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Objects;
 import java.util.Set;
-import javax.crypto.Cipher;
-import javax.crypto.KeyGenerator;
-import javax.crypto.SecretKey;
-import javax.crypto.spec.GCMParameterSpec;
 
 /** Versioned, authenticated OAuth records. A Page and its credentials are read/written together. */
 public final class EncryptedOAuthStore {
     private static final String KEY_ALIAS = "socialpilot.oauth.v1";
-    private static final String PENDING = "pending_v2";
+    private static final String LEGACY_PENDING_RECORD = "pending_v2";
+    private static final String FACEBOOK_PENDING = "facebook_pending_v2";
+    private static final String INSTAGRAM_PENDING = "instagram_pending_v2";
     private static final String CONNECTED = "connected_v2";
+    private static final String INSTAGRAM_CONNECTED = "instagram_connected_v2";
+    private static final String[] NO_LEGACY_KEYS = {};
     private static final String[] LEGACY_PENDING = {"pending_session", "pending_verifier"};
     private static final String[] LEGACY_CONNECTED = {"page_id", "page_name", "access_token", "token_type", "expires_at"};
     private final SharedPreferences preferences;
     private final RecordCipher cipher;
+    private final ChannelRepository channels;
     private final Gson gson = new Gson();
     private final Set<String> unavailable = new HashSet<>();
+    private long instagramGeneration;
 
     public EncryptedOAuthStore(Context context) {
+        this(context, null);
+    }
+
+    public EncryptedOAuthStore(Context context, ChannelRepository channels) {
         this(context.getApplicationContext().getSharedPreferences("oauth_secure_v1", Context.MODE_PRIVATE),
-                new KeystoreCipher());
+                new KeystoreRecordCipher(KEY_ALIAS, false), channels);
     }
 
     // Injection keeps failure tests independent of a device's Keystore and disk availability.
     EncryptedOAuthStore(SharedPreferences preferences, RecordCipher cipher) {
+        this(preferences, cipher, null);
+    }
+
+    private EncryptedOAuthStore(SharedPreferences preferences, RecordCipher cipher, ChannelRepository channels) {
         this.preferences = preferences;
         this.cipher = cipher;
+        this.channels = channels;
+    }
+
+    /** Imports authenticated v2 records once, after opening the shared Room database. */
+    public synchronized Set<Platform> restoreChannels() {
+        if (channels == null) return Collections.emptySet();
+        channels.restore();
+        EnumSet<Platform> failed = EnumSet.noneOf(Platform.class);
+        if (!importLegacy(Platform.FACEBOOK, CONNECTED, LEGACY_CONNECTED)) failed.add(Platform.FACEBOOK);
+        if (!importLegacy(Platform.INSTAGRAM, INSTAGRAM_CONNECTED, NO_LEGACY_KEYS)) failed.add(Platform.INSTAGRAM);
+        return Collections.unmodifiableSet(failed);
+    }
+
+    private boolean importLegacy(Platform platform, String key, String[] fields) {
+        ConnectedRecord legacy = connected(platform.name());
+        if (legacy == null) return true;
+        try {
+            Snapshot current = channels.importLegacy(legacy.connection);
+            // A selected connection can supersede the legacy record. Retire only a proven matching
+            // Room/Keystore pair here. An explicit reconnect can retire a superseded record.
+            if (current.info.externalAccountId.equals(legacy.connection.externalAccountId)
+                    && current.credentialStatus == SecretRead.Status.SUCCESS) {
+                invalidate(key, fields);
+            }
+            return true;
+        } catch (RuntimeException promotionFailed) {
+            return false;
+        }
     }
 
     public synchronized void savePending(String sessionId, String verifier) {
-        PendingRecord record = new PendingRecord(sessionId, verifier);
+        savePending(sessionId, verifier, "FACEBOOK");
+    }
+
+    public synchronized void savePending(String sessionId, String verifier, String provider) {
+        PendingRecord record = new PendingRecord(sessionId, verifier, provider);
         record.validate();
-        write(PENDING, record, LEGACY_PENDING);
+        PendingRecord older = readPending(LEGACY_PENDING_RECORD, LEGACY_PENDING);
+        String[] retired = older != null && provider.equals(older.provider())
+                ? new String[] {LEGACY_PENDING_RECORD} : NO_LEGACY_KEYS;
+        write(pendingKey(provider), record, retired);
     }
 
     public synchronized Pending getPending() {
-        PendingRecord record = read(PENDING, PendingRecord.class, LEGACY_PENDING);
+        PendingRecord record = readPending(FACEBOOK_PENDING, NO_LEGACY_KEYS);
+        if (record == null) record = readPending(INSTAGRAM_PENDING, NO_LEGACY_KEYS);
+        if (record == null) record = readPending(LEGACY_PENDING_RECORD, LEGACY_PENDING);
+        return record == null ? null : record.pending();
+    }
+
+    /** Consume one session without touching the other provider's pending authorization. */
+    public synchronized Pending takePending(String sessionId) {
+        if (sessionId == null) return null;
+        for (String key : new String[] {FACEBOOK_PENDING, INSTAGRAM_PENDING, LEGACY_PENDING_RECORD}) {
+            String[] legacy = LEGACY_PENDING_RECORD.equals(key) ? LEGACY_PENDING : NO_LEGACY_KEYS;
+            PendingRecord record = readPending(key, legacy);
+            if (record == null || !sessionId.equals(record.sessionId)) continue;
+            // Never exchange a handoff until its verifier removal is durable.
+            unavailable.add(key);
+            if (!preferences.edit().remove(key).commit()) throw storageUnavailable();
+            return record.pending();
+        }
+        return null;
+    }
+
+    private PendingRecord readPending(String key, String[] legacy) {
+        PendingRecord record = read(key, PendingRecord.class, legacy);
         if (record == null) return null;
         try {
             record.validate();
-            return new Pending(record.sessionId, record.verifier);
+            if (!LEGACY_PENDING_RECORD.equals(key) && !key.equals(pendingKey(record.provider()))) {
+                throw storageUnavailable();
+            }
+            return record;
         } catch (RuntimeException exception) {
-            invalidate(PENDING, LEGACY_PENDING);
+            invalidate(key, legacy);
             return null;
         }
     }
 
-    public synchronized void clearPending() { invalidate(PENDING, LEGACY_PENDING); }
-
-    public synchronized void saveConnected(OAuthExchangeResponse response) {
-        ConnectedRecord record = new ConnectedRecord(response);
-        record.validate();
-        write(CONNECTED, record, LEGACY_CONNECTED);
+    private static String pendingKey(String provider) {
+        return "INSTAGRAM".equals(provider) ? INSTAGRAM_PENDING : FACEBOOK_PENDING;
     }
 
-    public synchronized String pageSummary() {
-        ConnectedRecord record = connected();
-        return record == null ? null : record.connection.displayName + " (" + record.connection.externalAccountId + ")";
+    public synchronized void saveConnected(OAuthExchangeResponse response) {
+        if (response == null) throw storageUnavailable();
+        ConnectedRecord record = new ConnectedRecord(response);
+        String provider = response.provider;
+        boolean instagram = "INSTAGRAM".equals(provider);
+        record.validate(instagram ? "INSTAGRAM" : "FACEBOOK");
+        if (channels != null) {
+            channels.save(response);
+            invalidate(instagram ? INSTAGRAM_CONNECTED : CONNECTED,
+                    instagram ? NO_LEGACY_KEYS : LEGACY_CONNECTED);
+            return;
+        }
+        write(instagram ? INSTAGRAM_CONNECTED : CONNECTED, record,
+                instagram ? NO_LEGACY_KEYS : LEGACY_CONNECTED);
+        if (instagram) instagramGeneration++;
+    }
+
+    public String pageSummary() {
+        if (channels != null) {
+            Snapshot page = channels.selected(Platform.FACEBOOK);
+            return page == null || !page.connected() ? null
+                    : page.info.displayName + " (" + page.info.externalAccountId + ")";
+        }
+        synchronized (this) {
+            ConnectedRecord record = connected("FACEBOOK");
+            return record == null ? null : record.connection.displayName + " (" + record.connection.externalAccountId + ")";
+        }
     }
 
     /** Token access is kept out of Room and should only be consumed by a provider adapter. */
     public synchronized String accessToken() {
-        ConnectedRecord record = connected();
+        if (channels != null) {
+            Snapshot page = channels.selected(Platform.FACEBOOK);
+            OAuthExchangeResponse credential = page == null ? null : channels.credential(page.scope);
+            return credential == null ? null : credential.accessToken;
+        }
+        ConnectedRecord record = connected("FACEBOOK");
         return record == null ? null : record.connection.accessToken;
     }
 
-    private ConnectedRecord connected() {
-        ConnectedRecord record = read(CONNECTED, ConnectedRecord.class, LEGACY_CONNECTED);
+    public synchronized OAuthExchangeResponse instagramConnection() {
+        if (channels != null) {
+            Snapshot profile = channels.selected(Platform.INSTAGRAM);
+            return profile == null ? null : channels.credential(profile.scope);
+        }
+        ConnectedRecord record = connected("INSTAGRAM");
+        return record == null ? null : record.connection;
+    }
+
+    public InstagramSession instagramSession() {
+        if (channels != null) {
+            InstagramMetadata selected = selectedInstagramMetadata();
+            return new InstagramSession(selected, 0);
+        }
+        synchronized (this) {
+            InstagramMetadata current = instagramMetadata();
+            return new InstagramSession(current, instagramGeneration);
+        }
+    }
+
+    public boolean isCurrentInstagramSession(InstagramSession session) {
+        InstagramSession current = instagramSession();
+        return session.generation == current.generation
+                && Objects.equals(session.sessionId, current.sessionId)
+                && Objects.equals(session.accountId, current.accountId)
+                && (session.scope == null ? current.scope == null : session.scope.matches(current.scope));
+    }
+
+    public synchronized OAuthExchangeResponse instagramConnection(InstagramSession session) {
+        if (!isCurrentInstagramSession(session)) return null;
+        if (channels == null) return instagramConnection();
+        return session.sessionId == null ? null : channels.credential(session.scope);
+    }
+
+    public synchronized void invalidateInstagram(String sessionId) {
+        if (channels != null) {
+            Snapshot profile = channels.selected(Platform.INSTAGRAM);
+            if (profile != null && profile.sessionId.equals(sessionId)) channels.requireReconnect(profile.scope);
+            return;
+        }
+        OAuthExchangeResponse current = instagramConnection();
+        if (current != null && current.sessionId.equals(sessionId)) {
+            invalidate(INSTAGRAM_CONNECTED, NO_LEGACY_KEYS);
+        }
+    }
+
+    public InstagramMetadata instagramMetadata() {
+        InstagramMetadata selected = selectedInstagramMetadata();
+        return selected != null && selected.connected ? selected : null;
+    }
+
+    /** Display identity survives credential expiry. Session admission still uses instagramMetadata(). */
+    public InstagramMetadata selectedInstagramMetadata() {
+        if (channels != null) {
+            Snapshot profile = channels.selected(Platform.INSTAGRAM);
+            return profile == null ? null : new InstagramMetadata(profile.sessionId,
+                    profile.info.externalAccountId, profile.info.displayName, profile.linkedPageId,
+                    profile.grantedScopes, profile.expiresAt, profile.graphApiVersion, profile.scope, profile.connected());
+        }
+        OAuthExchangeResponse response = instagramConnection();
+        return response == null ? null : new InstagramMetadata(response.sessionId, response.externalAccountId,
+                response.displayName, response.linkedPageId, response.grantedScopes, response.expiresAt,
+                response.graphApiVersion, null, true);
+    }
+
+    public static final class InstagramMetadata {
+        public final String sessionId, externalAccountId, displayName, linkedPageId, expiresAt, graphApiVersion;
+        public final List<String> grantedScopes;
+        public final Scope scope;
+        public final boolean connected;
+
+        private InstagramMetadata(String sessionId, String externalAccountId, String displayName,
+                String linkedPageId, List<String> grantedScopes, String expiresAt, String graphApiVersion,
+                Scope scope, boolean connected) {
+            this.sessionId = sessionId;
+            this.externalAccountId = externalAccountId;
+            this.displayName = displayName;
+            this.linkedPageId = linkedPageId;
+            this.grantedScopes = grantedScopes;
+            this.expiresAt = expiresAt;
+            this.graphApiVersion = graphApiVersion;
+            this.scope = scope;
+            this.connected = connected;
+        }
+    }
+
+    private ConnectedRecord connected(String provider) {
+        boolean instagram = "INSTAGRAM".equals(provider);
+        String key = instagram ? INSTAGRAM_CONNECTED : CONNECTED;
+        String[] legacy = instagram ? NO_LEGACY_KEYS : LEGACY_CONNECTED;
+        ConnectedRecord record = read(key, ConnectedRecord.class, legacy);
         if (record == null) return null;
         try {
-            record.validate();
+            record.validate(provider);
             return record;
         } catch (RuntimeException exception) {
-            invalidate(CONNECTED, LEGACY_CONNECTED);
+            invalidate(key, legacy);
             return null;
         }
     }
@@ -131,6 +318,7 @@ public final class EncryptedOAuthStore {
 
     private void invalidate(String name, String[] legacy) {
         unavailable.add(name);
+        if (INSTAGRAM_CONNECTED.equals(name)) instagramGeneration++;
         try {
             SharedPreferences.Editor editor = preferences.edit().remove(name);
             for (String key : legacy) editor.remove(key);
@@ -139,59 +327,51 @@ public final class EncryptedOAuthStore {
         } catch (RuntimeException ignored) { }
     }
 
+    /** In-process identity for a connected or disconnected state, without OAuth credentials. */
+    public static final class InstagramSession {
+        public final String sessionId;
+        public final String accountId;
+        private final long generation;
+        private final Scope scope;
+
+        private InstagramSession(InstagramMetadata connection, long generation) {
+            boolean connected = connection != null && connection.connected;
+            sessionId = connected ? connection.sessionId : null;
+            accountId = connected ? connection.externalAccountId : null;
+            scope = connection == null ? null : connection.scope;
+            this.generation = generation;
+        }
+
+        public boolean matches(InstagramMetadata connection) {
+            return connection == null ? sessionId == null
+                    : matches(connection.sessionId, connection.externalAccountId)
+                            && (scope == null ? connection.scope == null : scope.matches(connection.scope));
+        }
+
+        public boolean matches(String expectedSessionId, String expectedAccountId) {
+            return sessionId != null && sessionId.equals(expectedSessionId) && accountId.equals(expectedAccountId);
+        }
+    }
+
     private static IllegalStateException storageUnavailable() {
         return new IllegalStateException("Secure storage unavailable");
-    }
-
-    interface RecordCipher {
-        String encrypt(String name, String plaintext) throws Exception;
-        String decrypt(String name, String ciphertext) throws Exception;
-    }
-
-    private static final class KeystoreCipher implements RecordCipher {
-        @Override public String encrypt(String name, String plaintext) throws Exception {
-            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-            cipher.init(Cipher.ENCRYPT_MODE, key());
-            cipher.updateAAD(name.getBytes(StandardCharsets.UTF_8));
-            byte[] encrypted = cipher.doFinal(plaintext.getBytes(StandardCharsets.UTF_8));
-            byte[] iv = cipher.getIV();
-            return Base64.encodeToString(ByteBuffer.allocate(iv.length + encrypted.length)
-                    .put(iv).put(encrypted).array(), Base64.NO_WRAP);
-        }
-
-        @Override public String decrypt(String name, String ciphertext) throws Exception {
-            byte[] packed = Base64.decode(ciphertext, Base64.NO_WRAP);
-            if (packed.length < 12 + 16) throw storageUnavailable();
-            ByteBuffer buffer = ByteBuffer.wrap(packed);
-            byte[] iv = new byte[12]; buffer.get(iv);
-            byte[] encrypted = new byte[buffer.remaining()]; buffer.get(encrypted);
-            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-            cipher.init(Cipher.DECRYPT_MODE, key(), new GCMParameterSpec(128, iv));
-            cipher.updateAAD(name.getBytes(StandardCharsets.UTF_8));
-            return new String(cipher.doFinal(encrypted), StandardCharsets.UTF_8);
-        }
-
-        private static SecretKey key() throws Exception {
-            KeyStore store = KeyStore.getInstance("AndroidKeyStore"); store.load(null);
-            java.security.Key existing = store.getKey(KEY_ALIAS, null);
-            if (existing instanceof SecretKey) return (SecretKey) existing;
-            KeyGenerator generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
-            generator.init(new KeyGenParameterSpec.Builder(KEY_ALIAS,
-                    KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
-                    .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                    .setKeySize(256).setRandomizedEncryptionRequired(true).build());
-            return generator.generateKey();
-        }
     }
 
     private static final class PendingRecord {
         private int version = 2;
         private final String sessionId, verifier;
-        PendingRecord(String sessionId, String verifier) { this.sessionId = sessionId; this.verifier = verifier; }
+        private final String provider;
+        PendingRecord(String sessionId, String verifier, String provider) {
+            this.sessionId = sessionId; this.verifier = verifier; this.provider = provider;
+        }
+        String provider() { return provider == null ? "FACEBOOK" : provider; }
+        Pending pending() { return new Pending(sessionId, verifier, provider()); }
         void validate() {
             if (version != 2 || sessionId == null || sessionId.trim().isEmpty() || verifier == null
-                    || !verifier.matches("[A-Za-z0-9._~-]{43,128}")) throw storageUnavailable();
+                    || !verifier.matches("[A-Za-z0-9._~-]{43,128}")
+                    || (provider != null && !"FACEBOOK".equals(provider) && !"INSTAGRAM".equals(provider))) {
+                throw storageUnavailable();
+            }
         }
     }
 
@@ -199,16 +379,22 @@ public final class EncryptedOAuthStore {
         private int version = 2;
         private final OAuthExchangeResponse connection;
         ConnectedRecord(OAuthExchangeResponse connection) { this.connection = connection; }
-        void validate() {
+        void validate(String provider) {
             if (version != 2 || connection == null) throw storageUnavailable();
             connection.validate();
-            if (!"FACEBOOK".equals(connection.provider) || !"PAGE".equals(connection.accountType)) throw storageUnavailable();
+            if (!provider.equals(connection.provider)
+                    || ("FACEBOOK".equals(provider) && !"PAGE".equals(connection.accountType))) {
+                throw storageUnavailable();
+            }
         }
     }
 
     public static final class Pending {
         public final String sessionId;
         public final String verifier;
-        private Pending(String sessionId, String verifier) { this.sessionId = sessionId; this.verifier = verifier; }
+        public final String provider;
+        private Pending(String sessionId, String verifier, String provider) {
+            this.sessionId = sessionId; this.verifier = verifier; this.provider = provider;
+        }
     }
 }

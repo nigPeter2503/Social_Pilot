@@ -24,7 +24,7 @@ Nếu phiên bản chưa được duyệt hoặc không tồn tại: không cho 
 
 - Ngôn ngữ: VI hoặc EN.
 
-- Kênh đích: Facebook, LinkedIn hoặc cả hai; tối đa một kênh mỗi nền tảng trong một brief.
+- Kênh đích: Facebook, Instagram hoặc cả hai; tối đa một kênh mỗi nền tảng trong một brief.
 
 - Nguồn tham khảo: văn bản hoặc URL, nếu có.
 
@@ -34,11 +34,11 @@ Nếu phiên bản chưa được duyệt hoặc không tồn tại: không cho 
 
 Brief chung: [topic] · [mục tiêu] · [đối tượng] · [ngôn ngữ]
 
-| Facebook | LinkedIn |
+| Facebook | Instagram |
 | --- | --- |
 | Trạng thái tạo kết quả A | Trạng thái tạo kết quả B |
-| Nội dung bài viết mẫu | Nội dung bài viết mẫu |
-| Ảnh mẫu, nếu có | Ảnh mẫu, nếu có |
+| Nội dung bài Page | Caption của ảnh feed |
+| Ảnh mẫu, nếu có | Ảnh cần có trước khi duyệt đăng |
 | Sửa · Hủy A · Xem phiên bản | Sửa · Hủy B · Xem phiên bản |
 
 Hủy một kết quả không hủy kết quả còn lại. Mỗi kết quả có trạng thái và lỗi riêng. Nội dung ở đây là mẫu cho wireframe, chưa phải phản hồi AI thật.
@@ -73,7 +73,7 @@ Tạo kết quả cần mạng. Sửa nội dung và xem bản nháp là thao t�
 | Điểm vào | Nội dung wireframe | Trạng thái cần thể hiện |
 | --- | --- | --- |
 | Brief | Nhập brief và xem hai kết quả theo kênh | Rỗng, đang tải, lỗi, offline |
-| Kênh / Channels | Facebook và LinkedIn; trạng thái kết nối và quyền | Chưa kết nối, thiếu quyền, offline |
+| Kênh / Channels | Facebook và Instagram; trạng thái kết nối và quyền | Chưa kết nối, thiếu quyền, offline |
 | Hộp thư / Inbox | Vị trí dự kiến hiển thị bình luận | Rỗng, đang tải, lỗi, thiếu quyền |
 | Báo cáo / Dashboard | Vị trí dự kiến hiển thị số liệu | Chưa có dữ liệu, đang tải, lỗi, offline |
 | Cài đặt / Settings | Ngôn ngữ VI/EN và trạng thái kết nối kênh | Chưa cấu hình, lỗi kết nối |
@@ -82,7 +82,7 @@ Các điểm vào Inbox và Dashboard ở đây chỉ là wireframe. Chưa có b
 
 ### Kênh / Channels
 
-Danh sách Facebook và LinkedIn cho biết tên kênh, trạng thái kết nối và quyền có thể dùng. Chọn một kênh để xem chi tiết; nút kết nối/chỉnh quyền dẫn tới Cài đặt. Wireframe không thực hiện OAuth thật.
+Danh sách Facebook và Instagram cho biết tên kênh, trạng thái kết nối và quyền có thể dùng. Chọn một kênh để xem chi tiết; nút kết nối/chỉnh quyền dẫn tới Cài đặt. Wireframe không thực hiện OAuth thật.
 
 ### Hộp thư / Inbox
 

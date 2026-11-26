@@ -1,0 +1,24 @@
+{
+  "data": [
+    {
+      "id": "18105580130575258",
+      "text": "SP066-C04 - API reply target",
+      "timestamp": "2026-11-21T09:14:43+0000"
+    },
+    {
+      "id": "18133111096696939",
+      "text": "SP066-C03 - Pagination test B",
+      "timestamp": "2026-11-21T09:14:39+0000"
+    },
+    {
+      "id": "17998313334104655",
+      "text": "SP066-C02 - Pagination test A",
+      "timestamp": "2026-11-21T09:14:34+0000"
+    },
+    {
+      "id": "18030188072700402",
+      "text": "SP066-C01 - Read comment test",
+      "timestamp": "2026-11-21T09:14:28+0000"
+    }
+  ]
+}

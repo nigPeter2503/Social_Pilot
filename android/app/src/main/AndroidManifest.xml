@@ -6,6 +6,7 @@
       android:dataExtractionRules="@xml/data_extraction_rules"
       android:theme="@style/Theme.SocialPilot" android:allowBackup="false"
       android:supportsRtl="true" android:usesCleartextTraffic="false">
+    <activity android:name=".ui.PrototypeActivity" android:exported="false" />
     <activity android:name=".ui.MainActivity" android:exported="true" android:launchMode="singleTop">
       <intent-filter>
         <action android:name="android.intent.action.MAIN" />
@@ -23,5 +24,7 @@
         <data android:mimeType="text/plain" />
       </intent-filter>
     </activity>
+    <activity android:name=".ui.AiKeysActivity" android:exported="false"
+        android:label="@string/ai_keys_title" />
   </application>
 </manifest>

@@ -28,6 +28,10 @@ public class OAuthContractTest {
         OAuthContract.OAuthExchangeResponse oauthExchangeResponse = mapper.treeToValue(examples.get("oauthExchangeResponse"), OAuthContract.OAuthExchangeResponse.class);
         oauthExchangeResponse.validate();
         assertEquals(examples.get("oauthExchangeResponse"), mapper.valueToTree(oauthExchangeResponse));
+        OAuthContract.OAuthExchangeResponse instagram = mapper.treeToValue(examples.get("instagramOAuthExchangeResponse"),
+                OAuthContract.OAuthExchangeResponse.class);
+        instagram.validate();
+        assertEquals(examples.get("instagramOAuthExchangeResponse"), mapper.valueToTree(instagram));
         OAuthContract.OAuthFailure oauthFailure = mapper.treeToValue(examples.get("oauthFailure"), OAuthContract.OAuthFailure.class);
         oauthFailure.validate();
         assertEquals(examples.get("oauthFailure"), mapper.valueToTree(oauthFailure));

@@ -6,7 +6,7 @@
 
 Đạt sở hữu F2/F8: BYOK, provider/model/usage, ngân sách dùng chung, pipeline hai nhánh, ảnh/template và production checkpoint. Đạt điều phối database/version/migration; mỗi module owner vẫn tự làm entity/DAO/migration/test của mình. Nghiệp vụ prompt của F3/F4 thuộc Thiện, phân loại/reply/báo cáo F6/F7 thuộc Nghị; Đạt cung cấp nền tảng, không nhận thay toàn bộ các nghiệp vụ đó.
 
-Tuần 1 và bảy PR #69/#70/#73/#74/#75/#76/#77 được coi là xong. Tái sử dụng SP-013 typed request/event, OpenAI/Gemini text adapters, SP-014 coordinator/HTTP cancellation và SP-012 schema contract; không dựng lại hoặc chờ approval của các PR này. **SP-021 đã hoàn tất**, không nhận thêm task 2h; số đó chỉ đối chiếu baseline chung. Phê duyệt nội dung không phải nghiệm thu đủ F2/F8 hoặc GitHub approval.
+Ước lượng ngày 15/11 giả định tuần 1 hoàn tất. Từ 20/11, dùng Facebook Page và Instagram Professional; Minh và Nghị cần đối chiếu lại phần công tích hợp Instagram. Tái sử dụng SP-013 typed request/event, OpenAI/Gemini text adapters, SP-014 coordinator/HTTP cancellation và SP-012 schema contract; không dựng lại hoặc chờ approval của các PR này. **SP-021 đã hoàn tất**, không nhận thêm task 2h; số đó chỉ đối chiếu baseline chung. Phê duyệt nội dung không phải nghiệm thu đủ F2/F8 hoặc GitHub approval.
 
 Các issue triển khai có thật nhưng khi đọc tracker ngày 15/11 chưa có assignee. Brief xác định Đạt theo phân công đã duyệt; không tự thay assignment/status hay coi nhãn In Progress trong draft report là evidence đã nhận việc.
 
@@ -108,7 +108,7 @@ SP-028 6h là ước lượng phần còn lại, giảm từ backlog 12h do adap
 3. **Brief một target:** SP-031 cung cấp entry point pipeline nhận danh sách 1–2 target. Với một target, chạy một nhánh qua cùng service/admission/hủy/usage của SP-028/SP-029; không gọi `DualStreamCoordinator.start(a,b)` bằng null hoặc request giả. Với hai target mới dùng coordinator hai nhánh. Đây là phần triển khai SP-031; không giao lại SP-014 hoặc giả định API hai request đã hỗ trợ một target.
 4. Giữ nhánh độc lập, requestId/attempt riêng; không tự retry có phí sau process death, không tự enqueue hoặc approve nội dung.
 
-- [ ] Target tuân contract brief đã bàn giao, tối đa một Facebook và một LinkedIn; không tự thêm kênh không được chọn.
+- [ ] Target tuân contract brief đã bàn giao, tối đa một Facebook và một Instagram; nhánh Instagram tạo caption và ảnh feed từ provider hoặc template; không tự thêm kênh không được chọn.
 - [ ] Brief một target chỉ tạo một nhánh, một request/attempt cho mỗi stage cần gọi, không dispatch kênh thứ hai; budget-denied/cancel/usage vẫn qua cùng gate. Hai target kiểm overlap riêng.
 - [ ] Timestamp chứng minh hai nhánh chạy chồng lấp khi chọn hai target; lỗi A không làm mất kết quả B, kiểm bằng typed snapshot chứ không chỉ icon UI.
 - [ ] Stage/output/correlation riêng từng nhánh; text và ảnh không bị lẫn kênh/revision; lỗi ghi đúng bước.
