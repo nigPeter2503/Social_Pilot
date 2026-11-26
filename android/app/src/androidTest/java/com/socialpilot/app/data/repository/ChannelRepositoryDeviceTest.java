@@ -27,6 +27,7 @@ import com.socialpilot.app.domain.contract.social.Platform;
 import com.socialpilot.app.domain.contract.social.SocialOperation;
 import java.util.Collections;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import okhttp3.Protocol;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
@@ -170,14 +171,20 @@ public class ChannelRepositoryDeviceTest {
 
     @Test public void deniedPageIdentityCheckDoesNotRevokeConnectionOrChangeCapabilities() {
         open();
+        AtomicInteger checks = new AtomicInteger();
         ChannelRepository channels = new ChannelRepository(database, secrets,
-                ControlledInstagramGraph.withResponse(chain -> new Response.Builder()
-                        .request(chain.request()).protocol(Protocol.HTTP_1_1).code(403).message("Fixture")
-                        .body(ResponseBody.create("{\"error\":{\"code\":200}}", null)).build()));
+                ControlledInstagramGraph.withResponse(chain -> {
+                    boolean first = checks.getAndIncrement() == 0;
+                    return new Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1)
+                            .code(first ? 400 : 403).message("Fixture")
+                            .body(ResponseBody.create(first ? "{\"error\":{\"code\":200}}"
+                                    : "{\"error\":{\"code\":10}}", null)).build();
+                }));
         ChannelRepository.Snapshot page = channels.save(page("fb-a", "facebook-fake"));
         ChannelCapability verified = new ChannelCapability(SocialOperation.READ_COMMENTS,
                 CapabilityAvailability.AVAILABLE, "VERIFIED", "2026-11-25T08:00:00Z");
         assertTrue(channels.recordCapability(page.scope, verified));
+        assertEquals(ChannelRepository.PageCheck.PERMISSION_REQUIRED, channels.checkFacebookPage(page.scope));
         assertEquals(ChannelRepository.PageCheck.PERMISSION_REQUIRED, channels.checkFacebookPage(page.scope));
         assertEquals("facebook-fake", channels.credential(page.scope).accessToken);
         assertEquals(CapabilityAvailability.AVAILABLE,

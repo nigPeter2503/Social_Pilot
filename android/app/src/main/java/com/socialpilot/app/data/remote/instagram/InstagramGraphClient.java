@@ -106,7 +106,7 @@ public final class InstagramGraphClient {
                 JsonObject error = data.getAsJsonObject("error");
                 int code = error.has("code") ? error.get("code").getAsInt() : 0;
                 if (code == 190) throw new AuthorizationExpired();
-                if (response.code() == 403 && code == 200) throw new PermissionDenied();
+                if (code == 10 || (code >= 200 && code <= 299)) throw new PermissionDenied();
                 throw new IOException("Graph operation failed");
             }
             if (!response.isSuccessful()) throw new IOException("Graph operation failed");

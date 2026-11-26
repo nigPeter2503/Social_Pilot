@@ -194,7 +194,10 @@ public final class MainActivity extends AppCompatActivity {
         }
         if (busy) binding.instagramPublishStatus.setText(R.string.instagram_working);
         else if (selected != null && !connected) binding.instagramPublishStatus.setText(R.string.instagram_reconnect);
-        else if (approved) binding.instagramPublishStatus.setText(R.string.instagram_approved);
+        else if (result != null && (result.status == InstagramPublishRepository.Status.PERMISSION_REQUIRED
+                || result.status == InstagramPublishRepository.Status.PERMISSION_CHECK_REQUIRED)) {
+            binding.instagramPublishStatus.setText(instagramStatusText(result.status));
+        } else if (approved) binding.instagramPublishStatus.setText(R.string.instagram_approved);
         else if (result != null && result.status == InstagramPublishRepository.Status.PUBLISHED) {
             binding.instagramPublishStatus.setText(getString(R.string.instagram_published, result.mediaId));
         } else if (result != null) {

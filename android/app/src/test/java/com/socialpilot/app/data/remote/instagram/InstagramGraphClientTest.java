@@ -86,4 +86,23 @@ public final class InstagramGraphClientTest {
                 assertThrows(IOException.class, () -> graph.validatePageConnection(page)).getMessage());
         assertThrows(SocketTimeoutException.class, () -> graph.validatePageConnection(page));
     }
+
+    @Test public void pagePermissionErrorsUseGraphCodesAcrossHttpStatuses() {
+        OAuthExchangeResponse page = new OAuthExchangeResponse("page-session", "FACEBOOK", "1234567890",
+                "PAGE", "Page", "test-page-token", null, "bearer", null);
+        int[][] permissionErrors = {{400, 200}, {403, 10}, {400, 299}};
+        for (int[] error : permissionErrors) {
+            InstagramGraphClient graph = graphError(error[0], error[1]);
+            assertThrows(InstagramGraphClient.PermissionDenied.class, () -> graph.validatePageConnection(page));
+        }
+        assertEquals(IOException.class,
+                assertThrows(IOException.class, () -> graphError(403, 300).validatePageConnection(page)).getClass());
+    }
+
+    private static InstagramGraphClient graphError(int status, int code) {
+        return new InstagramGraphClient(new OkHttpClient.Builder()
+                .addInterceptor(chain -> new Response.Builder().request(chain.request())
+                        .protocol(Protocol.HTTP_1_1).code(status).message("Fixture")
+                        .body(ResponseBody.create("{\"error\":{\"code\":" + code + "}}", null)).build()).build());
+    }
 }

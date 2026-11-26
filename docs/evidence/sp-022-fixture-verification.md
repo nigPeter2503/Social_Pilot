@@ -178,3 +178,19 @@ Ca cấp grant mới hoàn toàn qua app với Business Portfolio, refresh tự 
 và quét runtime của bản tích hợp Meta vẫn cần bằng chứng thật. Consumer cần xác
 nhận scope/revision và chuỗi migration Channel → Brief → Version. Nghị và Đạt
 cần review lại trên head mới của [PR #96](https://github.com/nigPeter2503/Social_Pilot/pull/96).
+
+### Sửa hai ca thiếu quyền còn mở sau review `7bc679a`
+
+- Phân loại Graph code `10` và `200–299` là thiếu quyền. Giữ nhánh cần kết nối
+  lại cho HTTP 401 hoặc Graph code `190`. Fixture Android kiểm `400/200`,
+  `403/10` và ranh giới nhóm mã quyền. Test repository Facebook Page xác nhận
+  hai phản hồi thiếu quyền giữ nguyên credential và capability đã có.
+- `MainActivityConnectionDeviceTest` duyệt nội dung Instagram rồi bấm đối soát
+  qua fixture `403/200` trong cả VI và EN. Sau khi có kết quả, UI hiện hướng xử
+  lý quyền và nút Đăng vẫn khả dụng cho nội dung đã duyệt.
+
+Android build, build APK instrumentation, 180 unit test và lint đạt
+(0 lỗi, 14 cảnh báo). Instrumentation trên Samsung SM-G990E, API 36 với
+package QA riêng đạt 44/44, không bỏ qua ca nào. Các phản hồi Graph trên là fixture.
+
+[Review của Nghị trên PR #96](https://github.com/nigPeter2503/Social_Pilot/pull/96#pullrequestreview-6070638703)
