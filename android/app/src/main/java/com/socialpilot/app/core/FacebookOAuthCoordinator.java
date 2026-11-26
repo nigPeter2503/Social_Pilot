@@ -1,12 +1,12 @@
 package com.socialpilot.app.core;
 
-import android.content.Context;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Base64;
 import com.google.gson.Gson;
 import com.socialpilot.app.data.remote.oauth.OAuthApi;
+import com.socialpilot.app.data.repository.ChannelRepository.ExpiredGrantException;
 import com.socialpilot.app.data.security.EncryptedOAuthStore;
 import com.socialpilot.app.data.security.EncryptedOAuthStore.Pending;
 import com.socialpilot.app.domain.contract.oauth.OAuthContract.OAuthExchangeResponse;
@@ -14,10 +14,12 @@ import com.socialpilot.app.domain.contract.oauth.OAuthContract.OAuthFailure;
 import com.socialpilot.app.domain.contract.oauth.OAuthContract.OAuthHandoffExchangeRequest;
 import com.socialpilot.app.domain.contract.oauth.OAuthContract.OAuthStartRequest;
 import com.socialpilot.app.domain.contract.oauth.OAuthContract.OAuthStartResponse;
+import com.socialpilot.app.domain.contract.social.ConnectionLifecycle;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import okhttp3.OkHttpClient;
@@ -26,9 +28,11 @@ import retrofit2.Retrofit;
 import retrofit2.converter.gson.GsonConverterFactory;
 
 public final class FacebookOAuthCoordinator {
+    public static final String GRANT_EXPIRED = "GRANT_EXPIRED";
+
     public interface Listener {
         void onAuthorizationUrl(String url);
-        void onConnected(String pageName, String pageId);
+        void onConnected(String provider, String displayName, String accountId, String sessionId);
         void onFailure(String code);
     }
 
@@ -36,40 +40,55 @@ public final class FacebookOAuthCoordinator {
     private final EncryptedOAuthStore store;
     private final ExecutorService io;
     private final Handler main = new Handler(Looper.getMainLooper());
-    private final AtomicBoolean busy = new AtomicBoolean(false);
+    private final AtomicBoolean starting = new AtomicBoolean(false);
     private final SecureRandom random = new SecureRandom();
     private final Gson gson = new Gson();
 
-    public FacebookOAuthCoordinator(Context context, ExecutorService io, String baseUrl) {
+    /** The executor serializes session creation, callback consumption and connection writes. */
+    public FacebookOAuthCoordinator(EncryptedOAuthStore store, ExecutorService io, String baseUrl) {
+        this(store, io, createApi(baseUrl));
+    }
+
+    FacebookOAuthCoordinator(EncryptedOAuthStore store, ExecutorService io, OAuthApi api) {
         this.io = io;
-        this.store = new EncryptedOAuthStore(context);
+        this.store = store;
+        this.api = api;
+    }
+
+    private static OAuthApi createApi(String baseUrl) {
         URI uri = URI.create(baseUrl);
         if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null
                 || uri.getUserInfo() != null || uri.getQuery() != null || uri.getFragment() != null
                 || !baseUrl.endsWith("/")) throw new IllegalArgumentException("OAuth API must use an HTTPS base URL");
         OkHttpClient client = new OkHttpClient.Builder().followRedirects(false).followSslRedirects(false).build();
-        api = new Retrofit.Builder().baseUrl(baseUrl).client(client)
+        return new Retrofit.Builder().baseUrl(baseUrl).client(client)
                 .addConverterFactory(GsonConverterFactory.create()).build().create(OAuthApi.class);
     }
 
-    public void start(Listener listener) {
-        if (!busy.compareAndSet(false, true)) return;
+    public void start(String provider, Listener listener) {
+        if (!starting.compareAndSet(false, true)) return;
         final String verifier = randomVerifier();
         final String challenge;
         try { challenge = Base64.encodeToString(
                 MessageDigest.getInstance("SHA-256").digest(verifier.getBytes(StandardCharsets.US_ASCII)),
                 Base64.URL_SAFE | Base64.NO_PADDING | Base64.NO_WRAP); }
-        catch (Exception exception) { busy.set(false); postFailure(listener, "PROVIDER_ERROR"); return; }
+        catch (Exception exception) { starting.set(false); postFailure(listener, "PROVIDER_ERROR"); return; }
         io.execute(() -> {
             try {
-                Response<OAuthStartResponse> response = api.start(
-                        new OAuthStartRequest("FACEBOOK", "android-dev", challenge)).execute();
+                Response<OAuthStartResponse> response = api.start(provider.toLowerCase(Locale.ROOT),
+                        new OAuthStartRequest(provider, "android-dev", challenge)).execute();
                 if (!response.isSuccessful() || response.body() == null) throw new OAuthRequestException(errorCode(response));
-                OAuthStartResponse result = response.body(); result.validate();
-                store.savePending(result.sessionId, verifier);
-                main.post(() -> { busy.set(false); listener.onAuthorizationUrl(result.authorizationUrl); });
+                OAuthStartResponse result = response.body();
+                result.validate();
+                URI authorizationUri = URI.create(result.authorizationUrl);
+                if (!"www.facebook.com".equalsIgnoreCase(authorizationUri.getHost())
+                        || (authorizationUri.getPort() != -1 && authorizationUri.getPort() != 443)) {
+                    throw new OAuthRequestException("INVALID_REDIRECT");
+                }
+                store.savePending(result.sessionId, verifier, provider);
+                main.post(() -> { starting.set(false); listener.onAuthorizationUrl(result.authorizationUrl); });
             } catch (Exception exception) {
-                busy.set(false); postFailure(listener, exception instanceof OAuthRequestException
+                starting.set(false); postFailure(listener, exception instanceof OAuthRequestException
                         ? ((OAuthRequestException) exception).code : "PROVIDER_ERROR");
             }
         });
@@ -82,40 +101,37 @@ public final class FacebookOAuthCoordinator {
         }
         String sessionId = callback.getQueryParameter("sessionId");
         String error = callback.getQueryParameter("error");
-        Pending pending = store.getPending();
-        if (pending == null || sessionId == null || !pending.sessionId.equals(sessionId)) {
-            postFailure(listener, "INVALID_SESSION"); return;
-        }
-        if (error != null) {
-            store.clearPending(); postFailure(listener, allowedError(error)); return;
-        }
         String handoff = callback.getQueryParameter("handoffCode");
-        if (handoff == null || !handoff.matches("[A-Za-z0-9_-]{43}")) {
-            store.clearPending(); postFailure(listener, "INVALID_SESSION"); return;
-        }
-        if (!busy.compareAndSet(false, true)) return;
-        store.clearPending();
         io.execute(() -> {
             try {
+                Pending pending = store.takePending(sessionId);
+                if (pending == null) throw new OAuthRequestException("INVALID_SESSION");
+                if (error != null) throw new OAuthRequestException(allowedError(error));
+                if (handoff == null || !handoff.matches("[A-Za-z0-9_-]{43}")) {
+                    throw new OAuthRequestException("INVALID_SESSION");
+                }
                 Response<OAuthExchangeResponse> response = api.exchange(
                         new OAuthHandoffExchangeRequest(sessionId, handoff, pending.verifier)).execute();
                 if (!response.isSuccessful() || response.body() == null) throw new OAuthRequestException(errorCode(response));
-                OAuthExchangeResponse result = response.body(); result.validate();
-                if (!"FACEBOOK".equals(result.provider) || !"PAGE".equals(result.accountType)) {
-                    throw new OAuthRequestException("PROVIDER_ERROR");
-                }
+                OAuthExchangeResponse result = response.body();
+                ConnectionLifecycle.fromExchange(sessionId, pending.provider, result);
                 store.saveConnected(result);
-                main.post(() -> {
-                    busy.set(false); listener.onConnected(result.displayName, result.externalAccountId);
-                });
+                main.post(() -> listener.onConnected(result.provider, result.displayName,
+                        result.externalAccountId, result.sessionId));
+            } catch (ExpiredGrantException expired) {
+                postFailure(listener, GRANT_EXPIRED);
             } catch (Exception exception) {
-                busy.set(false); postFailure(listener, exception instanceof OAuthRequestException
+                postFailure(listener, exception instanceof OAuthRequestException
                         ? ((OAuthRequestException) exception).code : "PROVIDER_ERROR");
             }
         });
     }
 
     public String connectedPageSummary() { return store.pageSummary(); }
+
+    public static String instagramSummary(String username, String accountId) {
+        return "@" + username + " (" + accountId + ")";
+    }
 
     private String randomVerifier() {
         byte[] bytes = new byte[32]; random.nextBytes(bytes);

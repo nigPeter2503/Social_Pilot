@@ -437,7 +437,7 @@
                 "growth": null,
                 "reason": "INCOMPATIBLE_SCOPE"
             },
-            "afterScope": "LINKEDIN/mock-org/CHANNEL/mock-org"
+            "afterScope": "INSTAGRAM/mock-ig/CHANNEL/mock-ig"
         },
         {
             "id": "different-unit",

@@ -91,6 +91,11 @@ Backend đọc cấu hình từ biến môi trường; không đưa App Secret h
 - `FACEBOOK_REDIRECT_URI` — URI HTTPS chính xác `https://<tunnel-host>/api/oauth/facebook/callback`, phải trùng URI trong Meta dashboard.
 - `FACEBOOK_TARGET_PAGE_ID` — Page được chọn để thử nghiệm.
 - `FACEBOOK_GRAPH_API_VERSION` — mặc định `v27.0`.
+- `FACEBOOK_BUSINESS_MANAGED_PAGE` — mặc định `false`. Đặt `true` khi grant
+  cho Page đích thuộc Business Portfolio cần `business_management` để
+  `me/accounts` trả Page. Backend sẽ yêu cầu quyền này cho cả Facebook Page
+  và Instagram Professional liên kết. Tài khoản đăng nhập vẫn cần quyền trên
+  đúng Page.
 
 Đặt đủ các biến trên trong môi trường tiến trình backend, rồi khởi chạy backend tại cổng 8080 và tạo Cloudflare Quick Tunnel tới `http://localhost:8080`. Mỗi lần hostname Quick Tunnel đổi, cập nhật `FACEBOOK_REDIRECT_URI` và Valid OAuth Redirect URI của Meta cùng lúc rồi khởi động lại backend. Tunnel phải còn chạy trong toàn bộ lượt đăng nhập. Dòng log khởi động cho biết app ID, redirect URI, Graph version, độ dài secret, cờ secret từng có khoảng trắng đầu/cuối và tên property source; secret, authorization code, token và URL request không được ghi log. Lỗi Graph tại `code_exchange` chỉ ghi các trường lỗi đã lọc và dấu vân tay SHA-256 8 ký tự của code.
 

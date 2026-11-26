@@ -1,5 +1,7 @@
 # Hợp đồng dữ liệu comment và analytics — SP-020
 
+Với Instagram, gắn comment vào media ID của đúng tài khoản Professional. Lưu riêng tổng follower tại thời điểm đo và reach lifetime của bài. Tỷ lệ tương tác theo impression cần đúng mẫu số và đủ các thành phần đã định nghĩa.
+
 Revision: **draft-4**, 11/11/2026, Asia/Saigon. Owner: Tô Lãng Nghị (`bob35306`).
 Trạng thái: **bản đề xuất để review**, chưa phải hợp đồng đã được nhóm phê duyệt.
 Ticket: [SP-020 / #22](https://github.com/nigPeter2503/Social_Pilot/issues/22).
@@ -24,8 +26,7 @@ Reviewer: Minh và Thiện; Đạt xác nhận thiết kế lưu trữ trước 
 
 ## 2. Mapping yêu cầu → dữ liệu → nguồn → người dùng
 
-Nguồn dưới đây là nhu cầu logic; endpoint, metric provider, version, scope và khả năng
-thực tế **chưa kiểm chứng**. SP-018/#20 và SP-019/#21 phải bổ sung bằng chứng trước adapter.
+Đối chiếu từng phép đo với tài khoản, quyền, phiên bản API và thời điểm thử. Nguồn kiểm chứng cho adapter Facebook Page là [SP-018](https://github.com/nigPeter2503/Social_Pilot/issues/20), cho Instagram Professional là [SP-066](https://github.com/nigPeter2503/Social_Pilot/issues/91).
 
 | Yêu cầu | Dữ liệu cần | Nguồn dự kiến / giới hạn | Người dùng |
 |---|---|---|---|
@@ -43,7 +44,7 @@ Timestamp trao đổi dùng UTC ISO 8601 dạng `yyyy-MM-dd'T'HH:mm:ss'Z'` theo 
 Đề xuất lưu UTC epoch millisecond trong Room theo SP-012. ID là chuỗi opaque không rỗng, không đổi chữ hoa/thường,
 không cắt/gộp provider ID/URN. Không dùng tên hiển thị hoặc parse số để làm khóa.
 
-`ChannelScope = {platform, channelId, connectionRevision}`: platform là FACEBOOK/LINKEDIN,
+`ChannelScope = {platform, channelId, connectionRevision}`: platform là FACEBOOK/INSTAGRAM,
 channelId là ID nội bộ, revision dương và bền vững theo SP-009. Không sao chép tokenReference
 hay token vào comment/metric/fixture. Account type lấy từ ChannelInfo, không đoán từ ID.
 
@@ -354,7 +355,7 @@ actualStart/end. Muốn FULL tuần cần provider cho số theo đúng kỳ ho�
 Minh/Thiện chốt trước triển khai; chưa giả định mọi tuần sẽ có FULL coverage.
 
 Trước lần thu đầu: Minh xác nhận kênh/account/product/scope và từng capability;
-SP-018/019 chốt metric provider/version/definition. Thu follower kênh và bộ đếm từng bài
+SP-018 và SP-066 chốt metric provider/version/definition. Thu follower kênh và bộ đếm từng bài
 được phép đọc, cùng collectionId; metric thiếu ghi reason. Không có quyền không chạy
 thay bằng connections hoặc scrape. Thất bại giữ lastSuccess, ghi attempt/gap và next action;
 ngắt kênh dừng job. Hai snapshot thật khác thời điểm mới mở so sánh; W1 không yêu cầu sẵn lịch sử.
@@ -372,6 +373,18 @@ theo lịch thu thực, chọn cặp mốc chung và coverage, alignment measure
 query/grouping/tie-break và lịch thu W2–3. Chữ ký Java cụ thể chốt khi tích hợp.
 
 SP-020 W1 bàn giao contract/fixture có nhãn: không đòi token hoặc snapshot thật sẵn có.
-SP-018/019 kiểm chứng API, SP-045 thu lịch sử; chúng bổ sung mapping qua revision sau.
+SP-018 và SP-066 kiểm chứng API, SP-045 thu lịch sử; chúng bổ sung mapping qua revision sau.
 Thiện đã xác nhận tài liệu và fixture đủ cho UI W1. Minh còn cần xác nhận phần tiêu thụ
 hợp đồng ở adapter và repository.
+
+### Phụ lục SP-066 · mapping Instagram chờ nghiệm thu
+
+Đối chiếu ngày 21/11/2026 với Facebook Login và account type `PROFESSIONAL` của SP-065. Follower là gauge trên Channel mang IG user ID; response IG-06 trả `followers_count=1`. Reach là số tài khoản tiếp cận trên media `18111630677338097`, giữ tên provider `reach`, kỳ `lifetime`, giá trị `0`. SP-045 lưu metric này với khóa `REACH_COUNT`; SP-046 dùng `REACH` cho số đọc của bài. `0` là số đo hợp lệ, khác `null`. Response insights thành công với `data:[]` dùng `value=null`, `missingReason=PROVIDER_OMITTED` theo adapter SP-045; trường số vắng trong một row/query đã map cũng dùng `PROVIDER_OMITTED`. Không suy `data:[]` thành số 0. Lý do thiếu riêng cho tập rỗng chỉ là đề xuất cần Đạt/Thiện thống nhất trước khi đổi enum/schema và consumer. [Hồ sơ SP-066](api-verification/instagram/verification-manifest.md)
+
+IG-08–10 xác nhận **field trên media** `like_count=1`, `comments_count=6`, `shares_count=0`. Giữ provenance `MEDIA_FIELD` và ID media; không tự đổi thành insights `likes`/`comments`/`shares`, không lấy số comment trong một trang hay suy diễn phần replies trong tổng 6. Thiện chốt DTO/definition, unit, window và engagement formula trước khi các field này đi vào dashboard. Binding Channel/revision production, collection timestamp và readback vẫn chưa có. [Meta Instagram Media](https://developers.facebook.com/docs/instagram-platform/reference/instagram-media/v21.0/)
+
+Hiệu chỉnh IG-11: [Meta Media Insights](https://developers.facebook.com/documentation/instagram-platform/reference/instagram-media/insights) ghi `impressions` ngừng hỗ trợ với media tạo sau 02/07/2024. Media thử SP-066 `18111630677338097` tạo năm 2026 và trả lỗi code 100; `IMPRESSION_COUNT` của media này là `value=null`, `missingReason=UNSUPPORTED`, kèm lý do/ngày xác minh và media ID. Không đánh dấu toàn bộ `READ_POST_METRICS` là `UNSUPPORTED` nếu reach vẫn đọc được. Không tính ER theo impression cho media này. `views` có định nghĩa riêng, không đổi tên hoặc dùng thay impression. Các ví dụ ER trong contract là fixture công thức, không phải số đo Instagram thật.
+
+Chạy `node docs/api-verification/instagram/verify-fixtures.cjs` từ repo root để kiểm [fixture MO_PHONG](api-verification/instagram/fixtures.json) cho identity, overlap/replay, parent/reply, follower và reach. Chuỗi ID, cursor và giá trị mẫu thuộc namespace mô phỏng. Owner đã xác nhận giờ request độc lập của IG-13; binding Channel/revision production vẫn chờ bằng chứng.
+
+Chạy thêm `node docs/api-verification/instagram/verify-api-fixtures.cjs` cho bản response API đã che trong [evidence](api-verification/instagram/evidence/). Bản này giữ nguồn `API_THAT` nhưng khi tái phát trong test là `FIXTURE_TU_API_DA_CHE`, không chứng minh gọi API mới, cursor thật, hai mốc đo hay tích hợp app. Owner xác nhận token A/B→request cho IG-12 và giờ request T1/T2 cho IG-13; các dữ kiện này không nằm trong JSON tái phát. Role/target production cần Minh pin riêng. Phân loại riêng `AUTH_REQUIRED` và `RATE_LIMITED`.

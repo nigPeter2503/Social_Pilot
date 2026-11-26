@@ -46,6 +46,21 @@ class FacebookOAuthUrlBuilderTest {
         assertTrue(authorization.getRawQuery().contains("redirect_uri=https%3A%2F%2Ftunnel.example.trycloudflare.com%2Fapi%2Foauth%2Ffacebook%2Fcallback"));
     }
 
+    @Test
+    void requestsBusinessManagementOnlyForConfiguredBusinessManagedPage() {
+        FacebookOAuthProperties properties = properties();
+        for (boolean instagram : new boolean[] {false, true}) {
+            properties.setBusinessManagedPage(false);
+            String regular = decodedQuery(FacebookOAuthUrlBuilder.authorizationUri(
+                    properties, "state-token", instagram)).get("scope");
+            properties.setBusinessManagedPage(true);
+            String business = decodedQuery(FacebookOAuthUrlBuilder.authorizationUri(
+                    properties, "state-token", instagram)).get("scope");
+            assertFalse(Arrays.asList(regular.split(",")).contains("business_management"));
+            assertEquals(regular + ",business_management", business);
+        }
+    }
+
     private static Map<String, String> decodedQuery(URI uri) {
         return Arrays.stream(uri.getRawQuery().split("&"))
                 .map(pair -> pair.split("=", 2))
