@@ -2,6 +2,7 @@ package com.socialpilot.app.data.ai.pipeline;
 
 import com.socialpilot.app.data.ai.AiGateway;
 import com.socialpilot.app.domain.agent.ChannelBranch;
+import com.socialpilot.app.domain.agent.CheckpointPolicy;
 import com.socialpilot.app.domain.agent.ChannelTarget;
 import com.socialpilot.app.domain.agent.PipelineInput;
 import com.socialpilot.app.domain.agent.PipelineSnapshot;
@@ -22,6 +23,7 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.logging.Logger;
 
 /**
  * Week-3 text pipeline (SP-031): for each selected target, outline → draft → rule check. Every
@@ -30,13 +32,20 @@ import java.util.concurrent.RejectedExecutionException;
  *
  * <p>One target runs exactly one branch. Two targets run two independent branches at the same
  * time; a failure, rejection or cancel in one never touches the other. Branches never retry on
- * their own: {@link Session#retry} is an explicit user action that reserves again. Sessions are
- * in memory; after process death nothing is resumed or re-sent automatically.
+ * their own: {@link Session#retry} is an explicit user action that reserves again.
+ *
+ * <p>Checkpoints (SP-033, partial): every structural change is offered to a {@link CheckpointStore}
+ * (streamed deltas are not). {@link #restore} rebuilds a session from a stored snapshot through
+ * {@link CheckpointPolicy#recover}: stages that were running become INTERRUPTED and nothing is
+ * scheduled or re-sent; the user decides whether to {@link Session#retry}. The production Room
+ * store is not wired yet.
  *
  * <p>Two-target runs use two independent gateway branches until the SP-014 dual-stream coordinator
  * is merged; the snapshot shape stays the same when that swap happens.
  */
 public final class ChannelPipeline {
+    private static final Logger LOGGER = Logger.getLogger(ChannelPipeline.class.getName());
+
     public interface Observer {
         /** Serial delivery in revision order, outside the session lock. Post UI work to the main thread. */
         void onSnapshot(PipelineSnapshot snapshot);
@@ -54,18 +63,42 @@ public final class ChannelPipeline {
     private final AiGateway gateway;
     private final Executor workers;
     private final Clock clock;
+    private final CheckpointStore checkpoints;
 
     public ChannelPipeline(AiGateway gateway, Executor workers, Clock clock) {
+        this(gateway, workers, clock, CheckpointStore.NONE);
+    }
+
+    public ChannelPipeline(AiGateway gateway, Executor workers, Clock clock, CheckpointStore checkpoints) {
         this.gateway = Objects.requireNonNull(gateway);
         this.workers = Objects.requireNonNull(workers);
         this.clock = Objects.requireNonNull(clock);
+        this.checkpoints = Objects.requireNonNull(checkpoints);
     }
 
     /** Starts one branch per target of a validated input. Safe to call from the main thread. */
     public Session start(PipelineInput input, Observer observer) {
-        Session session = new Session(input, Objects.requireNonNull(observer));
+        List<ChannelBranch> branches = new ArrayList<>();
+        for (ChannelTarget target : input.targets) branches.add(ChannelBranch.initial(target));
+        PipelineSnapshot initial = new PipelineSnapshot(UUID.randomUUID().toString(), input.briefId,
+                input.briefFingerprint, 1, branches);
+        Session session = new Session(input, Objects.requireNonNull(observer), initial);
+        saveCheckpoint(initial);
         session.dispatchSnapshots();
         for (Run run : session.runs.values()) session.schedule(run, PipelineStage.OUTLINE, run.generation);
+        return session;
+    }
+
+    /**
+     * Rebuilds a session after process death from its last checkpoint. Nothing is scheduled or sent:
+     * interrupted branches wait for {@link Session#retry}, which uses a new requestId and reserves
+     * again. Throws when the checkpoint is stale, missing from the configured store, or incompatible.
+     */
+    public Session restore(PipelineInput input, PipelineSnapshot checkpoint, Observer observer) {
+        Objects.requireNonNull(observer);
+        PipelineSnapshot recovered = checkpoints.claimRecovery(input, checkpoint, now());
+        Session session = new Session(input, observer, recovered);
+        session.dispatchSnapshots();
         return session;
     }
 
@@ -87,14 +120,14 @@ public final class ChannelPipeline {
         AiGateway.Submission current;
         final StringBuilder streamed = new StringBuilder();
 
-        Run(ChannelTarget target) {
-            this.target = target;
-            this.branch = ChannelBranch.initial(target);
+        Run(ChannelBranch branch) {
+            this.target = branch.target;
+            this.branch = branch;
         }
     }
 
     public final class Session implements Cancelable {
-        public final String sessionId = UUID.randomUUID().toString();
+        public final String sessionId;
         private final PipelineInput input;
         private final Observer observer;
         private final Object lock = new Object();
@@ -104,13 +137,14 @@ public final class ChannelPipeline {
         private long revision;
         private PipelineSnapshot snapshot;
 
-        private Session(PipelineInput input, Observer observer) {
+        private Session(PipelineInput input, Observer observer, PipelineSnapshot initial) {
             this.input = Objects.requireNonNull(input);
             this.observer = observer;
-            for (ChannelTarget target : input.targets) runs.put(target.channelId, new Run(target));
-            synchronized (lock) {
-                publish();
-            }
+            sessionId = initial.sessionId;
+            revision = initial.revision;
+            snapshot = initial;
+            for (ChannelBranch branch : initial.branches) runs.put(branch.target.channelId, new Run(branch));
+            pendingSnapshots.addLast(initial);
         }
 
         public PipelineSnapshot snapshot() {
@@ -282,7 +316,7 @@ public final class ChannelPipeline {
                     if (result.status != StageResult.Status.RUNNING) return;
                     run.streamed.append(event.delta);
                     run.branch = run.branch.withStage(result.streaming(run.streamed.toString()));
-                    publish();
+                    publish(false);
                 }
                 dispatchSnapshots();
             }
@@ -339,11 +373,17 @@ public final class ChannelPipeline {
             }
         }
 
-        /** Holds the lock. */
+        /** Holds the lock. Structural change: published and checkpointed. */
         private void publish() {
+            publish(true);
+        }
+
+        /** Holds the lock. Streamed deltas are published only; the store sees them with the next structural change. */
+        private void publish(boolean checkpoint) {
             List<ChannelBranch> branches = new ArrayList<>();
             for (Run run : runs.values()) branches.add(run.branch);
-            snapshot = new PipelineSnapshot(sessionId, input.briefId, ++revision, branches);
+            snapshot = new PipelineSnapshot(sessionId, input.briefId, input.briefFingerprint, ++revision, branches);
+            if (checkpoint) saveCheckpoint(snapshot);
             pendingSnapshots.addLast(snapshot);
         }
 
@@ -376,6 +416,15 @@ public final class ChannelPipeline {
                     // Observer errors cannot interrupt dispatch or delivery of later revisions.
                 }
             }
+        }
+    }
+
+    private void saveCheckpoint(PipelineSnapshot snapshot) {
+        try {
+            checkpoints.save(snapshot);
+        } catch (RuntimeException failed) {
+            // A failed writer must not strand a live stage or hide its snapshot from observers.
+            LOGGER.warning("Pipeline checkpoint write failed");
         }
     }
 

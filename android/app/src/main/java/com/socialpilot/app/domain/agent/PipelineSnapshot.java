@@ -8,12 +8,16 @@ import java.util.List;
 public final class PipelineSnapshot {
     public final String sessionId;
     public final String briefId;
+    /** A missing or unknown fingerprint cannot authorize recovery. */
+    public final String briefFingerprint;
     public final long revision;
     public final List<ChannelBranch> branches;
 
-    public PipelineSnapshot(String sessionId, String briefId, long revision, List<ChannelBranch> branches) {
+    public PipelineSnapshot(String sessionId, String briefId, String briefFingerprint, long revision,
+                            List<ChannelBranch> branches) {
         this.sessionId = sessionId;
         this.briefId = briefId;
+        this.briefFingerprint = briefFingerprint;
         this.revision = revision;
         this.branches = Collections.unmodifiableList(new ArrayList<>(branches));
     }
