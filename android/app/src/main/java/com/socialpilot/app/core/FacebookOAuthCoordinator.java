@@ -124,6 +124,10 @@ public final class FacebookOAuthCoordinator {
 
     public String connectedPageSummary() { return store.pageSummary(); }
 
+    public EncryptedOAuthStore.PageMetadata savedPageMetadata() {
+        return store.pageMetadata();
+    }
+
     public static String instagramSummary(String username, String accountId) {
         return "@" + username + " (" + accountId + ")";
     }

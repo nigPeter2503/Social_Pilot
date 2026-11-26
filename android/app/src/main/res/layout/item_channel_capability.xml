@@ -1,0 +1,16 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:orientation="vertical" android:layout_marginTop="12dp">
+  <TextView android:id="@+id/capability_operation"
+      android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:textAppearance="?attr/textAppearanceSubtitle1" android:textStyle="bold" />
+  <TextView android:id="@+id/capability_status"
+      android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:textAppearance="?attr/textAppearanceBody2" />
+  <TextView android:id="@+id/capability_reason"
+      android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:visibility="gone" />
+  <TextView android:id="@+id/capability_verified"
+      android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:visibility="gone" />
+</LinearLayout>

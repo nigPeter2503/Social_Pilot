@@ -1,10 +1,13 @@
 package com.socialpilot.app.ui;
 
+import android.content.Context;
 import android.content.Intent;
+import android.graphics.Rect;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.view.View;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.view.ViewCompat;
@@ -16,10 +19,20 @@ import com.socialpilot.app.databinding.ActivityMainBinding;
 import com.socialpilot.app.data.repository.InstagramPublishRepository;
 import com.socialpilot.app.domain.DraftValidator;
 import com.socialpilot.app.domain.contract.oauth.OAuthContract.OAuthExchangeResponse;
+import com.socialpilot.app.domain.contract.social.Platform;
+import com.socialpilot.app.ui.channels.MyChannelsActivity;
 
 public final class MainActivity extends AppCompatActivity {
+    private static final String OPEN_CONNECTION_PLATFORM = "open_connection_platform";
     private ActivityMainBinding binding;
     private MainViewModel model;
+
+    public static void openConnection(Context context, Platform platform) {
+        Intent intent = new Intent(context, MainActivity.class)
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                .putExtra(OPEN_CONNECTION_PLATFORM, platform.name());
+        context.startActivity(intent);
+    }
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -30,6 +43,8 @@ public final class MainActivity extends AppCompatActivity {
             view.setPadding(bars.left, bars.top, bars.right, bars.bottom); return insets;
         });
         model = new ViewModelProvider(this).get(MainViewModel.class);
+        binding.myChannelsButton.setOnClickListener(view ->
+                startActivity(new Intent(this, MyChannelsActivity.class)));
         String page = model.connectedPageSummary();
         if (page != null) binding.facebookPageStatus.setText(getString(R.string.facebook_connected, page));
         binding.connectFacebookButton.setOnClickListener(view -> model.connectFacebook());
@@ -74,10 +89,30 @@ public final class MainActivity extends AppCompatActivity {
         binding.openPrototype.setOnClickListener(view ->
                 startActivity(new Intent(this, PrototypeActivity.class)));
         handleOAuthIntent(getIntent());
+        showConnection(getIntent());
     }
 
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent); setIntent(intent); handleOAuthIntent(intent);
+        showConnection(intent);
+    }
+
+    private void showConnection(Intent intent) {
+        String platform = intent.getStringExtra(OPEN_CONNECTION_PLATFORM);
+        intent.removeExtra(OPEN_CONNECTION_PLATFORM);
+        View button;
+        if (Platform.FACEBOOK.name().equals(platform)) {
+            button = binding.connectFacebookButton;
+        } else if (Platform.INSTAGRAM.name().equals(platform)) {
+            button = binding.connectInstagramButton;
+        } else {
+            return;
+        }
+        button.post(() -> {
+            Rect bounds = new Rect();
+            button.getDrawingRect(bounds);
+            button.requestRectangleOnScreen(bounds);
+        });
     }
 
     private void handleOAuthIntent(Intent intent) {
