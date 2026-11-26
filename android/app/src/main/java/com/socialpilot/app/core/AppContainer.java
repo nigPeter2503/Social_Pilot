@@ -13,6 +13,7 @@ import com.socialpilot.app.data.ai.ModelRegistryParser;
 import com.socialpilot.app.data.ai.ModelSelectionStore;
 import com.socialpilot.app.data.ai.ledger.BudgetLedger;
 import com.socialpilot.app.data.ai.ledger.LedgerDatabase;
+import com.socialpilot.app.data.ai.pipeline.ChannelPipeline;
 import com.socialpilot.app.data.local.AppDatabase;
 import com.socialpilot.app.data.prototype.PrototypeDatabase;
 import com.socialpilot.app.data.prototype.SampleRepository;
@@ -49,6 +50,8 @@ public final class AppContainer {
     /** One shared budget and usage ledger for every provider, task and channel ({@code ai_ledger.db}). */
     public final AttemptLedger ledger;
     public final AiGateway ai;
+    /** Week-3 text pipeline (SP-031); every stage goes through {@link #ai}. */
+    public final ChannelPipeline pipeline;
 
     public AppContainer(Context context) {
         Context app = context.getApplicationContext();
@@ -81,6 +84,7 @@ public final class AppContainer {
         ledger = budgetLedger;
         ai = new AiGateway(modelSelections, AiGateway.adapters(aiKeys, modelRegistry),
                 provider -> aiKeys.status(provider).usable(), ledger, io, System::currentTimeMillis);
+        pipeline = new ChannelPipeline(ai, io, System::currentTimeMillis);
     }
 
     private static ModelRegistry loadRegistry(Context context) {
