@@ -4,11 +4,16 @@ import static com.socialpilot.app.domain.contract.ai.ModelCapabilities.Support.*
 import static org.junit.Assert.*;
 
 import com.socialpilot.app.domain.contract.AiProvider;
+import com.socialpilot.app.data.ai.ledger.AttemptEntity;
+import com.socialpilot.app.data.ai.ledger.BudgetLedger;
+import com.socialpilot.app.data.ai.ledger.MemoryLedgerStore;
 import com.socialpilot.app.domain.contract.BudgetManager;
+import com.socialpilot.app.domain.contract.ai.AiCostEstimate;
 import com.socialpilot.app.domain.contract.ai.AiEvent;
 import com.socialpilot.app.domain.contract.ai.AiRequest;
 import com.socialpilot.app.domain.contract.ai.AiTaskType;
 import com.socialpilot.app.domain.contract.ai.AiUsage;
+import com.socialpilot.app.domain.contract.ai.AttemptLedger;
 import com.socialpilot.app.domain.contract.ai.ModelCapabilities;
 import com.socialpilot.app.domain.contract.ai.ModelEntry;
 import com.socialpilot.app.domain.contract.ai.ModelRegistry;
@@ -30,6 +35,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -66,7 +72,8 @@ public final class AiGatewayTest {
         selectionFile = new MemoryPreferences();
         selections = new ModelSelectionStore(selectionFile, registry);
         budget = new RecordingBudget();
-        usage = new MemoryUsageLog();
+        budget.clock = () -> now;
+        usage = budget.usage;
         server = new MockWebServer();
         server.start();
     }
@@ -81,9 +88,8 @@ public final class AiGatewayTest {
                 EnumSet.of(AiTaskType.CONTENT_TEXT, AiTaskType.COMMENT_REPLY), verification, price, "fixture");
     }
 
-    private AiGateway gateway(BudgetManager ledger, Executor workers) {
-        return new AiGateway(selections, providers, usableKeys::contains, ledger, ledger == null ? null : usage,
-                workers, () -> now, () -> "Asia/Bangkok");
+    private AiGateway gateway(AttemptLedger ledger, Executor workers) {
+        return new AiGateway(selections, providers, usableKeys::contains, ledger, workers, () -> now);
     }
 
     private static AiGateway.Call call(String step) {
@@ -202,36 +208,9 @@ public final class AiGatewayTest {
         Scripted provider = new Scripted();
         providers.put(AiRequest.Provider.OPENAI, provider);
         ThreadGuard guard = new ThreadGuard();
-        BudgetManager guardedBudget = new BudgetManager() {
-            @Override public Admission reserve(String requestId, com.socialpilot.app.domain.contract.ai.AiCostEstimate upperBound) {
-                guard.check();
-                return budget.reserve(requestId, upperBound);
-            }
-            @Override public void settle(String requestId, com.socialpilot.app.domain.contract.ai.AiCostEstimate estimate) {
-                guard.check();
-                budget.settle(requestId, estimate);
-            }
-            @Override public void releaseUndispatched(String requestId) {
-                guard.check();
-                budget.releaseUndispatched(requestId);
-            }
-            @Override public void markUncertain(String requestId) {
-                guard.check();
-                budget.markUncertain(requestId);
-            }
-        };
-        com.socialpilot.app.domain.contract.ai.UsageLog guardedUsage = new com.socialpilot.app.domain.contract.ai.UsageLog() {
-            @Override public boolean record(UsageRecord record) {
-                guard.check();
-                return usage.record(record);
-            }
-            @Override public List<UsageRecord> forMonth(String monthKey) {
-                guard.check();
-                return usage.forMonth(monthKey);
-            }
-        };
-        AiGateway gateway = new AiGateway(selections, providers, usableKeys::contains, guardedBudget, guardedUsage,
-                manual, () -> now, () -> "Asia/Bangkok");
+        HookedLedger guarded = new HookedLedger(budget);
+        guarded.guard = guard;
+        AiGateway gateway = gateway(guarded, manual);
         java.util.concurrent.atomic.AtomicInteger finishes = new java.util.concurrent.atomic.AtomicInteger();
         AtomicReference<Thread> finishedOn = new AtomicReference<>();
         Collector collector = new Collector() {
@@ -270,6 +249,57 @@ public final class AiGatewayTest {
         assertTrue(queued.isEmpty());
     }
 
+    @Test public void withoutCapsNothingIsReservedOrPrepared() {
+        selections.select(AiTaskType.CONTENT_TEXT, openAi);
+        Scripted provider = new Scripted();
+        providers.put(AiRequest.Provider.OPENAI, provider);
+        budget.limits = null;
+        AiGateway.Submission submission = gateway(budget, manual).submit(call("a"), new Collector());
+        assertEquals(AiGateway.Rejection.BUDGET_NOT_SET, submission.rejection);
+        assertEquals(0, budget.count("reserve:"));
+        assertTrue(provider.prepared.isEmpty());
+    }
+
+    @Test public void exhaustionCancelsPendingAndRunningCallsKeepingTheirResults() throws Exception {
+        selections.select(AiTaskType.CONTENT_TEXT, openAi);
+        Hanging provider = new Hanging();
+        providers.put(AiRequest.Provider.OPENAI, provider);
+        ExecutorService threads = Executors.newSingleThreadExecutor();
+        // The first job runs at once; later jobs wait here until released, so the second call is
+        // certainly still queued when the budget stops. (A single-thread pool alone races: its
+        // worker may start the second job before exhaust() reaches it, which is then UNCERTAIN.)
+        List<Runnable> held = new java.util.concurrent.CopyOnWriteArrayList<>();
+        java.util.concurrent.atomic.AtomicBoolean firstJob = new java.util.concurrent.atomic.AtomicBoolean(true);
+        Executor workers = command -> {
+            if (firstJob.getAndSet(false)) threads.execute(command);
+            else held.add(command);
+        };
+        try {
+            AiGateway gateway = gateway(budget, workers);
+            Collector running = new Collector();
+            AiGateway.Submission first = gateway.submit(call("a"), running);
+            assertTrue(provider.started.await(5, TimeUnit.SECONDS));
+            Collector pending = new Collector();
+            AiGateway.Submission second = gateway.submit(call("b"), pending); // Queued behind the first.
+            budget.exhaust();
+            assertTrue(running.done.await(5, TimeUnit.SECONDS));
+            assertNull(pending.finished.get()); // Finalized by its own worker job, not by exhaust().
+            assertEquals(1, held.size());
+            threads.execute(held.get(0)); // The worker now reaches the queued job.
+            assertTrue(pending.done.await(5, TimeUnit.SECONDS));
+            assertTrue(running.finished.get().budgetStopped);
+            assertEquals("partial", running.finished.get().text);
+            assertEquals(1, budget.count("uncertain:" + first.requestId)); // It may have been charged.
+            assertTrue(pending.finished.get().budgetStopped);
+            assertEquals(1, budget.count("release:" + second.requestId)); // Never sent.
+            budget.exhaust(); // Nothing left to stop; nothing settles twice.
+            assertEquals(1, budget.count("uncertain:"));
+            assertEquals(1, budget.count("release:"));
+        } finally {
+            threads.shutdownNow();
+        }
+    }
+
     @Test public void fullWorkerReleasesReservationWithoutCallback() {
         selections.select(AiTaskType.CONTENT_TEXT, openAi);
         providers.put(AiRequest.Provider.OPENAI, new Scripted());
@@ -280,6 +310,212 @@ public final class AiGatewayTest {
         assertEquals(AiGateway.Rejection.WORKER_UNAVAILABLE, submission.rejection);
         assertEquals(1, budget.count("release:"));
         assertNull(collector.finished.get());
+    }
+
+    private static final String BANGKOK = "Asia/Bangkok";
+
+    /** Real ledger; after an admitted reserve it runs a hook, like another thread changing the caps. */
+    private static final class HookedLedger implements AttemptLedger {
+        final AttemptLedger delegate;
+        Runnable afterReserve;
+        /** Optional: storage calls on the guarded thread throw, like Room on the main thread. */
+        ThreadGuard guard;
+        int completes;
+
+        HookedLedger(AttemptLedger delegate) {
+            this.delegate = delegate;
+        }
+
+        private void io() {
+            if (guard != null) guard.check();
+        }
+
+        @Override public Admission reserve(AiRequest request, AiTaskType taskType, AiCostEstimate upperBound) {
+            io();
+            Admission admission = delegate.reserve(request, taskType, upperBound);
+            if (admission == Admission.RESERVED && afterReserve != null) afterReserve.run();
+            return admission;
+        }
+        @Override public Admission reserve(String requestId, AiCostEstimate upperBound) {
+            io();
+            return delegate.reserve(requestId, upperBound);
+        }
+        @Override public UsageRecord complete(String requestId, boolean mayHaveDispatched, AiCostEstimate estimate,
+                                              AiUsage usage) {
+            io();
+            completes++;
+            return delegate.complete(requestId, mayHaveDispatched, estimate, usage);
+        }
+        @Override public boolean claimDispatch(String requestId) { io(); return delegate.claimDispatch(requestId); }
+        @Override public void settle(String requestId, AiCostEstimate estimate) { io(); delegate.settle(requestId, estimate); }
+        @Override public void releaseUndispatched(String requestId) { io(); delegate.releaseUndispatched(requestId); }
+        @Override public void markUncertain(String requestId) { io(); delegate.markUncertain(requestId); }
+        @Override public boolean record(UsageRecord record) { io(); return delegate.record(record); }
+        @Override public List<UsageRecord> forMonth(String monthKey) { io(); return delegate.forMonth(monthKey); }
+        @Override public Limits limits() { io(); return delegate.limits(); }
+        @Override public void setLimits(Limits limits) { io(); delegate.setLimits(limits); }
+        @Override public Spend currentSpend() { io(); return delegate.currentSpend(); }
+        @Override public void addExhaustionListener(ExhaustionListener listener) {
+            delegate.addExhaustionListener(listener);
+        }
+        @Override public void removeExhaustionListener(ExhaustionListener listener) {
+            delegate.removeExhaustionListener(listener);
+        }
+    }
+
+    @Test public void capLoweredBetweenReserveAndDispatchNeverSendsAndReleasesOnce() {
+        selections.select(AiTaskType.CONTENT_TEXT, openAi);
+        Scripted provider = new Scripted();
+        providers.put(AiRequest.Provider.OPENAI, provider);
+        MemoryLedgerStore store = new MemoryLedgerStore();
+        HookedLedger ledger = new HookedLedger(new BudgetLedger(store, () -> now));
+        ledger.setLimits(new AttemptLedger.Limits("USD", 1_000, 10_000, BANGKOK));
+        // The reservation (411 micros) commits, then the cap drops to 50 before the run is armed.
+        ledger.afterReserve = () -> ledger.setLimits(new AttemptLedger.Limits("USD", 50, 10_000, BANGKOK));
+        Collector collector = new Collector();
+        AiGateway.Submission submission = gateway(ledger, manual).submit(call("draft"), collector);
+        assertEquals(AiGateway.Rejection.BUDGET_LIMIT_REACHED, submission.rejection);
+        assertNotNull(submission.requestId);
+        assertTrue(provider.prepared.isEmpty());
+        assertTrue(queued.isEmpty());
+        assertNull(collector.finished.get()); // A rejected submit never also calls back.
+        assertEquals(1, ledger.completes);
+        assertEquals(AttemptEntity.RELEASED, store.raw(submission.requestId).state);
+        assertEquals(0, ledger.currentSpend().dayMicros);
+    }
+
+    @Test public void capChangeRevokesQueuedDispatchBeforeAllListenersRun() {
+        assertQueuedCallRevoked(false, false);
+    }
+
+    @Test public void loweringDailyCapToExactlyCommittedStopsQueuedCall() {
+        assertQueuedCallRevoked(true, false);
+    }
+
+    @Test public void loweringMonthlyCapToExactlyCommittedStopsQueuedCall() {
+        assertQueuedCallRevoked(true, true);
+    }
+
+    private void assertQueuedCallRevoked(boolean exactly, boolean monthly) {
+        selections.select(AiTaskType.CONTENT_TEXT, openAi);
+        Scripted provider = new Scripted();
+        providers.put(AiRequest.Provider.OPENAI, provider);
+        MemoryLedgerStore store = new MemoryLedgerStore();
+        HookedLedger ledger = new HookedLedger(new BudgetLedger(store, () -> now));
+        ledger.setLimits(new AttemptLedger.Limits("USD", 1_000, 10_000, BANGKOK));
+        if (monthly) {
+            now -= TimeUnit.DAYS.toMillis(1);
+            AiCostEstimate prior = AiCostEstimate.text(500, 0, 0, BigDecimal.ONE, BigDecimal.ZERO,
+                    BigDecimal.ZERO, PRICE.currency, PRICE.priceRevision);
+            assertEquals(BudgetManager.Admission.RESERVED, ledger.reserve("prior-day", prior));
+            ledger.settle("prior-day", prior);
+            now += TimeUnit.DAYS.toMillis(1);
+        }
+        // This listener runs first, so the queued worker can start before the gateway hears about the stop.
+        ledger.addExhaustionListener(() -> queued.remove(0).run());
+        Collector collector = new Collector();
+        AiGateway.Submission queuedCall = gateway(ledger, manual).submit(call("draft"), collector);
+        long held = store.raw(queuedCall.requestId).reservedMicros;
+        ledger.setLimits(monthly
+                ? new AttemptLedger.Limits("USD", 600, held + 500, BANGKOK)
+                : new AttemptLedger.Limits("USD", exactly ? held : 50, 10_000, BANGKOK));
+        if (!queued.isEmpty()) queued.remove(0).run();
+
+        assertEquals(0, provider.runs);
+        assertNotNull(collector.finished.get());
+        assertTrue(collector.finished.get().budgetStopped);
+        assertEquals(UsageRecord.Settlement.RELEASED, collector.finished.get().usage.settlement);
+        assertEquals(1, ledger.completes);
+        assertEquals(0, ledger.currentSpend().dayMicros);
+    }
+
+    @Test public void listenerFailureCannotTurnCommittedUsageIntoAWriteFailure() {
+        selections.select(AiTaskType.CONTENT_TEXT, openAi);
+        Scripted provider = new Scripted();
+        provider.usage = new AiUsage(10L, 200L, 210L, 0L, null);
+        providers.put(AiRequest.Provider.OPENAI, provider);
+        MemoryLedgerStore store = new MemoryLedgerStore();
+        BudgetLedger ledger = new BudgetLedger(store, () -> now);
+        ledger.setLimits(new AttemptLedger.Limits("USD", 500, 10_000, BANGKOK));
+        AtomicInteger notified = new AtomicInteger();
+        ledger.addExhaustionListener(() -> { throw new IllegalStateException("fixture listener failure"); });
+        ledger.addExhaustionListener(notified::incrementAndGet);
+        Collector collector = new Collector();
+        AiGateway.Submission submission = gateway(ledger, manual).submit(call("draft"), collector);
+        queued.remove(0).run();
+
+        assertEquals(AttemptEntity.SETTLED, store.raw(submission.requestId).state);
+        assertEquals(1, notified.get());
+        assertFalse(collector.finished.get().ledgerWriteFailed);
+        assertEquals(UsageRecord.Settlement.SETTLED, collector.finished.get().usage.settlement);
+    }
+
+    @Test public void unpriceableUsageStillDeliversTheTerminalAndKeepsTheHold() {
+        selections.select(AiTaskType.CONTENT_TEXT, openAi);
+        Scripted provider = new Scripted();
+        provider.usage = new AiUsage(0L, Long.MAX_VALUE, Long.MAX_VALUE, 0L, null);
+        providers.put(AiRequest.Provider.OPENAI, provider);
+        MemoryLedgerStore store = new MemoryLedgerStore();
+        BudgetLedger ledger = new BudgetLedger(store, () -> now);
+        ledger.setLimits(new AttemptLedger.Limits("USD", 1_000, 10_000, BANGKOK));
+        Collector collector = new Collector();
+        AiGateway.Submission submission = gateway(ledger, manual).submit(call("draft"), collector);
+        long held = store.raw(submission.requestId).reservedMicros;
+        queued.remove(0).run();
+
+        assertNotNull(collector.finished.get());
+        assertFalse(collector.finished.get().ledgerWriteFailed);
+        assertEquals(UsageRecord.Settlement.UNCERTAIN, collector.finished.get().usage.settlement);
+        assertEquals(Long.valueOf(Long.MAX_VALUE), collector.finished.get().usage.usage.totalTokens);
+        assertEquals(held, ledger.currentSpend().dayMicros);
+    }
+
+    @Test public void ledgerWriteFailureStillEndsTheCallClearlyAndStaysHeld() {
+        selections.select(AiTaskType.CONTENT_TEXT, openAi);
+        Scripted provider = new Scripted();
+        provider.usage = new AiUsage(10L, 5L, 15L, 0L, null);
+        providers.put(AiRequest.Provider.OPENAI, provider);
+        MemoryLedgerStore store = new MemoryLedgerStore();
+        BudgetLedger ledger = new BudgetLedger(store, () -> now);
+        ledger.setLimits(new AttemptLedger.Limits("USD", 1_000, 10_000, BANGKOK));
+        Collector collector = new Collector();
+        AiGateway.Submission submission = gateway(ledger, manual).submit(call("draft"), collector);
+        provider.beforeTerminal = () -> store.failNextUpdate = true;
+        queued.get(0).run();
+        AiGateway.Finished finished = collector.finished.get();
+        assertNotNull(finished);
+        assertTrue(finished.ledgerWriteFailed);
+        assertNull(finished.usage);
+        assertEquals(AiEvent.Type.COMPLETED, finished.terminal.type);
+        AttemptEntity row = store.raw(submission.requestId);
+        assertEquals(AttemptEntity.DISPATCHING, row.state); // Settlement and usage were rolled back together.
+        assertNull(row.usageState);
+        BudgetLedger afterRestart = new BudgetLedger(store, () -> now);
+        assertEquals(1, afterRestart.recoverInterrupted());
+        UsageRecord recovered = afterRestart.forMonth("2026-11").get(0);
+        assertEquals(UsageRecord.Settlement.UNCERTAIN, recovered.settlement);
+        assertEquals(AiUsage.State.MISSING, recovered.usage.state);
+        assertEquals(row.reservedMicros, afterRestart.currentSpend().dayMicros); // Still held, never free.
+    }
+
+    @Test public void callbackUsesThePeriodTheLedgerPinnedAcrossMidnight() {
+        selections.select(AiTaskType.CONTENT_TEXT, openAi);
+        Scripted provider = new Scripted();
+        provider.usage = new AiUsage(10L, 5L, 15L, 0L, null);
+        providers.put(AiRequest.Provider.OPENAI, provider);
+        now = NOV_23_2330_BANGKOK + TimeUnit.MINUTES.toMillis(30) - 1; // Gateway: 23:59:59.999 on 23/11.
+        long[] ledgerNow = {now + 2}; // Ledger reserves at 00:00:00.001 on 24/11.
+        BudgetLedger ledger = new BudgetLedger(new MemoryLedgerStore(), () -> ledgerNow[0]);
+        ledger.setLimits(new AttemptLedger.Limits("USD", 1_000, 10_000, BANGKOK));
+        Collector collector = new Collector();
+        gateway(ledger, manual).submit(call("draft"), collector);
+        queued.get(0).run();
+        UsageRecord reported = collector.finished.get().usage;
+        assertEquals("2026-11-24", reported.period.dayKey);
+        UsageRecord stored = ledger.forMonth("2026-11").get(0);
+        assertEquals(stored.period.dayKey, reported.period.dayKey);
+        assertEquals(stored.period.monthKey, reported.period.monthKey);
+        assertEquals(UsageRecord.Settlement.SETTLED, reported.settlement);
     }
 
     @Test public void switchingProviderKeepsRecordedUsageAndUsesNewProvider() {
@@ -355,6 +591,7 @@ public final class AiGatewayTest {
         List<String> script = Arrays.asList("ok");
         AiUsage usage = AiUsage.MISSING;
         boolean failAfterText;
+        Runnable beforeTerminal = () -> {};
         int runs;
         private Listener last;
 
@@ -374,6 +611,7 @@ public final class AiGatewayTest {
                     }
                     listener.onEvent(AiEvent.started(request, ++sequence));
                     for (String part : script) listener.onEvent(AiEvent.text(request, ++sequence, part));
+                    beforeTerminal.run();
                     if (failAfterText) {
                         listener.onEvent(AiEvent.terminal(request, ++sequence, AiEvent.Type.FAILED,
                                 new com.socialpilot.app.domain.contract.ai.AiError(
@@ -389,6 +627,30 @@ public final class AiGatewayTest {
 
         void finishAgain(AiRequest request) {
             last.onEvent(AiEvent.terminal(request, 99, AiEvent.Type.COMPLETED, null, usage, false, true));
+        }
+    }
+
+    /** Sends text, then waits until cancelled, like a stream the budget stops mid-flight. */
+    private static final class Hanging implements AiProvider {
+        final CountDownLatch started = new CountDownLatch(1);
+
+        @Override public Attempt prepare(AiRequest request, Listener listener) {
+            CountDownLatch cancelled = new CountDownLatch(1);
+            return new Attempt() {
+                @Override public void cancel() { cancelled.countDown(); }
+                @Override public void run() {
+                    listener.onEvent(AiEvent.started(request, 1));
+                    listener.onEvent(AiEvent.text(request, 2, "partial"));
+                    started.countDown();
+                    try {
+                        cancelled.await(5, TimeUnit.SECONDS);
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                    }
+                    listener.onEvent(AiEvent.terminal(request, 3, AiEvent.Type.CANCELLED, null,
+                            AiUsage.MISSING, false, true));
+                }
+            };
         }
     }
 
