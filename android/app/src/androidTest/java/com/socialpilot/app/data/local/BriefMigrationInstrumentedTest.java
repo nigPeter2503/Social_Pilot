@@ -16,7 +16,9 @@ import androidx.test.platform.app.InstrumentationRegistry;
 import com.socialpilot.app.data.repository.BriefRepository;
 import com.socialpilot.app.domain.editor.Brief;
 import com.socialpilot.app.domain.editor.BriefForm;
+import com.socialpilot.app.domain.contract.social.ConnectionLifecycle.Scope;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -78,6 +80,18 @@ public final class BriefMigrationInstrumentedTest {
         String id;
         AppDatabase database = Room.databaseBuilder(context, AppDatabase.class, name).build();
         try {
+            database.getOpenHelper().getWritableDatabase().execSQL(
+                    "INSERT INTO channels (channelId, platform, accountType, externalAccountId, "
+                            + "displayName, status, sessionId, tokenType, scopesJson, capabilitiesJson, "
+                            + "connectionRevision, selected) VALUES "
+                            + "('fb-internal', 'FACEBOOK', 'PAGE', 'page-1', 'Page', 'CONNECTED', "
+                            + "'session-1', 'bearer', '[]', '[]', 1, 1)");
+            database.getOpenHelper().getWritableDatabase().execSQL(
+                    "INSERT INTO channels (channelId, platform, accountType, externalAccountId, "
+                            + "displayName, status, sessionId, tokenType, scopesJson, capabilitiesJson, "
+                            + "connectionRevision, selected) VALUES "
+                            + "('li-internal', 'LINKEDIN', 'PAGE', 'page-2', 'Page', 'CONNECTED', "
+                            + "'session-2', 'bearer', '[]', '[]', 1, 1)");
             BriefRepository repository = new BriefRepository(database.briefs(), io);
             BriefForm form = new BriefForm("Topic", "Goal", "Audience", "Tone", "en",
                     Arrays.asList(new Brief.Target("fb-internal", "FACEBOOK"),
@@ -86,7 +100,8 @@ public final class BriefMigrationInstrumentedTest {
                             new Brief.Source("URL", "https://example.org")));
             CountDownLatch saved = new CountDownLatch(1);
             String[] result = new String[1];
-            repository.saveDraft(form, (briefId, ok) -> {
+            repository.saveDraft(form, Arrays.asList(new Scope("FACEBOOK", "fb-internal", 1),
+                    new Scope("LINKEDIN", "li-internal", 1)), (briefId, ok) -> {
                 if (ok) result[0] = briefId;
                 saved.countDown();
             });
@@ -141,6 +156,43 @@ public final class BriefMigrationInstrumentedTest {
         } finally {
             migrated.close();
             context.deleteDatabase(name);
+        }
+    }
+
+    @Test public void staleChannelRevisionCannotSaveBriefOrPartialSources() {
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        AppDatabase database = Room.inMemoryDatabaseBuilder(context, AppDatabase.class).build();
+        try {
+            database.getOpenHelper().getWritableDatabase().execSQL(
+                    "INSERT INTO channels (channelId, platform, accountType, externalAccountId, "
+                            + "displayName, status, sessionId, tokenType, scopesJson, capabilitiesJson, "
+                            + "connectionRevision, selected) VALUES "
+                            + "('channel-1', 'FACEBOOK', 'PAGE', 'page-1', 'Page', 'CONNECTED', "
+                            + "'session-1', 'bearer', '[]', '[]', 2, 1)");
+            BriefEntity brief = new BriefEntity("stale-brief", null, "Topic", "Goal",
+                    "Audience", "Tone", "vi", 100, 100);
+            BriefSourceEntity source = new BriefSourceEntity("source-1", "stale-brief",
+                    "URL", "https://example.org", 0);
+            BriefTargetEntity target = new BriefTargetEntity("stale-brief", "channel-1", "FACEBOOK");
+            boolean rejected = false;
+            try {
+                database.briefs().insertScoped(brief, Collections.singletonList(source),
+                        Collections.singletonList(target),
+                        Collections.singletonList(new Scope("FACEBOOK", "channel-1", 1)));
+            } catch (IllegalStateException expected) {
+                rejected = true;
+            }
+            assertTrue(rejected);
+            assertNull(database.briefs().get("stale-brief"));
+            assertTrue(database.briefs().sources("stale-brief").isEmpty());
+            assertTrue(database.briefs().targets("stale-brief").isEmpty());
+            database.briefs().insertScoped(brief, Collections.singletonList(source),
+                    Collections.singletonList(target),
+                    Collections.singletonList(new Scope("FACEBOOK", "channel-1", 2)));
+            assertNotNull(database.briefs().get("stale-brief"));
+            assertEquals(1, database.briefs().targets("stale-brief").size());
+        } finally {
+            database.close();
         }
     }
 }

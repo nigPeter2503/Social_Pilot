@@ -10,6 +10,7 @@ import com.socialpilot.app.data.local.BriefTargetEntity;
 import com.socialpilot.app.domain.editor.Brief;
 import com.socialpilot.app.domain.editor.BriefForm;
 import com.socialpilot.app.domain.editor.BriefFormValidator;
+import com.socialpilot.app.domain.contract.social.ConnectionLifecycle.Scope;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -31,9 +32,11 @@ public final class BriefRepository {
         return dao.observeRecentDetails();
     }
 
-    public void saveDraft(BriefForm form, Completion completion) {
+    public void saveDraft(BriefForm form, List<Scope> scopes, Completion completion) {
         if (BriefFormValidator.validate(form, false).hasErrors())
             throw new IllegalArgumentException("Invalid brief draft");
+        if (scopes == null || form.targets.size() != scopes.size())
+            throw new IllegalArgumentException("Target scope mismatch");
         String briefId = UUID.randomUUID().toString();
         long now = System.currentTimeMillis();
         BriefEntity brief = new BriefEntity(briefId, null, form.topic, form.goal,
@@ -50,7 +53,7 @@ public final class BriefRepository {
         }
         io.execute(() -> {
             try {
-                dao.insert(brief, sources, targets);
+                dao.insertScoped(brief, sources, targets, scopes);
                 completion.complete(briefId, true);
             } catch (RuntimeException error) {
                 completion.complete(briefId, false);
