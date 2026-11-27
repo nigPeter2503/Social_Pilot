@@ -58,6 +58,11 @@
     <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/sourceUrlSwitch"
         android:layout_width="match_parent" android:layout_height="wrap_content"
         android:text="@string/source_is_url" />
+    <com.google.android.material.button.MaterialButton android:id="@+id/inspectSourceButton"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="@string/source_inspect" />
+    <TextView android:id="@+id/sourceImportStatus" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:layout_marginTop="8dp" />
     <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
         android:layout_marginTop="16dp" android:text="@string/targets_title" />
     <TextView android:id="@+id/targetStatus" android:layout_width="match_parent"

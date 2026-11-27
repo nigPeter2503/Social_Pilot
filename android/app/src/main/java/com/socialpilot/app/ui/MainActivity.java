@@ -1,6 +1,7 @@
 package com.socialpilot.app.ui;
 
 import android.content.Intent;
+import androidx.appcompat.app.AlertDialog;
 import android.net.Uri;
 import android.net.ConnectivityManager;
 import android.net.NetworkCapabilities;
@@ -22,6 +23,8 @@ import com.socialpilot.app.domain.contract.oauth.OAuthContract.OAuthExchangeResp
 import com.socialpilot.app.domain.editor.Brief;
 import com.socialpilot.app.domain.editor.BriefForm;
 import com.socialpilot.app.domain.editor.BriefFormValidator;
+import com.socialpilot.app.domain.editor.SharedUrlParser;
+import com.socialpilot.app.data.repository.PublicArticleRepository;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -149,15 +152,63 @@ public final class MainActivity extends AppCompatActivity {
                 binding.audienceInput.setText("");
                 binding.toneInput.setText("");
                 binding.sourceInput.setText("");
+                model.clearImportState();
                 Toast.makeText(this, R.string.saved, Toast.LENGTH_SHORT).show(); model.acknowledge();
             } else if (state == MainViewModel.SaveState.FAILED) {
                 Toast.makeText(this, R.string.save_error, Toast.LENGTH_SHORT).show(); model.acknowledge();
             }
         });
+        model.importState().observe(this, state -> {
+            binding.inspectSourceButton.setEnabled(state.status != MainViewModel.ImportStatus.LOADING);
+            if (state.status == MainViewModel.ImportStatus.LOADING) {
+                binding.sourceImportStatus.setText(R.string.source_loading);
+            } else if (state.status == MainViewModel.ImportStatus.DONE) {
+                PublicArticleRepository.Result result = state.result;
+                String currentSource = String.valueOf(binding.sourceInput.getText()).trim();
+                if (!currentSource.equals(result.requestedUrl)
+                        && !currentSource.equals(result.url)) {
+                    binding.sourceImportStatus.setText("");
+                    return;
+                }
+                if (result.isSuccess()) {
+                    binding.sourceImportStatus.setText(getString(R.string.source_inspected, result.url));
+                    if (String.valueOf(binding.sourceInput.getText()).trim()
+                            .equals(result.requestedUrl)) {
+                        binding.sourceInput.setText(result.url);
+                        if (String.valueOf(binding.topicInput.getText()).trim().isEmpty()) {
+                            String suggestion = result.title.isEmpty() ? result.description
+                                    : result.title + (result.description.isEmpty() ? ""
+                                    : "\n" + result.description);
+                            binding.topicInput.setText(suggestion);
+                        }
+                    }
+                } else {
+                    binding.sourceImportStatus.setText(getString(R.string.source_unavailable,
+                            importFailureMessage(result.failure)));
+                }
+            } else {
+                binding.sourceImportStatus.setText("");
+            }
+        });
+        binding.inspectSourceButton.setOnClickListener(view -> {
+            String url = String.valueOf(binding.sourceInput.getText()).trim();
+            if (!binding.sourceUrlSwitch.isChecked() || url.contains("\n")
+                    || !validHttpUrl(url)) {
+                binding.sourceImportStatus.setText(R.string.source_manual);
+                return;
+            }
+            if (!isOnline()) {
+                binding.sourceImportStatus.setText(getString(R.string.source_unavailable,
+                        getString(R.string.source_reason_network)));
+                return;
+            }
+            model.inspectSource(url);
+        });
         binding.saveButton.setOnClickListener(view -> saveBrief());
         binding.openPrototype.setOnClickListener(view ->
                 startActivity(new Intent(this, PrototypeActivity.class)));
         handleOAuthIntent(getIntent());
+        if (savedInstanceState == null) handleShareIntent(getIntent());
     }
 
     @Override protected void onSaveInstanceState(Bundle outState) {
@@ -187,7 +238,13 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     @Override protected void onNewIntent(Intent intent) {
-        super.onNewIntent(intent); setIntent(intent); handleOAuthIntent(intent);
+        super.onNewIntent(intent);
+        if (intent != null && Intent.ACTION_SEND.equals(intent.getAction())) {
+            handleShareIntent(intent);
+        } else {
+            setIntent(intent);
+            handleOAuthIntent(intent);
+        }
     }
 
     private void handleOAuthIntent(Intent intent) {
@@ -230,17 +287,68 @@ public final class MainActivity extends AppCompatActivity {
         }
     }
 
+    private void handleShareIntent(Intent intent) {
+        if (intent == null || !Intent.ACTION_SEND.equals(intent.getAction())) return;
+        String mime = intent.getType();
+        String text = intent.getStringExtra(Intent.EXTRA_TEXT);
+        if (!"text/plain".equals(mime)) {
+            Toast.makeText(this, R.string.share_invalid_type, Toast.LENGTH_LONG).show();
+            return;
+        }
+        String url = SharedUrlParser.firstPublicWebUrl(text);
+        if (url == null) {
+            Toast.makeText(this, R.string.share_invalid_url, Toast.LENGTH_LONG).show();
+            return;
+        }
+        String existing = String.valueOf(binding.sourceInput.getText()).trim();
+        if (!existing.isEmpty() && (!binding.sourceUrlSwitch.isChecked()
+                || !existing.equals(url))) {
+            new AlertDialog.Builder(this).setMessage(R.string.share_replace_source)
+                    .setPositiveButton(R.string.share_replace, (dialog, which) -> applySharedUrl(url))
+                    .setNegativeButton(android.R.string.cancel, null).show();
+        } else {
+            applySharedUrl(url);
+        }
+    }
+
+    private void applySharedUrl(String url) {
+        model.clearImportState();
+        binding.sourceUrlSwitch.setChecked(true);
+        binding.sourceInput.setText(url);
+        binding.sourceLayout.setError(null);
+        Toast.makeText(this, R.string.share_ready, Toast.LENGTH_SHORT).show();
+    }
+
+    private String importFailureMessage(PublicArticleRepository.Failure failure) {
+        switch (failure) {
+            case INVALID_URL: return getString(R.string.source_reason_invalid);
+            case PRIVATE_HOST: return getString(R.string.source_reason_private);
+            case LOGIN_REQUIRED: return getString(R.string.source_reason_login);
+            case PAYWALL: return getString(R.string.source_reason_paywall);
+            case RATE_LIMIT: return getString(R.string.source_reason_rate);
+            case NON_HTML: return getString(R.string.source_reason_non_html);
+            case TOO_LARGE: return getString(R.string.source_reason_too_large);
+            case EMPTY_METADATA: return getString(R.string.source_reason_empty);
+            case REDIRECT_LIMIT: return getString(R.string.source_reason_redirect);
+            case HTTP_ERROR: return getString(R.string.source_reason_http);
+            default: return getString(R.string.source_reason_network);
+        }
+    }
+
     @Override protected void onResume() {
         super.onResume();
+        binding.networkStatus.setText(isOnline() ? R.string.online_draft_ready
+                : R.string.offline_draft_ready);
         if (model != null) model.refreshChannelOptions();
+    }
+
+    private boolean isOnline() {
         ConnectivityManager manager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
         NetworkCapabilities capabilities = manager == null ? null
                 : manager.getNetworkCapabilities(manager.getActiveNetwork());
-        boolean online = capabilities != null
+        return capabilities != null
                 && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
                 && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
-        binding.networkStatus.setText(online ? R.string.online_draft_ready
-                : R.string.offline_draft_ready);
     }
 
     private void saveBrief() {

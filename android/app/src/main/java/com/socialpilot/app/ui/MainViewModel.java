@@ -14,6 +14,7 @@ import com.socialpilot.app.core.FacebookOAuthCoordinator;
 import com.socialpilot.app.data.local.DraftEntity;
 import com.socialpilot.app.data.local.BriefDao.BriefListItem;
 import com.socialpilot.app.data.repository.BriefRepository;
+import com.socialpilot.app.data.repository.PublicArticleRepository;
 import com.socialpilot.app.data.repository.ChannelRepository;
 import com.socialpilot.app.data.repository.ChannelRepository.PageCheck;
 import com.socialpilot.app.data.repository.DraftRepository;
@@ -33,6 +34,9 @@ import java.util.Collections;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
@@ -41,6 +45,15 @@ import java.util.concurrent.Executor;
 public final class MainViewModel extends AndroidViewModel {
     public enum SaveState { IDLE, SAVING, SAVED, FAILED }
     public enum OAuthStatus { IDLE, STARTING, AUTHORIZATION_READY, EXCHANGING, CONNECTED, FAILED }
+    public enum ImportStatus { IDLE, LOADING, DONE }
+    public static final class ImportUiState {
+        public final ImportStatus status;
+        public final PublicArticleRepository.Result result;
+        private ImportUiState(ImportStatus status, PublicArticleRepository.Result result) {
+            this.status = status;
+            this.result = result;
+        }
+    }
     public static final class OAuthUiState {
         public final OAuthStatus status;
         public final String value;
@@ -73,6 +86,11 @@ public final class MainViewModel extends AndroidViewModel {
     private final Handler main = new Handler(Looper.getMainLooper());
     private final MutableLiveData<SaveState> saveState = new MutableLiveData<>(SaveState.IDLE);
     private final MutableLiveData<OAuthUiState> oauthState = new MutableLiveData<>(new OAuthUiState(OAuthStatus.IDLE, null));
+    private final PublicArticleRepository articleRepository = new PublicArticleRepository();
+    private final ExecutorService importExecutor = Executors.newSingleThreadExecutor();
+    private final AtomicInteger importGeneration = new AtomicInteger();
+    private final MutableLiveData<ImportUiState> importState =
+            new MutableLiveData<>(new ImportUiState(ImportStatus.IDLE, null));
     private final MutableLiveData<InstagramPublishRepository.Result> instagramResult = new MutableLiveData<>();
     private final MutableLiveData<Boolean> instagramBusy = new MutableLiveData<>(false);
     private final MutableLiveData<Boolean> instagramApproved = new MutableLiveData<>(false);
@@ -144,6 +162,31 @@ public final class MainViewModel extends AndroidViewModel {
     }
     public LiveData<SaveState> saveState() { return saveState; }
     public LiveData<OAuthUiState> oauthState() { return oauthState; }
+    public LiveData<ImportUiState> importState() { return importState; }
+
+    public void clearImportState() {
+        importGeneration.incrementAndGet();
+        importState.setValue(new ImportUiState(ImportStatus.IDLE, null));
+    }
+
+    public void inspectSource(String url) {
+        int generation = importGeneration.incrementAndGet();
+        importState.setValue(new ImportUiState(ImportStatus.LOADING, null));
+        importExecutor.execute(() -> {
+            PublicArticleRepository.Result result = articleRepository.inspect(url);
+            new Handler(Looper.getMainLooper()).post(() -> {
+                if (importGeneration.get() == generation) {
+                    importState.setValue(new ImportUiState(ImportStatus.DONE, result));
+                }
+            });
+        });
+    }
+
+    @Override protected void onCleared() {
+        importGeneration.incrementAndGet();
+        importExecutor.shutdownNow();
+        super.onCleared();
+    }
     public String connectedPageSummary() { return facebookOAuth.connectedPageSummary(); }
     LiveData<?> facebookPageCheck() { return facebookPageCheck; }
 
