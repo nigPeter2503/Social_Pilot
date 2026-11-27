@@ -14,6 +14,7 @@ import com.socialpilot.app.data.local.AppDatabase;
 import com.socialpilot.app.data.repository.ChannelRepository;
 import com.socialpilot.app.data.repository.ChannelRepository.PageCheck;
 import com.socialpilot.app.data.repository.ControlledInstagramPublishRepository;
+import com.socialpilot.app.data.repository.BriefRepository;
 import com.socialpilot.app.data.repository.DraftRepository;
 import com.socialpilot.app.data.repository.InstagramPublishRepository;
 import com.socialpilot.app.data.security.EncryptedOAuthStore;
@@ -129,6 +130,7 @@ public final class MainViewModelInstagramDeviceTest {
                             .body(ResponseBody.create("{\"id\":\"" + accountId + "\"}", null)).build();
                 });
         MainViewModel model = new MainViewModel(application, new DraftRepository(database.drafts(), worker),
+                new BriefRepository(database.briefs(), worker),
                 new FacebookOAuthCoordinator(store, worker, "https://127.0.0.1/"), store, instagram, worker);
         List<InstagramPublishRepository.Result> emissions = new ArrayList<>();
         Observer<InstagramPublishRepository.Result> observer = emissions::add;

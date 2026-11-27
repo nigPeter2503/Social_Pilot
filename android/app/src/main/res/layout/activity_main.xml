@@ -9,12 +9,61 @@
         android:layout_marginTop="24dp" android:text="@string/title" android:textSize="28sp" android:textStyle="bold" />
     <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
         android:layout_marginTop="12dp" android:text="@string/intro" android:textSize="16sp" />
-    <com.google.android.material.textfield.TextInputLayout android:layout_width="match_parent"
+    <TextView android:id="@+id/networkStatus" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:layout_marginTop="12dp"
+        android:text="@string/offline_draft_ready" />
+    <com.google.android.material.textfield.TextInputLayout android:id="@+id/topicLayout" android:layout_width="match_parent"
         android:layout_height="wrap_content" android:layout_marginTop="24dp" android:hint="@string/topic_hint">
       <com.google.android.material.textfield.TextInputEditText android:id="@+id/topicInput"
           android:layout_width="match_parent" android:layout_height="wrap_content"
           android:inputType="textMultiLine|textCapSentences" android:minLines="3" android:gravity="top" />
     </com.google.android.material.textfield.TextInputLayout>
+    <com.google.android.material.textfield.TextInputLayout android:id="@+id/goalLayout"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="12dp" android:hint="@string/goal_hint">
+      <com.google.android.material.textfield.TextInputEditText android:id="@+id/goalInput"
+          android:layout_width="match_parent" android:layout_height="wrap_content"
+          android:inputType="textCapSentences" />
+    </com.google.android.material.textfield.TextInputLayout>
+    <com.google.android.material.textfield.TextInputLayout android:id="@+id/audienceLayout"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="12dp" android:hint="@string/audience_hint">
+      <com.google.android.material.textfield.TextInputEditText android:id="@+id/audienceInput"
+          android:layout_width="match_parent" android:layout_height="wrap_content"
+          android:inputType="textCapSentences" />
+    </com.google.android.material.textfield.TextInputLayout>
+    <com.google.android.material.textfield.TextInputLayout android:id="@+id/toneLayout"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="12dp" android:hint="@string/tone_hint">
+      <com.google.android.material.textfield.TextInputEditText android:id="@+id/toneInput"
+          android:layout_width="match_parent" android:layout_height="wrap_content"
+          android:inputType="textCapSentences" />
+    </com.google.android.material.textfield.TextInputLayout>
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="16dp" android:text="@string/content_language" />
+    <RadioGroup android:id="@+id/contentLanguageGroup" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:orientation="horizontal">
+      <RadioButton android:id="@+id/contentLanguageVi" android:layout_width="wrap_content"
+          android:layout_height="wrap_content" android:text="@string/language_vi" android:checked="true" />
+      <RadioButton android:id="@+id/contentLanguageEn" android:layout_width="wrap_content"
+          android:layout_height="wrap_content" android:text="@string/language_en" />
+    </RadioGroup>
+    <com.google.android.material.textfield.TextInputLayout android:id="@+id/sourceLayout"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="12dp" android:hint="@string/source_hint">
+      <com.google.android.material.textfield.TextInputEditText android:id="@+id/sourceInput"
+          android:layout_width="match_parent" android:layout_height="wrap_content"
+          android:inputType="textMultiLine" />
+    </com.google.android.material.textfield.TextInputLayout>
+    <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/sourceUrlSwitch"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="@string/source_is_url" />
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="16dp" android:text="@string/targets_title" />
+    <TextView android:id="@+id/targetStatus" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:text="@string/no_target_available" />
+    <LinearLayout android:id="@+id/targetList" android:orientation="vertical"
+        android:layout_width="match_parent" android:layout_height="wrap_content" />
     <com.google.android.material.button.MaterialButton android:id="@+id/saveButton"
         android:layout_width="match_parent" android:layout_height="wrap_content"
         android:layout_marginTop="12dp" android:text="@string/save" />
@@ -22,6 +71,10 @@
         android:layout_marginTop="24dp" android:text="@string/drafts" android:textSize="20sp" android:textStyle="bold" />
     <TextView android:id="@+id/draftList" android:layout_width="match_parent" android:layout_height="wrap_content"
         android:layout_marginTop="12dp" android:text="@string/empty" android:textSize="16sp" />
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="20dp" android:text="@string/legacy_drafts" android:textStyle="bold" />
+    <TextView android:id="@+id/legacyDraftList" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:text="@string/empty" />
     <com.google.android.material.button.MaterialButton android:id="@+id/connectFacebookButton"
         android:layout_width="match_parent" android:layout_height="wrap_content"
         android:layout_marginTop="24dp" android:text="@string/connect_facebook" />

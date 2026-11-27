@@ -22,6 +22,7 @@ import com.socialpilot.app.data.ai.pipeline.ChannelPipeline;
 import com.socialpilot.app.data.local.AppDatabase;
 import com.socialpilot.app.data.prototype.PrototypeDatabase;
 import com.socialpilot.app.data.prototype.SampleRepository;
+import com.socialpilot.app.data.repository.BriefRepository;
 import com.socialpilot.app.data.repository.DraftRepository;
 import com.socialpilot.app.data.repository.ChannelRepository;
 import com.socialpilot.app.data.repository.InstagramPublishRepository;
@@ -46,6 +47,7 @@ public final class AppContainer {
     public final ExecutorService io = Executors.newFixedThreadPool(4);
     public final AppDatabase database;
     public final DraftRepository drafts;
+    public final BriefRepository briefs;
     public final PrototypeDatabase prototypeDatabase;
     public final SampleRepository sampleResults;
     public final DemoStreamCoordinator sampleStreams;
@@ -71,8 +73,9 @@ public final class AppContainer {
     public AppContainer(Context context) {
         Context app = context.getApplicationContext();
         database = Room.databaseBuilder(app, AppDatabase.class, "socialpilot.db")
-                .addMigrations(AppDatabase.MIGRATION_1_2).build();
+                .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3).build();
         drafts = new DraftRepository(database.drafts(), io);
+        briefs = new BriefRepository(database.briefs(), io);
         prototypeDatabase = Room.databaseBuilder(app, PrototypeDatabase.class, "socialpilot-prototype.db")
                 .addMigrations(PrototypeDatabase.MIGRATION_1_2,
                         PrototypeDatabase.MIGRATION_2_3,

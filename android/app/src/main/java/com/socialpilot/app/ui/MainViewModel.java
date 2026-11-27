@@ -12,6 +12,8 @@ import com.socialpilot.app.SocialPilotApplication;
 import com.socialpilot.app.core.AppContainer;
 import com.socialpilot.app.core.FacebookOAuthCoordinator;
 import com.socialpilot.app.data.local.DraftEntity;
+import com.socialpilot.app.data.local.BriefDao.BriefListItem;
+import com.socialpilot.app.data.repository.BriefRepository;
 import com.socialpilot.app.data.repository.ChannelRepository;
 import com.socialpilot.app.data.repository.ChannelRepository.PageCheck;
 import com.socialpilot.app.data.repository.DraftRepository;
@@ -22,10 +24,13 @@ import com.socialpilot.app.data.security.EncryptedOAuthStore.InstagramMetadata;
 import com.socialpilot.app.domain.contract.social.Platform;
 import com.socialpilot.app.domain.contract.social.ConnectionLifecycle.Scope;
 import com.socialpilot.app.domain.editor.Brief;
+import com.socialpilot.app.domain.editor.BriefForm;
+import com.socialpilot.app.domain.editor.BriefFormValidator;
 import com.socialpilot.app.domain.editor.ContentVersion;
 import com.socialpilot.app.domain.editor.VersionApprovalState;
 import java.net.URI;
 import java.util.Collections;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
@@ -59,6 +64,7 @@ public final class MainViewModel extends AndroidViewModel {
     }
 
     private final DraftRepository repository;
+    private final BriefRepository briefRepository;
     private final FacebookOAuthCoordinator facebookOAuth;
     private final EncryptedOAuthStore connections;
     private final InstagramPublishRepository instagram;
@@ -71,6 +77,8 @@ public final class MainViewModel extends AndroidViewModel {
     private final MutableLiveData<Boolean> instagramBusy = new MutableLiveData<>(false);
     private final MutableLiveData<Boolean> instagramApproved = new MutableLiveData<>(false);
     private final MutableLiveData<Set<Platform>> restoreFailures = new MutableLiveData<>();
+    private final MutableLiveData<List<ChannelRepository.Snapshot>> channelOptions =
+            new MutableLiveData<>();
     private final MutableLiveData<ScopedPageCheck> facebookPageCheck = new MutableLiveData<>();
     private VersionApprovalState approval;
     private ContentVersion approvedVersion;
@@ -81,7 +89,8 @@ public final class MainViewModel extends AndroidViewModel {
     }
 
     private MainViewModel(Application application, AppContainer appContainer) {
-        this(application, appContainer.drafts, appContainer.facebookOAuth, appContainer.oauthStore,
+        this(application, appContainer.drafts, appContainer.briefs,
+                appContainer.facebookOAuth, appContainer.oauthStore,
                 appContainer.instagram, appContainer.io, appContainer.channels);
         io.execute(() -> {
             try {
@@ -92,16 +101,24 @@ public final class MainViewModel extends AndroidViewModel {
         });
     }
 
-    MainViewModel(Application application, DraftRepository repository, FacebookOAuthCoordinator facebookOAuth,
+    MainViewModel(Application application, DraftRepository repository, BriefRepository briefRepository,
+            FacebookOAuthCoordinator facebookOAuth,
             EncryptedOAuthStore connections, InstagramPublishRepository instagram, Executor io) {
-        this(application, repository, facebookOAuth, connections, instagram, io, null);
+        this(application, repository, briefRepository, facebookOAuth, connections, instagram, io, null);
     }
 
     MainViewModel(Application application, DraftRepository repository, FacebookOAuthCoordinator facebookOAuth,
             EncryptedOAuthStore connections, InstagramPublishRepository instagram, Executor io,
             ChannelRepository channels) {
+        this(application, repository, null, facebookOAuth, connections, instagram, io, channels);
+    }
+
+    MainViewModel(Application application, DraftRepository repository, BriefRepository briefRepository,
+            FacebookOAuthCoordinator facebookOAuth, EncryptedOAuthStore connections,
+            InstagramPublishRepository instagram, Executor io, ChannelRepository channels) {
         super(application);
         this.repository = repository;
+        this.briefRepository = briefRepository;
         this.facebookOAuth = facebookOAuth;
         this.connections = connections;
         this.instagram = instagram;
@@ -110,6 +127,21 @@ public final class MainViewModel extends AndroidViewModel {
     }
 
     public LiveData<List<DraftEntity>> drafts() { return repository.observeRecent(); }
+    public LiveData<List<BriefListItem>> briefs() {
+        return briefRepository.observeRecentDetails();
+    }
+    public LiveData<List<ChannelRepository.Snapshot>> channelOptions() { return channelOptions; }
+
+    public void refreshChannelOptions() {
+        if (channels == null) return;
+        io.execute(() -> {
+            try {
+                channelOptions.postValue(channels.list());
+            } catch (RuntimeException failure) {
+                channelOptions.postValue(Collections.emptyList());
+            }
+        });
+    }
     public LiveData<SaveState> saveState() { return saveState; }
     public LiveData<OAuthUiState> oauthState() { return oauthState; }
     public String connectedPageSummary() { return facebookOAuth.connectedPageSummary(); }
@@ -176,6 +208,48 @@ public final class MainViewModel extends AndroidViewModel {
         saveState.setValue(SaveState.SAVING);
         repository.save(topic, ok -> new Handler(Looper.getMainLooper()).post(
             () -> saveState.setValue(ok ? SaveState.SAVED : SaveState.FAILED)));
+    }
+
+    public BriefFormValidator.Errors validateDraft(BriefForm form) {
+        return BriefFormValidator.validate(form, false);
+    }
+
+    public void saveBriefDraft(BriefForm form) {
+        saveBriefDraft(form, Collections.emptyList());
+    }
+
+    public void saveBriefDraft(BriefForm form, List<ChannelRepository.Snapshot> selectedChannels) {
+        if (saveState.getValue() == SaveState.SAVING) return;
+        if (validateDraft(form).hasErrors()) throw new IllegalArgumentException("Invalid brief draft");
+        if (form.targets.size() != selectedChannels.size() && channels != null) {
+            throw new IllegalArgumentException("Target selection mismatch");
+        }
+        saveState.setValue(SaveState.SAVING);
+        io.execute(() -> {
+            if (channels != null) {
+                try {
+                    for (ChannelRepository.Snapshot selected : selectedChannels) {
+                        ChannelRepository.Snapshot current = channels.find(selected.info.channelId);
+                        if (current == null || !selected.scope.matches(current.scope)
+                                || !current.connected()
+                                || !channels.isCurrent(selected.scope)
+                                || current.info.platform != selected.info.platform) {
+                            saveState.postValue(SaveState.FAILED);
+                            refreshChannelOptions();
+                            return;
+                        }
+                    }
+                } catch (RuntimeException failure) {
+                    saveState.postValue(SaveState.FAILED);
+                    refreshChannelOptions();
+                    return;
+                }
+            }
+            List<Scope> scopes = new ArrayList<>();
+            for (ChannelRepository.Snapshot selected : selectedChannels) scopes.add(selected.scope);
+            briefRepository.saveDraft(form, scopes, (id, saved) -> new Handler(Looper.getMainLooper()).post(
+                    () -> saveState.setValue(saved ? SaveState.SAVED : SaveState.FAILED)));
+        });
     }
 
     public void connectFacebook() {

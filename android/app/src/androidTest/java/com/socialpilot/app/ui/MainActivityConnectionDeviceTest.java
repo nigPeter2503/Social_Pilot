@@ -35,6 +35,7 @@ import com.socialpilot.app.core.FacebookOAuthCoordinator;
 import com.socialpilot.app.data.local.AppDatabase;
 import com.socialpilot.app.data.repository.ChannelRepository;
 import com.socialpilot.app.data.repository.ChannelRepository.Snapshot;
+import com.socialpilot.app.data.repository.BriefRepository;
 import com.socialpilot.app.data.repository.ControlledInstagramPublishRepository;
 import com.socialpilot.app.data.repository.DraftRepository;
 import com.socialpilot.app.data.repository.InstagramPublishRepository;
@@ -89,8 +90,11 @@ public final class MainActivityConnectionDeviceTest {
                     .code(403).message("Fixture")
                     .body(ResponseBody.create("{\"error\":{\"code\":200}}", null)).build();
         });
-        Supplier<MainViewModel> createModel = () -> new MainViewModel(app, new DraftRepository(database.drafts(), worker),
-                new FacebookOAuthCoordinator(store, worker, "https://127.0.0.1/"), store, repository, worker, channels);
+        Supplier<MainViewModel> createModel = () -> new MainViewModel(app,
+                new DraftRepository(database.drafts(), worker),
+                new BriefRepository(database.briefs(), worker),
+                new FacebookOAuthCoordinator(store, worker, "https://127.0.0.1/"),
+                store, repository, worker, channels);
         Application.ActivityLifecycleCallbacks installModel = installMainViewModel(createModel);
         app.registerActivityLifecycleCallbacks(installModel);
         try {
