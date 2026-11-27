@@ -39,10 +39,19 @@ import java.util.Locale;
 import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 /** The connection registry. Call database and credential operations on a worker. */
 public final class ChannelRepository {
+    private static final String RETIRED_IDENTITY = "retired:";
     public enum PageCheck { IDLE, CHECKING, VERIFIED, RECONNECT, PERMISSION_REQUIRED, FAILED }
+    public enum DisconnectResult { DISCONNECTED, CLEANUP_PENDING, STALE }
+
+    public interface RetiredWork {
+        void clean(Scope scope, String externalAccountId, long retiredAtMillis);
+    }
 
     public static final class ExpiredGrantException extends IllegalStateException {
         private ExpiredGrantException() { super("OAuth grant has expired"); }
@@ -52,18 +61,29 @@ public final class ChannelRepository {
     private final ChannelDao channels;
     private final SecretStore secrets;
     private final InstagramGraphClient graph;
+    private final RetiredWork retireWork;
     private final Gson gson = new Gson();
     private final ConcurrentHashMap<Platform, Snapshot> selected = new ConcurrentHashMap<>();
 
     public ChannelRepository(AppDatabase database, SecretStore secrets) {
-        this(database, secrets, new InstagramGraphClient());
+        this(database, secrets, new InstagramGraphClient(), (scope, account, retiredAt) -> {});
     }
 
     ChannelRepository(AppDatabase database, SecretStore secrets, InstagramGraphClient graph) {
+        this(database, secrets, graph, (scope, account, retiredAt) -> {});
+    }
+
+    public ChannelRepository(AppDatabase database, SecretStore secrets, RetiredWork retireWork) {
+        this(database, secrets, new InstagramGraphClient(), retireWork);
+    }
+
+    public ChannelRepository(AppDatabase database, SecretStore secrets, InstagramGraphClient graph,
+            RetiredWork retireWork) {
         this.database = database;
         channels = database.channels();
         this.secrets = secrets;
         this.graph = graph;
+        this.retireWork = retireWork;
     }
 
     public synchronized void restore() {
@@ -71,6 +91,9 @@ public final class ChannelRepository {
             refreshSelected(platform);
         }
         drainCleanup();
+        for (ChannelEntity row : channels.disconnected()) {
+            finishRetirement(row);
+        }
     }
 
     /** Memory-only projection for the current app screen. */
@@ -131,6 +154,8 @@ public final class ChannelRepository {
 
     /** Recover a persisted identity even if its old grant expired, without replacing a selection. */
     public synchronized Snapshot importLegacy(OAuthExchangeResponse response) {
+        ChannelEntity identity = findIdentity(response);
+        if (identity != null && ConnectionStatus.DISCONNECTED.name().equals(identity.status)) return snapshot(identity);
         Platform platform = Platform.valueOf(response.provider);
         Snapshot current = selected(platform);
         if (current != null) return current;
@@ -147,6 +172,11 @@ public final class ChannelRepository {
         Grant grant = ConnectionLifecycle.fromExchange(response.sessionId, response.provider, response);
         Long expiry = grant.effectiveExpiryMillis();
         if (requireFreshGrant) requireUnexpired(expiry);
+        ChannelEntity prior = findIdentity(response);
+        if (prior != null && ConnectionStatus.DISCONNECTED.name().equals(prior.status)
+                && !finishRetirement(prior)) {
+            throw new IllegalStateException("Previous channel cleanup is pending");
+        }
         SecretRef ref = new SecretRef(SecretNamespace.SOCIAL_TOKEN, UUID.randomUUID().toString());
         channels.queueCleanup(new ChannelSecretCleanup(ref.opaque()));
         Snapshot committed;
@@ -159,8 +189,7 @@ public final class ChannelRepository {
                 throw new IllegalStateException("Could not verify saved social credential");
             }
             committed = database.runInTransaction(() -> {
-                ChannelEntity previous = channels.findIdentity(response.provider, response.accountType,
-                        response.externalAccountId);
+                ChannelEntity previous = findIdentity(response);
                 ChannelEntity next = new ChannelEntity();
                 next.channelId = previous == null ? UUID.randomUUID().toString() : previous.channelId;
                 if (previous != null && previous.connectionRevision == Long.MAX_VALUE) {
@@ -225,6 +254,66 @@ public final class ChannelRepository {
         if (channels.requireReconnect(scope.channelId, scope.platform, scope.connectionRevision) == 0) return false;
         refreshSelected(Platform.valueOf(scope.platform));
         return true;
+    }
+
+    public synchronized DisconnectResult disconnect(Scope scope) {
+        ChannelEntity retired = database.runInTransaction(() -> {
+            ChannelEntity row = current(scope);
+            if (row == null || ConnectionStatus.DISCONNECTED.name().equals(row.status)) return null;
+            if (row.credentialRef != null) channels.queueCleanup(new ChannelSecretCleanup(row.credentialRef));
+            row.status = ConnectionStatus.DISCONNECTED.name();
+            row.selected = false;
+            row.credentialRef = null;
+            row.credentialRevision = null;
+            row.displayName = row.platform;
+            row.sessionId = "";
+            row.tokenType = "";
+            row.scopesJson = "[]";
+            row.capabilitiesJson = "[]";
+            row.linkedPageId = null;
+            row.graphApiVersion = null;
+            row.tokenExpiresAtMillis = null;
+            row.dataAccessExpiresAtMillis = null;
+            row.effectiveExpiresAtMillis = System.currentTimeMillis(); // The grant ended at disconnect.
+            channels.save(row);
+            return row;
+        });
+        if (retired == null) return DisconnectResult.STALE;
+        refreshSelected(Platform.valueOf(scope.platform));
+        graph.cancelAccount(scope.platform, retired.externalAccountId);
+        boolean workClean = finishRetirement(retired);
+        boolean secretsClean = drainCleanup();
+        return workClean && secretsClean ? DisconnectResult.DISCONNECTED : DisconnectResult.CLEANUP_PENDING;
+    }
+
+    private boolean finishRetirement(ChannelEntity retired) {
+        if (retired.externalAccountId.startsWith(RETIRED_IDENTITY)) return true;
+        try {
+            Scope scope = new Scope(retired.platform, retired.channelId, retired.connectionRevision);
+            retireWork.clean(scope, retired.externalAccountId, retired.effectiveExpiresAtMillis);
+            retired.externalAccountId = retiredIdentity(retired.externalAccountId);
+            channels.save(retired);
+            return true;
+        } catch (RuntimeException retryOnRestore) {
+            Log.w("ChannelRepository", "Channel cleanup deferred");
+            return false;
+        }
+    }
+
+    private ChannelEntity findIdentity(OAuthExchangeResponse response) {
+        ChannelEntity connected = channels.findIdentity(response.provider, response.accountType, response.externalAccountId);
+        return connected != null ? connected : channels.findIdentity(response.provider, response.accountType,
+                retiredIdentity(response.externalAccountId));
+    }
+
+    private static String retiredIdentity(String externalAccountId) {
+        try {
+            byte[] bytes = MessageDigest.getInstance("SHA-256")
+                    .digest(externalAccountId.getBytes(StandardCharsets.UTF_8));
+            return RETIRED_IDENTITY + android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP);
+        } catch (NoSuchAlgorithmException failure) {
+            throw new IllegalStateException("SHA-256 unavailable", failure);
+        }
     }
 
     /** Apply a result only to the same connected revision, preserving other operation results. */
@@ -313,14 +402,15 @@ public final class ChannelRepository {
         return result;
     }
 
-    private void drainCleanup() {
+    private boolean drainCleanup() {
         List<String> pending;
         try {
             pending = channels.pendingCleanup();
         } catch (SQLException unavailable) {
             Log.w("ChannelRepository", "Credential cleanup journal unavailable");
-            return;
+            return false;
         }
+        boolean completed = true;
         for (String ref : pending) {
             try {
                 if (channels.references(ref)) continue;
@@ -328,8 +418,10 @@ public final class ChannelRepository {
                 channels.finishCleanup(ref);
             } catch (SecretStoreException | SQLException retryOnRestore) {
                 Log.w("ChannelRepository", "Credential cleanup deferred");
+                completed = false;
             }
         }
+        return completed;
     }
 
     private static String utc(Long epochMillis) {

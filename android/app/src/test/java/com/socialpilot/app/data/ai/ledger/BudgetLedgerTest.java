@@ -21,6 +21,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -297,18 +298,39 @@ public final class BudgetLedgerTest {
         ledger.reserve(request("a", "facebook"), AiTaskType.CONTENT_TEXT, usd(30));
         ledger.reserve(request("b", "instagram"), AiTaskType.CONTENT_TEXT, usd(20));
         ledger.settle("a", usd(25));
-        assertEquals(1, ledger.forgetChannel("facebook"));
-        assertEquals(0, ledger.forgetChannel("facebook"));
+        AiRequest newer = new AiRequest("new-session", "facebook", 3L, "draft", "new-revision",
+                AiRequest.Provider.OPENAI, "fixture-open", AiRequest.Task.TEXT, "test", 20);
+        assertEquals(Admission.RESERVED, ledger.reserve(newer, AiTaskType.CONTENT_TEXT, usd(10)));
+        assertEquals(1, ledger.forgetChannel("facebook", 2L));
+        assertEquals(0, ledger.forgetChannel("facebook", 2L));
         AttemptEntity row = store.raw("a");
         assertNull(row.channelId);
         assertNull(row.sessionId);
         assertEquals(AttemptEntity.SETTLED, row.state);
-        assertEquals(45, ledger.currentSpend().dayMicros); // Caps still see the spend.
-        UsageRecord forgotten = ledger.forMonth("2026-11").get(0);
-        assertEquals(BudgetLedger.FORGOTTEN, forgotten.sessionId);
-        assertNull(forgotten.channelId);
+        assertEquals(55, ledger.currentSpend().dayMicros); // Caps still see the spend.
+        assertEquals(Long.valueOf(3), store.raw("new-revision").connectionRevision);
+        assertFalse(ledger.forMonth("2026-11").stream().anyMatch(record -> "a".equals(record.requestId)));
         assertEquals("instagram", store.raw("b").channelId);
         assertEquals(Admission.DUPLICATE_REQUEST, ledger.reserve("a", usd(1))); // ID still burned.
+    }
+
+    @Test public void disconnectClosesAdmissionAndDispatchForTheRetiredRevisionOnly() {
+        AtomicLong facebook = new AtomicLong(2);
+        BudgetLedger scoped = new BudgetLedger(store, () -> now,
+                (channel, revision) -> revision == ("facebook".equals(channel) ? facebook.get() : 2));
+        assertEquals(Admission.RESERVED,
+                scoped.reserve(request("a-queued", "facebook"), AiTaskType.CONTENT_TEXT, usd(30)));
+        assertEquals(Admission.RESERVED,
+                scoped.reserve(request("b-queued", "instagram"), AiTaskType.CONTENT_TEXT, usd(20)));
+
+        facebook.set(3);
+        assertEquals(Admission.STALE_CHANNEL,
+                scoped.reserve(request("a-late", "facebook"), AiTaskType.CONTENT_TEXT, usd(10)));
+        assertFalse(scoped.claimDispatch("a-queued"));
+        assertTrue(scoped.claimDispatch("b-queued"));
+        assertEquals(1, scoped.forgetChannel("facebook", 2));
+        assertEquals(AttemptEntity.RELEASED, store.raw("a-queued").state);
+        assertEquals(20, scoped.currentSpend().dayMicros);
     }
 
     @Test public void usageReportListsAttemptsAcrossChannelsAndProviders() {

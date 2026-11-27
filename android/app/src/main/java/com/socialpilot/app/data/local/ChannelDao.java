@@ -18,8 +18,20 @@ public interface ChannelDao {
     @Query("SELECT * FROM channels WHERE platform = :platform AND selected = 1 LIMIT 1")
     ChannelEntity selected(String platform);
 
-    @Query("SELECT * FROM channels ORDER BY platform, channelId")
+    @Query("SELECT * FROM channels WHERE status != 'DISCONNECTED' ORDER BY platform, channelId")
     List<ChannelEntity> list();
+
+    @Query("SELECT * FROM channels WHERE status = 'DISCONNECTED'")
+    List<ChannelEntity> disconnected();
+
+    @Query("SELECT EXISTS(SELECT 1 FROM channels WHERE channelId = :id AND connectionRevision = :revision"
+            + " AND status = 'CONNECTED' AND (effectiveExpiresAtMillis IS NULL OR effectiveExpiresAtMillis > :now))")
+    boolean isConnectedRevision(String id, long revision, long now);
+
+    @Query("SELECT EXISTS(SELECT 1 FROM channels WHERE platform = :platform AND externalAccountId = :account"
+            + " AND sessionId = :session AND status = 'CONNECTED'"
+            + " AND (effectiveExpiresAtMillis IS NULL OR effectiveExpiresAtMillis > :now))")
+    boolean isConnectedGrant(String platform, String account, String session, long now);
 
     @Query("UPDATE channels SET selected = 0 WHERE platform = :platform AND selected = 1")
     void clearSelection(String platform);

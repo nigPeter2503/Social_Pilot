@@ -154,4 +154,15 @@
   <string name="ai_budget_invalid">Số tiền không hợp lệ: nhập số dương, tối đa 6 chữ số thập phân.</string>
   <string name="ai_budget_daily_above_monthly">Hạn mức ngày không được lớn hơn hạn mức tháng.</string>
   <string name="ai_budget_save_error">Chưa lưu được hạn mức. Vui lòng thử lại.</string>
+    <string name="channel_disconnect">Ngắt kết nối</string>
+    <string name="channel_disconnect_title">Ngắt kết nối %1$s?</string>
+    <string name="channel_disconnect_summary">Thông tin kết nối và tác vụ AI của kênh này sẽ bị dọn khỏi thiết bị. Kênh khác, bản nháp dùng chung và bài đã đăng trên nền tảng được giữ nguyên.</string>
+    <string name="channel_disconnected">Đã ngắt kết nối kênh.</string>
+    <string name="instagram_disconnect_summary">Thông tin kết nối và tác vụ AI của kênh sẽ bị dọn khỏi thiết bị. Dấu vết đăng bài được giữ tối đa 30 ngày để tránh đăng trùng. Bạn có thể xóa ngay và kiểm tra tài khoản Instagram trước khi đăng lại. Bài đã đăng, kênh khác và bản nháp dùng chung vẫn được giữ.</string>
+    <string name="channel_disconnect_erase">Ngắt và xóa dấu vết</string>
+    <string name="instagram_confirm_prior">Xác nhận đã kiểm tra</string>
+    <string name="instagram_confirm_prior_prompt">Mở Instagram và kiểm tra bài trước đó. Chỉ xác nhận nếu bạn đã kiểm tra và việc gửi tiếp sẽ không đăng trùng.</string>
+    <string name="instagram_prior_version_blocked">Phiên bản này đã được gửi trước đó. Hãy kiểm tra bài trên Instagram.</string>
+    <string name="channel_cleanup_pending">Kênh đã ngắt. Ứng dụng sẽ thử dọn phần dữ liệu còn lại khi mở lại.</string>
+    <string name="channel_disconnect_failed">Chưa thể ngắt kết nối kênh. Hãy kiểm tra kết nối đã chọn và thử lại.</string>
 </resources>

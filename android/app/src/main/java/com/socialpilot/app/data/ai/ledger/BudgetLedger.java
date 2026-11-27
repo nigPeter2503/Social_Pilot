@@ -27,17 +27,27 @@ public final class BudgetLedger implements AttemptLedger {
         long nowMillis();
     }
 
+    public interface ConnectionCheck {
+        boolean current(String channelId, long revision);
+    }
+
     /** Session/step label of attempts whose channel identity was dropped by {@link #forgetChannel}. */
     public static final String FORGOTTEN = "forgotten";
 
     private final LedgerStore store;
     private final Clock clock;
+    private final ConnectionCheck connectionCurrent;
     private final String bootId = UUID.randomUUID().toString();
     private final List<ExhaustionListener> listeners = new CopyOnWriteArrayList<>();
 
     public BudgetLedger(LedgerStore store, Clock clock) {
+        this(store, clock, (channelId, revision) -> true);
+    }
+
+    public BudgetLedger(LedgerStore store, Clock clock, ConnectionCheck connectionCurrent) {
         this.store = Objects.requireNonNull(store);
         this.clock = Objects.requireNonNull(clock);
+        this.connectionCurrent = Objects.requireNonNull(connectionCurrent);
     }
 
     /**
@@ -62,6 +72,10 @@ public final class BudgetLedger implements AttemptLedger {
         Objects.requireNonNull(requestId);
         Objects.requireNonNull(upperBound);
         return store.inTransaction(() -> {
+            if (request != null && request.channelId != null
+                    && !connectionCurrent.current(request.channelId, request.connectionRevision)) {
+                return Admission.STALE_CHANNEL;
+            }
             if (store.find(requestId) != null) return Admission.DUPLICATE_REQUEST;
             BudgetSettingsEntity settings = store.settings();
             String currency = upperBound.currency.getCurrencyCode();
@@ -104,6 +118,7 @@ public final class BudgetLedger implements AttemptLedger {
         return store.inTransaction(() -> {
             AttemptEntity row = store.find(requestId);
             if (row == null || !AttemptEntity.QUEUED.equals(row.state) || !bootId.equals(row.bootId)) return false;
+            if (row.channelId != null && !connectionCurrent.current(row.channelId, row.connectionRevision)) return false;
             BudgetSettingsEntity settings = store.settings();
             if (settings == null || !row.currency.equals(settings.currency)
                     || !row.zoneId.equals(settings.zoneId)) return false;
@@ -250,6 +265,7 @@ public final class BudgetLedger implements AttemptLedger {
         List<AttemptEntity> rows = store.inTransaction(() -> store.forMonth(monthKey));
         List<UsageRecord> result = new ArrayList<>();
         for (AttemptEntity row : rows) {
+            if (row.sessionId == null) continue; // Retired attempts contribute to totals only.
             UsageRecord record = toRecord(row);
             if (record != null) result.add(record);
         }
@@ -278,9 +294,9 @@ public final class BudgetLedger implements AttemptLedger {
      * For channel disconnect (retention policy owned by SP-024): keeps the spend so caps and
      * reconciliation stay correct, but the rows no longer identify the channel or session.
      */
-    public int forgetChannel(String channelId) {
+    public int forgetChannel(String channelId, long retiredRevision) {
         java.util.Objects.requireNonNull(channelId);
-        return store.inTransaction(() -> store.forgetChannel(channelId, clock.nowMillis()));
+        return store.inTransaction(() -> store.forgetChannel(channelId, retiredRevision, clock.nowMillis()));
     }
 
     @Override

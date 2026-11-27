@@ -4,12 +4,15 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import com.google.gson.Gson;
 import com.socialpilot.app.data.repository.ChannelRepository;
+import com.socialpilot.app.data.repository.ChannelRepository.DisconnectResult;
 import com.socialpilot.app.data.repository.ChannelRepository.Snapshot;
 import com.socialpilot.app.domain.contract.oauth.OAuthContract.OAuthExchangeResponse;
 import com.socialpilot.app.domain.contract.secret.SecretRead;
 import com.socialpilot.app.domain.contract.social.ConnectionLifecycle.Scope;
+import com.socialpilot.app.domain.contract.social.ConnectionStatus;
 import com.socialpilot.app.domain.contract.social.Platform;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
@@ -32,6 +35,7 @@ public final class EncryptedOAuthStore {
     private final ChannelRepository channels;
     private final Gson gson = new Gson();
     private final Set<String> unavailable = new HashSet<>();
+    private final EnumMap<Platform, Long> authorizationGenerations = new EnumMap<>(Platform.class);
     private long instagramGeneration;
 
     public EncryptedOAuthStore(Context context) {
@@ -71,8 +75,9 @@ public final class EncryptedOAuthStore {
             Snapshot current = channels.importLegacy(legacy.connection);
             // A selected connection can supersede the legacy record. Retire only a proven matching
             // Room/Keystore pair here. An explicit reconnect can retire a superseded record.
-            if (current.info.externalAccountId.equals(legacy.connection.externalAccountId)
-                    && current.credentialStatus == SecretRead.Status.SUCCESS) {
+            if (current.info.connectionStatus == ConnectionStatus.DISCONNECTED
+                    || (current.info.externalAccountId.equals(legacy.connection.externalAccountId)
+                            && current.credentialStatus == SecretRead.Status.SUCCESS)) {
                 invalidate(key, fields);
             }
             return true;
@@ -111,7 +116,8 @@ public final class EncryptedOAuthStore {
             // Never exchange a handoff until its verifier removal is durable.
             unavailable.add(key);
             if (!preferences.edit().remove(key).commit()) throw storageUnavailable();
-            return record.pending();
+            return new Pending(record.sessionId, record.verifier, record.provider(),
+                    authorizationGeneration(record.provider()));
         }
         return null;
     }
@@ -133,6 +139,36 @@ public final class EncryptedOAuthStore {
 
     private static String pendingKey(String provider) {
         return "INSTAGRAM".equals(provider) ? INSTAGRAM_PENDING : FACEBOOK_PENDING;
+    }
+
+    public synchronized long authorizationGeneration(String provider) {
+        Long generation = authorizationGenerations.get(Platform.valueOf(provider));
+        return generation == null ? 0L : generation;
+    }
+
+    public synchronized void savePending(String sessionId, String verifier, String provider, long generation) {
+        if (generation != authorizationGeneration(provider)) throw storageUnavailable();
+        savePending(sessionId, verifier, provider);
+    }
+
+    public synchronized void saveConnected(Pending pending, OAuthExchangeResponse response) {
+        if (pending.generation != authorizationGeneration(pending.provider)) throw storageUnavailable();
+        saveConnected(response);
+    }
+
+    public synchronized DisconnectResult disconnect(Scope scope) {
+        if (channels == null) return DisconnectResult.STALE;
+        Platform platform = Platform.valueOf(scope.platform);
+        Snapshot selection = channels.selected(platform);
+        if (selection == null || !scope.matches(selection.scope)) return DisconnectResult.STALE;
+
+        String pendingKey = pendingKey(scope.platform);
+        PendingRecord legacy = readPending(LEGACY_PENDING_RECORD, LEGACY_PENDING);
+        SharedPreferences.Editor edit = preferences.edit().remove(pendingKey);
+        if (legacy != null && scope.platform.equals(legacy.provider())) edit.remove(LEGACY_PENDING_RECORD);
+        if (!edit.commit()) throw storageUnavailable();
+        authorizationGenerations.put(platform, authorizationGeneration(scope.platform) + 1);
+        return channels.disconnect(scope);
     }
 
     public synchronized void saveConnected(OAuthExchangeResponse response) {
@@ -334,6 +370,8 @@ public final class EncryptedOAuthStore {
         private final long generation;
         private final Scope scope;
 
+        public Scope scope() { return scope; }
+
         private InstagramSession(InstagramMetadata connection, long generation) {
             boolean connected = connection != null && connection.connected;
             sessionId = connected ? connection.sessionId : null;
@@ -393,8 +431,13 @@ public final class EncryptedOAuthStore {
         public final String sessionId;
         public final String verifier;
         public final String provider;
+        private final long generation;
         private Pending(String sessionId, String verifier, String provider) {
+            this(sessionId, verifier, provider, 0);
+        }
+        private Pending(String sessionId, String verifier, String provider, long generation) {
             this.sessionId = sessionId; this.verifier = verifier; this.provider = provider;
+            this.generation = generation;
         }
     }
 }

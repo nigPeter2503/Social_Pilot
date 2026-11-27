@@ -146,15 +146,17 @@ public final class MemoryLedgerStore implements LedgerStore {
         return count;
     }
 
-    @Override public int forgetChannel(String channelId, long now) {
+    @Override public int forgetChannel(String channelId, long retiredRevision, long now) {
         requireTransaction();
         int count = 0;
         for (AttemptEntity row : rows.values()) {
-            if (channelId.equals(row.channelId)) {
+            if (channelId.equals(row.channelId) && row.connectionRevision != null
+                    && row.connectionRevision <= retiredRevision) {
                 row.channelId = null;
                 row.sessionId = null;
                 row.stepId = null;
                 row.connectionRevision = null;
+                if (AttemptEntity.QUEUED.equals(row.state)) row.state = AttemptEntity.RELEASED;
                 row.updatedAt = now;
                 count++;
             }

@@ -36,7 +36,7 @@ public final class AiGateway {
         BUDGET_NOT_CONFIGURED,
         /** Ledger exists but no daily/monthly caps are set; nothing is admitted without caps. */
         BUDGET_NOT_SET,
-        BUDGET_LIMIT_REACHED, DUPLICATE_REQUEST, WORKER_UNAVAILABLE, PROVIDER_PREPARE_FAILED
+        BUDGET_LIMIT_REACHED, DUPLICATE_REQUEST, STALE_CHANNEL, WORKER_UNAVAILABLE, PROVIDER_PREPARE_FAILED
     }
 
     public interface Selections {
@@ -175,6 +175,14 @@ public final class AiGateway {
         for (Run run : active) run.stopForBudget();
     }
 
+    public void cancelChannel(String channelId, long retiredRevision) {
+        for (Run run : active) {
+            if (channelId.equals(run.request.channelId) && run.request.connectionRevision <= retiredRevision) {
+                run.retire();
+            }
+        }
+    }
+
     /**
      * Builds a typed request with a new requestId. Does I/O (key status); call from a worker.
      * Shared by the pipeline (SP-031), which reserves through its own coordinator.
@@ -220,7 +228,8 @@ public final class AiGateway {
         }
         if (admission != BudgetManager.Admission.RESERVED) {
             active.remove(run);
-            return new Submission(request.requestId, Rejection.DUPLICATE_REQUEST, null, null);
+            return new Submission(request.requestId, admission == BudgetManager.Admission.STALE_CHANNEL
+                    ? Rejection.STALE_CHANNEL : Rejection.DUPLICATE_REQUEST, null, null);
         }
         if (!run.arm()) {
             // Budget stopped between reserve and dispatch: never sent; release the hold once.
@@ -254,6 +263,7 @@ public final class AiGateway {
         private final StringBuilder text = new StringBuilder();
         private long lastSequence;
         private volatile boolean cancelled;
+        private volatile boolean retired;
         private volatile boolean budgetStopped;
         private volatile AiProvider.Attempt attempt;
 
@@ -323,6 +333,11 @@ public final class AiGateway {
             if (current != null) current.cancel();
         }
 
+        void retire() {
+            retired = true;
+            cancel();
+        }
+
         void stopForBudget() {
             budgetStopped = true;
             cancel();
@@ -337,19 +352,18 @@ public final class AiGateway {
         @Override
         public void onEvent(AiEvent event) {
             if (!request.requestId.equals(event.requestId) || finished.get()) return;
-            lastSequence = Math.max(lastSequence, event.sequence);
-            if (event.type == AiEvent.Type.TEXT_DELTA) text.append(event.delta);
             if (event.type == AiEvent.Type.COMPLETED || event.type == AiEvent.Type.FAILED
                     || event.type == AiEvent.Type.CANCELLED) {
                 finish(event, true);
-            } else {
+            } else if (!retired) {
+                lastSequence = Math.max(lastSequence, event.sequence);
+                if (event.type == AiEvent.Type.TEXT_DELTA) text.append(event.delta);
                 callback.onEvent(event);
             }
         }
 
         private void finish(AiEvent terminal, boolean notify) {
             if (!finished.compareAndSet(false, true)) return;
-            active.remove(this);
             // Only a final provider report is priced; partial snapshots keep the reservation.
             AiCostEstimate estimate = terminal.mayHaveDispatched && terminal.usage.state == AiUsage.State.REPORTED
                     ? entry.price.fromUsage(request.provider, terminal.usage) : null;
@@ -360,11 +374,15 @@ public final class AiGateway {
                 // Nothing of the terminal was stored: the hold stays and is recovered as UNCERTAIN.
                 record = null;
             }
+            active.remove(this);
             if (!notify) return;
+            boolean discard = retired;
+            AiEvent delivered = discard ? AiEvent.terminal(request, terminal.sequence, AiEvent.Type.CANCELLED,
+                    null, AiUsage.MISSING, false, terminal.mayHaveDispatched) : terminal;
             try {
-                callback.onEvent(terminal);
+                callback.onEvent(delivered);
             } finally {
-                callback.onFinished(new Finished(request, terminal, text.toString(), record, budgetStopped,
+                callback.onFinished(new Finished(request, delivered, discard ? "" : text.toString(), record, budgetStopped,
                         record == null));
             }
         }

@@ -38,7 +38,9 @@ public abstract class LedgerDatabase extends RoomDatabase {
             @Override public BudgetSettingsEntity settings() { return dao.settings(); }
             @Override public void saveSettings(BudgetSettingsEntity settings) { dao.saveSettings(settings); }
             @Override public int markInterrupted(String currentBootId, long now) { return dao.markInterrupted(currentBootId, now); }
-            @Override public int forgetChannel(String channelId, long now) { return dao.forgetChannel(channelId, now); }
+            @Override public int forgetChannel(String channelId, long retiredRevision, long now) {
+                return dao.forgetChannel(channelId, retiredRevision, now);
+            }
             @Override public List<AttemptEntity> forMonth(String monthKey) { return dao.forMonth(monthKey); }
         };
     }

@@ -75,6 +75,7 @@ public final class FacebookOAuthCoordinator {
         catch (Exception exception) { starting.set(false); postFailure(listener, "PROVIDER_ERROR"); return; }
         io.execute(() -> {
             try {
+                long generation = store.authorizationGeneration(provider);
                 Response<OAuthStartResponse> response = api.start(provider.toLowerCase(Locale.ROOT),
                         new OAuthStartRequest(provider, "android-dev", challenge)).execute();
                 if (!response.isSuccessful() || response.body() == null) throw new OAuthRequestException(errorCode(response));
@@ -85,7 +86,7 @@ public final class FacebookOAuthCoordinator {
                         || (authorizationUri.getPort() != -1 && authorizationUri.getPort() != 443)) {
                     throw new OAuthRequestException("INVALID_REDIRECT");
                 }
-                store.savePending(result.sessionId, verifier, provider);
+                store.savePending(result.sessionId, verifier, provider, generation);
                 main.post(() -> { starting.set(false); listener.onAuthorizationUrl(result.authorizationUrl); });
             } catch (Exception exception) {
                 starting.set(false); postFailure(listener, exception instanceof OAuthRequestException
@@ -115,7 +116,7 @@ public final class FacebookOAuthCoordinator {
                 if (!response.isSuccessful() || response.body() == null) throw new OAuthRequestException(errorCode(response));
                 OAuthExchangeResponse result = response.body();
                 ConnectionLifecycle.fromExchange(sessionId, pending.provider, result);
-                store.saveConnected(result);
+                store.saveConnected(pending, result);
                 main.post(() -> listener.onConnected(result.provider, result.displayName,
                         result.externalAccountId, result.sessionId));
             } catch (ExpiredGrantException expired) {

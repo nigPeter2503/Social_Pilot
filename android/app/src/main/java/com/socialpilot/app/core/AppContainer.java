@@ -24,6 +24,7 @@ import com.socialpilot.app.data.prototype.PrototypeDatabase;
 import com.socialpilot.app.data.prototype.SampleRepository;
 import com.socialpilot.app.data.repository.DraftRepository;
 import com.socialpilot.app.data.repository.ChannelRepository;
+import com.socialpilot.app.data.remote.instagram.InstagramGraphClient;
 import com.socialpilot.app.data.repository.InstagramPublishRepository;
 import com.socialpilot.app.data.security.EncryptedOAuthStore;
 import com.socialpilot.app.data.security.EncryptedSecretStore;
@@ -84,11 +85,6 @@ public final class AppContainer {
         sampleResults.markInterruptedOnOpen();
         sampleResults.reconcileWorkOnOpen(WorkManager.getInstance(app));
         socialSecrets = new EncryptedSecretStore(app, SecretNamespace.SOCIAL_TOKEN);
-        channels = new ChannelRepository(database, socialSecrets);
-        oauthStore = new EncryptedOAuthStore(app, channels);
-        instagram = new InstagramPublishRepository(app, oauthStore);
-        facebookOAuth = new FacebookOAuthCoordinator(oauthStore, Executors.newSingleThreadExecutor(),
-                BuildConfig.OAUTH_API_BASE_URL);
         aiKeys = new AiKeyRepository(new EncryptedSecretStore(app, SecretNamespace.AI_PROVIDER),
                 app.getSharedPreferences("ai_key_status_v1", Context.MODE_PRIVATE),
                 new ByokKeyVerifier(), NetworkStatus.of(app), System::currentTimeMillis);
@@ -96,7 +92,8 @@ public final class AppContainer {
         modelSelections = new ModelSelectionStore(
                 app.getSharedPreferences("ai_model_selection_v1", Context.MODE_PRIVATE), modelRegistry);
         BudgetLedger budgetLedger = new BudgetLedger(
-                LedgerDatabase.open(app, LedgerDatabase.FILE_NAME).store(), System::currentTimeMillis);
+                LedgerDatabase.open(app, LedgerDatabase.FILE_NAME).store(), System::currentTimeMillis,
+                (id, revision) -> database.channels().isConnectedRevision(id, revision, System.currentTimeMillis()));
         // Only rows of earlier processes are touched, so this may run while new calls reserve.
         io.execute(budgetLedger::recoverInterrupted);
         ledger = budgetLedger;
@@ -107,10 +104,25 @@ public final class AppContainer {
         Map<AiRequest.Provider, ImageProvider> imageProviders = new EnumMap<>(AiRequest.Provider.class);
         imageProviders.put(AiRequest.Provider.OPENAI,
                 new OpenAiImageProvider(aiKeys.credentialSource(AiRequest.Provider.OPENAI)));
-        // Channel connection revisions are wired with SP-022; until then the caller's revision is trusted.
         images = new ImageService(modelSelections, imageProviders, provider -> aiKeys.status(provider).usable(),
-                ledger, imageStore, new BitmapTemplateRenderer(), ImageService.CALLER_REVISION, io,
+                ledger, imageStore, new BitmapTemplateRenderer(),
+                (id, revision) -> database.channels().isConnectedRevision(id, revision, System.currentTimeMillis()), io,
                 System::currentTimeMillis);
+        InstagramGraphClient graph = new InstagramGraphClient(connection -> database.channels().isConnectedGrant(
+                connection.provider, connection.externalAccountId, connection.sessionId, System.currentTimeMillis()));
+        channels = new ChannelRepository(database, socialSecrets, graph, (scope, externalId, retiredAt) -> {
+            ai.cancelChannel(scope.channelId, scope.connectionRevision);
+            images.cancelChannel(scope.channelId, scope.connectionRevision);
+            budgetLedger.forgetChannel(scope.channelId, scope.connectionRevision);
+            if ("INSTAGRAM".equals(scope.platform)) {
+                InstagramPublishRepository.retireAttempt(app, scope, externalId, retiredAt);
+            }
+        });
+        oauthStore = new EncryptedOAuthStore(app, channels);
+        instagram = new InstagramPublishRepository(app, oauthStore, graph);
+        io.execute(instagram::purgeExpiredEvidence);
+        facebookOAuth = new FacebookOAuthCoordinator(oauthStore, Executors.newSingleThreadExecutor(),
+                BuildConfig.OAUTH_API_BASE_URL);
     }
 
     private static ModelRegistry loadRegistry(Context context) {

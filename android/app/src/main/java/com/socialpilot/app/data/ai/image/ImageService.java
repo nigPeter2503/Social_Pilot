@@ -151,6 +151,15 @@ public final class ImageService {
         return start(new Job(request, callback, false));
     }
 
+    public void cancelChannel(String channelId, long retiredRevision) {
+        for (Job job : active) {
+            if (channelId.equals(job.request.target.channelId)
+                    && job.request.target.connectionRevision <= retiredRevision) {
+                job.cancel();
+            }
+        }
+    }
+
     private Job start(Job job) {
         try {
             workers.execute(job::run);
@@ -201,6 +210,10 @@ public final class ImageService {
                 finish(new Result(Result.Status.CANCELLED, null, null, null, null, null, null, false));
                 return;
             }
+            if (!revisions.current(request.target.channelId, request.target.connectionRevision)) {
+                finish(new Result(Result.Status.STALE, null, null, null, "STALE_CHANNEL", null, null, false));
+                return;
+            }
             if (!generate) {
                 renderTemplate(null);
                 return;
@@ -227,6 +240,10 @@ public final class ImageService {
             }
             if (admission != BudgetManager.Admission.RESERVED) {
                 active.remove(this);
+                if (admission == BudgetManager.Admission.STALE_CHANNEL) {
+                    finish(new Result(Result.Status.STALE, null, null, null, "STALE_CHANNEL", null, null, false));
+                    return;
+                }
                 renderTemplate(admission == BudgetManager.Admission.LIMIT_REACHED
                         ? AiGateway.Rejection.BUDGET_LIMIT_REACHED.name() : AiGateway.Rejection.DUPLICATE_REQUEST.name());
                 return;

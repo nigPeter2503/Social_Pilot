@@ -148,7 +148,9 @@ public final class LedgerDatabaseDeviceTest {
         @Override public BudgetSettingsEntity settings() { return delegate.settings(); }
         @Override public void saveSettings(BudgetSettingsEntity settings) { delegate.saveSettings(settings); }
         @Override public int markInterrupted(String currentBootId, long now) { return delegate.markInterrupted(currentBootId, now); }
-        @Override public int forgetChannel(String channelId, long now) { return delegate.forgetChannel(channelId, now); }
+        @Override public int forgetChannel(String channelId, long retiredRevision, long now) {
+            return delegate.forgetChannel(channelId, retiredRevision, now);
+        }
         @Override public List<AttemptEntity> forMonth(String monthKey) { return delegate.forMonth(monthKey); }
     }
 

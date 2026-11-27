@@ -10,11 +10,13 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.lifecycle.ViewModelProvider;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.socialpilot.app.R;
 import com.socialpilot.app.core.FacebookOAuthCoordinator;
 import com.socialpilot.app.databinding.ActivityMainBinding;
 import com.socialpilot.app.data.repository.InstagramPublishRepository;
 import com.socialpilot.app.data.repository.ChannelRepository.PageCheck;
+import com.socialpilot.app.data.repository.ChannelRepository.Snapshot;
 import com.socialpilot.app.domain.DraftValidator;
 import com.socialpilot.app.data.security.EncryptedOAuthStore.InstagramMetadata;
 import com.socialpilot.app.domain.contract.social.Platform;
@@ -40,6 +42,21 @@ public final class MainActivity extends AppCompatActivity {
         });
         binding.openAiKeysButton.setOnClickListener(view -> startActivity(new Intent(this, AiKeysActivity.class)));
         binding.connectInstagramButton.setOnClickListener(view -> model.connectInstagram());
+        binding.disconnectFacebookButton.setOnClickListener(view -> confirmDisconnect(Platform.FACEBOOK));
+        binding.disconnectInstagramButton.setOnClickListener(view -> confirmDisconnect(Platform.INSTAGRAM));
+        model.disconnectState().observe(this, state -> {
+            renderFacebookConnection();
+            renderInstagramControls();
+            int message;
+            switch (state) {
+                case DONE: message = R.string.channel_disconnected; break;
+                case CLEANUP_PENDING: message = R.string.channel_cleanup_pending; break;
+                case FAILED: message = R.string.channel_disconnect_failed; break;
+                default: return;
+            }
+            Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+            model.acknowledgeDisconnect();
+        });
         model.restoreFailures().observe(this, failures -> {
             renderFacebookConnection();
             renderInstagramControls();
@@ -104,6 +121,22 @@ public final class MainActivity extends AppCompatActivity {
         Toast.makeText(this, message, Toast.LENGTH_LONG).show();
     }
 
+    private void confirmDisconnect(Platform platform) {
+        Snapshot channel = model.selectedChannel(platform);
+        if (channel == null) return;
+        MaterialAlertDialogBuilder dialog = new MaterialAlertDialogBuilder(this)
+                .setTitle(getString(R.string.channel_disconnect_title, channel.info.displayName))
+                .setMessage(platform == Platform.INSTAGRAM
+                        ? R.string.instagram_disconnect_summary : R.string.channel_disconnect_summary)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(R.string.channel_disconnect, (window, action) -> model.disconnect(channel.scope, false));
+        if (platform == Platform.INSTAGRAM) {
+            dialog.setNeutralButton(R.string.channel_disconnect_erase,
+                    (window, action) -> model.disconnect(channel.scope, true));
+        }
+        dialog.show();
+    }
+
     private void renderFacebookConnection() {
         String page = model.connectedPageSummary();
         PageCheck check = model.currentFacebookPageCheck();
@@ -148,6 +181,11 @@ public final class MainActivity extends AppCompatActivity {
         });
         binding.instagramPublish.setOnClickListener(view -> model.publishInstagram());
         binding.instagramReconcile.setOnClickListener(view -> model.reconcileInstagram());
+        binding.instagramConfirmPrior.setOnClickListener(view -> new MaterialAlertDialogBuilder(this)
+                .setMessage(R.string.instagram_confirm_prior_prompt)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(R.string.instagram_confirm_prior, (dialog, action) -> model.confirmPriorInstagramPostChecked())
+                .show());
         binding.instagramOpen.setOnClickListener(view -> {
             String permalink = model.instagramPermalink();
             if (permalink != null) {
@@ -171,16 +209,26 @@ public final class MainActivity extends AppCompatActivity {
         boolean connected = connection != null;
         boolean approved = model.isInstagramApprovedFor(connection);
         boolean checkingPage = model.currentFacebookPageCheck() == PageCheck.CHECKING;
-        binding.connectFacebookButton.setEnabled(!oauthBusy && !busy && !checkingPage);
+        boolean disconnecting = model.disconnectState().getValue() == MainViewModel.DisconnectState.WORKING;
+        binding.disconnectFacebookButton.setVisibility(model.selectedChannel(Platform.FACEBOOK) == null
+                ? android.view.View.GONE : android.view.View.VISIBLE);
+        binding.disconnectInstagramButton.setVisibility(model.selectedChannel(Platform.INSTAGRAM) == null
+                ? android.view.View.GONE : android.view.View.VISIBLE);
+        binding.disconnectFacebookButton.setEnabled(!disconnecting && !oauthBusy);
+        binding.disconnectInstagramButton.setEnabled(!disconnecting && !oauthBusy);
+        binding.connectFacebookButton.setEnabled(!disconnecting && !oauthBusy && !busy && !checkingPage);
         binding.checkFacebookButton.setEnabled(!oauthBusy && !busy && !checkingPage
                 && model.connectedPageSummary() != null);
-        binding.connectInstagramButton.setEnabled(!oauthBusy && !busy && !checkingPage);
+        binding.connectInstagramButton.setEnabled(!disconnecting && !oauthBusy && !busy && !checkingPage);
         binding.instagramImageUrl.setEnabled(connected && !busy && !oauthBusy);
         binding.instagramCaption.setEnabled(connected && !busy && !oauthBusy);
         binding.instagramApprove.setEnabled(connected && !busy && !oauthBusy);
-        binding.instagramPublish.setEnabled(connected && approved && !busy && !oauthBusy);
-        binding.instagramReconcile.setEnabled(connected && !busy && !oauthBusy);
+        binding.instagramPublish.setEnabled(connected && approved && !busy && !oauthBusy && !disconnecting);
+        binding.instagramReconcile.setEnabled(connected && !busy && !oauthBusy && !disconnecting);
         InstagramPublishRepository.Result result = model.instagramResultFor(connection);
+        boolean needsPriorCheck = result != null && result.status == InstagramPublishRepository.Status.CONFIRM_PRIOR_POST;
+        binding.instagramConfirmPrior.setVisibility(needsPriorCheck ? android.view.View.VISIBLE : android.view.View.GONE);
+        binding.instagramConfirmPrior.setEnabled(needsPriorCheck && !busy && !disconnecting);
         binding.instagramOpen.setEnabled(result != null && result.permalink != null && !busy);
         if (connected) {
             String scopes = android.text.TextUtils.join(", ", connection.grantedScopes);
@@ -220,6 +268,8 @@ public final class MainActivity extends AppCompatActivity {
             case PERMISSION_REQUIRED: return R.string.instagram_permission_required;
             case PERMISSION_CHECK_REQUIRED: return R.string.instagram_permission_check_required;
             case CANCELLED: return R.string.instagram_cancelled;
+            case CONFIRM_PRIOR_POST: return R.string.instagram_confirm_prior_prompt;
+            case PRIOR_VERSION_BLOCKED: return R.string.instagram_prior_version_blocked;
             default: return R.string.instagram_publish_error;
         }
     }

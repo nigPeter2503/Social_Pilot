@@ -46,8 +46,9 @@ public interface LedgerDao {
     int markInterrupted(String currentBootId, long now);
 
     @Query("UPDATE ai_attempts SET channelId = NULL, sessionId = NULL, stepId = NULL, connectionRevision = NULL, "
-            + "updatedAt = :now WHERE channelId = :channelId")
-    int forgetChannel(String channelId, long now);
+            + "state = CASE WHEN state = 'QUEUED' THEN 'RELEASED' ELSE state END, "
+            + "updatedAt = :now WHERE channelId = :channelId AND connectionRevision <= :retiredRevision")
+    int forgetChannel(String channelId, long retiredRevision, long now);
 
     @Query("SELECT * FROM ai_attempts WHERE monthKey = :monthKey ORDER BY createdAt, requestId")
     List<AttemptEntity> forMonth(String monthKey);

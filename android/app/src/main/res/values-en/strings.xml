@@ -154,4 +154,15 @@
   <string name="ai_budget_invalid">Invalid amount: enter a positive number with at most 6 decimals.</string>
   <string name="ai_budget_daily_above_monthly">The daily cap cannot be larger than the monthly cap.</string>
   <string name="ai_budget_save_error">Could not save the caps. Please try again.</string>
+    <string name="channel_disconnect">Disconnect</string>
+    <string name="channel_disconnect_title">Disconnect %1$s?</string>
+    <string name="channel_disconnect_summary">Connection information and AI activity for this channel will be removed from this device. Other channels, shared drafts, and posts already published on the platform are kept.</string>
+    <string name="channel_disconnected">Channel disconnected.</string>
+    <string name="instagram_disconnect_summary">Connection information and AI activity will be removed from this device. Publish evidence is kept for up to 30 days to prevent duplicates. You can erase it now and check Instagram before publishing again. Published posts, other channels, and shared drafts are kept.</string>
+    <string name="channel_disconnect_erase">Disconnect and erase evidence</string>
+    <string name="instagram_confirm_prior">Confirm you checked</string>
+    <string name="instagram_confirm_prior_prompt">Open Instagram and check the previous post. Confirm only after checking that publishing again will not create a duplicate.</string>
+    <string name="instagram_prior_version_blocked">This version was already sent. Check the post on Instagram.</string>
+    <string name="channel_cleanup_pending">Channel disconnected. The app will retry the remaining cleanup when it reopens.</string>
+    <string name="channel_disconnect_failed">Could not disconnect this channel. Check the selected connection and try again.</string>
 </resources>

@@ -116,9 +116,9 @@ Mỗi lượt schema có một owner sửa khai báo database, version và chu�
 
 | Người nhận | Phần cần xác nhận trước khi triển khai |
 |---|---|
-| Minh | Mapping danh tính external, publish tuple và revision guard. Chốt N1 cùng Đạt/Nghị tại [SP-009](https://github.com/nigPeter2503/Social_Pilot/issues/11) hoặc ticket kế nhiệm trước khi giữ tombstone sau disconnect. TTL 30 ngày trong PR #66 là đề xuất |
+| Minh | Mapping danh tính external, publish tuple và revision guard. [SP-024](https://github.com/nigPeter2503/Social_Pilot/issues/26) áp dụng N1 giữ dấu vết tối đa 30 ngày. Bàn giao quy tắc đối soát cho queue production |
 | Thiện | Bảo toàn draft v1, brief/link/version/approval, kế hoạch đọc hoặc nhập dữ liệu cũ và thời điểm chọn PR migration đầu tiên |
 | Nghị | Khóa comment, scope post/snapshot, period key khi có nhiều kỳ, null/provenance và dữ liệu cần dọn theo kênh |
-| Đạt | Giữ lịch cấp version và review đường nâng cấp. Chốt việc giữ aggregate chi phí tối thiểu, không nhận dạng kênh, cùng owner trước khi đưa vào persistence. Bàn giao convention `requestId`, scope và thời gian cho [SP-013](https://github.com/nigPeter2503/Social_Pilot/issues/15) |
+| Đạt | Giữ lịch cấp version và review đường nâng cấp. SP-024 giữ chi phí để tính trần và đối soát sau khi gỡ định danh kênh. Khi cấu hình cleanup cho checkpoint, giới hạn ở revision đã ngắt. Bàn giao convention `requestId`, scope và thời gian cho [SP-013](https://github.com/nigPeter2503/Social_Pilot/issues/15) |
 
 Khi mở PR migration, ghi schema revision, owner giữ lượt, nguồn và đích version, FK/index thay đổi, rollback hoặc cách xử lý lỗi, kết quả kiểm thử nâng cấp và người tiêu thụ cần review. [Quy trình phối hợp](../CONTRIBUTING.md#6-phối-hợp-phần-dùng-chung)
