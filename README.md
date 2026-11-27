@@ -2,7 +2,7 @@
 
 SocialPilot là ứng dụng Android sử dụng AI Agent để hỗ trợ xây dựng nội dung và quản lý kênh mạng xã hội. Từ một ý tưởng chung, ứng dụng hướng đến việc tạo nội dung riêng cho **Facebook Page và Instagram Professional**, cho phép người dùng chỉnh sửa, duyệt và đăng bài, sau đó theo dõi bình luận và hiệu quả hoạt động.
 
-Dự án được thực hiện dưới hình thức đồ án môn học bởi nhóm **4 thành viên** trong **6 tuần**. Ngôn ngữ phát triển chính là **Java** cho ứng dụng Android và backend OAuth.
+SocialPilot là đồ án môn học của **4 thành viên**. Nhóm phát triển ứng dụng Android và backend OAuth bằng **Java**.
 
 ## Bối cảnh và đối tượng sử dụng
 
@@ -100,9 +100,9 @@ Giảng viên cho lựa chọn các mục `[N]`; 11 mục nâng cao trong phạm
 
 ## Kế hoạch và phân công
 
-Kế hoạch nội bộ gồm 6 tuần, tuần 1 là 02–08/11/2026 (thứ Hai–Chủ nhật). Demo tích hợp cuối tuần 5 (06/12/2026); tuần 6 (07–13/12/2026) kiểm thử, sửa lỗi, nghiệm thu và hoàn thiện bàn giao. Mỗi người cam kết 24 giờ/tuần, gồm thiết kế, lập trình, review, họp, tích hợp, kiểm thử và tài liệu: 96 giờ/nhóm/tuần, 480 giờ đến demo và 576 giờ toàn đợt. Demo không thay nghiệm thu 44 yêu cầu; hạn nộp/bảo vệ chính thức theo thông báo giảng viên.
+**Mục tiêu cao nhất là hoàn thành 100% đồ án vào thứ Năm 03/12/2026** với 44/44 yêu cầu cam kết có bằng chứng nghiệm thu và đủ tám nhóm sản phẩm bàn giao. Nhóm chốt tính năng ngày 30/11, dành 01–02/12 cho kiểm thử liên thông, sửa lỗi và xác nhận trên bản cuối. Hạn nộp hoặc bảo vệ chính thức theo thông báo của giảng viên. [Taskbrief 24/11–03/12](docs/TaskBrief/W4-W5/week-4-5-taskbrief.md)
 
-Không lên kế hoạch hai Optional trong đợt 6 tuần này.
+Hai mục Optional F3.N2 và F6.N1 được theo dõi riêng.
 
 | Thành viên | Trách nhiệm chính |
 |---|---|
@@ -113,7 +113,7 @@ Không lên kế hoạch hai Optional trong đợt 6 tuần này.
 
 Mỗi người triển khai giao diện, nghiệp vụ, lưu offline, VI/EN, kiểm thử và tài liệu cho phần mình nhận. TV3 điều phối trải nghiệm chung, không làm toàn bộ giao diện hoặc offline của nhóm. TV3 và TV4 tự xây dựng nghiệp vụ AI của module mình qua dịch vụ TV2 cung cấp; TV4 trực tiếp làm API comment/số liệu trên hợp đồng thống nhất với TV1. TV1 điều phối tích hợp, mỗi chủ task chịu trách nhiệm tích hợp và sửa lỗi phần mình.
 
-Tuần 1 kiểm chứng stack, quyền API và chốt hợp đồng dùng chung; tuần 2–3 hoàn thiện luồng tạo–duyệt–đăng, đồng thời TV4 xây dựng dữ liệu/đồng bộ và TV3 dựng khung dashboard; tuần 4–5 hoàn thiện tương tác, analytics và các yêu cầu nâng cao; demo cuối tuần 5; tuần 6 kiểm thử, sửa lỗi và nghiệm thu. Snapshot thật bắt đầu từ tuần 2–3 khi có quyền API, tuần 4 dùng lịch sử đã tích lũy; thiếu quyền ghi blocker. Chi tiết về ranh giới, bàn giao và việc chung trong [proposal, mục 4](docs/SocialPilot_Proposal_Java.md#4-kế-hoạch-triển-khai-và-phân-công).
+Tuần 1 kiểm chứng stack, quyền API và chốt hợp đồng dùng chung; tuần 2–3 hoàn thiện luồng tạo–duyệt–đăng, đồng thời TV4 xây dựng dữ liệu/đồng bộ và TV3 dựng khung dashboard; đợt 24/11–03/12 hoàn thiện phần còn lại, nghiệm thu và bàn giao. Snapshot thật bắt đầu từ tuần 2–3 khi có quyền API, tuần 4 dùng lịch sử đã tích lũy; thiếu quyền ghi blocker. Chi tiết về ranh giới, bàn giao và việc chung trong [proposal, mục 4](docs/SocialPilot_Proposal_Java.md#4-kế-hoạch-triển-khai-và-phân-công).
 
 TV4 — Tô Lãng Nghị sở hữu API, snapshot, repository, công thức, lưu mục tiêu/tính tiến độ và F7.N2 (nghiệp vụ cùng giao diện báo cáo AI). TV3 — Đỗ Phước Thiện sở hữu XML/ViewModel F7.B1 (số liệu từng bài), F7.B2 (đường tăng trưởng), F7.B3 (dashboard), F7.N1 (phân tích theo nhóm), F7.N3 (mục tiêu); không tính lại chỉ số trong UI. Snapshot thật bắt đầu từ tuần 2–3 khi có quyền API, tuần 4 dùng lịch sử đã tích lũy; thiếu quyền phải ghi blocker, giữ khoảng trống dữ liệu.
 

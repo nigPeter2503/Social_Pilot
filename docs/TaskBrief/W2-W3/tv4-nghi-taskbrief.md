@@ -1,5 +1,7 @@
 # Taskbrief cá nhân tuần 2–3 — Tô Lãng Nghị (TV4)
 
+> Brief lịch sử của giai đoạn này. Mốc hoàn thành nội bộ hiện hành là **03/12/2026**. Xem [lịch tích hợp, nghiệm thu và bàn giao](../W4-W5/week-4-5-taskbrief.md).
+
 **Owner:** Tô Lãng Nghị — GitHub **@bob35306**. Soạn ngày **15/11/2026**, Asia/Bangkok, theo [taskbrief chung đã được người dùng duyệt](week-2-3-taskbrief.md), baseline lịch sử `7134bde`, đã đối soát feedback ngày 15/11/2026. Cùng gói tài liệu [SP-062 / #78](https://github.com/nigPeter2503/Social_Pilot/issues/78), [PR #79](https://github.com/nigPeter2503/Social_Pilot/pull/79). [Project #5](https://github.com/users/nigPeter2503/projects/5).
 
 ## 1. Trách nhiệm và đầu vào đã hoàn tất
