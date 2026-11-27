@@ -96,7 +96,7 @@ public final class MainViewModel extends AndroidViewModel {
     private final MutableLiveData<Boolean> instagramApproved = new MutableLiveData<>(false);
     private final MutableLiveData<Set<Platform>> restoreFailures = new MutableLiveData<>();
     private final MutableLiveData<List<ChannelRepository.Snapshot>> channelOptions =
-            new MutableLiveData<>(Collections.emptyList());
+            new MutableLiveData<>();
     private final MutableLiveData<ScopedPageCheck> facebookPageCheck = new MutableLiveData<>();
     private VersionApprovalState approval;
     private ContentVersion approvedVersion;
