@@ -10,7 +10,7 @@ Form cho lưu brief offline khi chưa có kênh. Mỗi field bắt buộc có l�
 
 ## Bàn giao và giới hạn
 
-Hợp đồng cho Đạt: `Brief` trong `domain/editor` nhận `briefId`, topic, goal, audience, tone, language, danh sách tối đa một target cho mỗi nền tảng có trong registry, cùng sources. Chỉ `BriefRepository.loadValidated(briefId)` cho payload hợp lệ; draft chưa có target không thể thành payload. ID kênh lấy từ `ChannelRepository` của SP-022, không dùng Page ID/tên Page làm `channelId`. Form cho chọn tối đa một kênh mỗi nền tảng, kiểm lại revision và credential khi lưu. Brief vẫn lưu offline khi chưa chọn kênh. Nhánh SP-022 cần hợp nhất trước SP-035 để migration theo đúng thứ tự.
+Hợp đồng cho Đạt: `Brief` trong `domain/editor` nhận `briefId`, topic, goal, audience, tone, language, danh sách tối đa một target cho mỗi nền tảng có trong registry, cùng sources. Chỉ `BriefRepository.loadValidated(briefId)` cho payload hợp lệ; draft chưa có target không thể thành payload. ID kênh lấy từ `ChannelRepository` của SP-022, không dùng Page ID/tên Page làm `channelId`. Form cho chọn tối đa một kênh mỗi nền tảng, kiểm lại revision và credential khi lưu. Brief vẫn lưu offline khi chưa chọn kênh. SP-022 đã có trong `main`; SP-035 nối migration Channel v1→v2 với Brief v2→v3.
 
 ## Kiểm chứng
 
@@ -24,3 +24,5 @@ Ngày 19/11/2026, Windows/JDK 21/SDK 36: `:app:assembleDebug :app:testDebugUnitT
 Ngày 26/11/2026: tích hợp ChannelRepository SP-022 theo schema Channel v2 → Brief v3, hiển thị kênh đã kết nối từ registry và lưu channelId nội bộ. Form từ chối lựa chọn đã đổi revision hoặc mất credential tại lúc lưu. Android assemble/unit/lint đạt; 4/4 ca migration và form trên AVD API 36 đạt, gồm kiểm dữ liệu Channel v2 còn nguyên sau migration.
 
 Ngày 26/11/2026, bổ sung guard revision trong cùng transaction ghi brief/source/target: dao kiểm channelId, platform, connectionRevision, trạng thái và hạn hiệu lực trước insert. Ca thiết bị dùng revision cũ xác nhận 0 brief/source/target; revision hiện hành lưu đủ. 4/4 ca BriefMigrationInstrumentedTest trên AVD API 36 đạt.
+
+Ngày 27/11/2026: đồng bộ `main` sau khi SP-022 và pipeline AI được merge. Theo review của Nghị, form lưu `channelId` và revision khi xoay màn hình, chỉ khôi phục lựa chọn còn hợp lệ trong registry; khóa các ô nhập và kênh trong lúc ghi bất đồng bộ; fixture Activity của SP-022 nhận `BriefRepository` từ cùng Room database. Android assemble, 285/285 unit test và lint đạt. Trên AVD API 36, 3/3 ca `BriefFormInstrumentedTest` đạt, gồm xoay trước khi lưu và ghi chậm; 4/4 ca `BriefMigrationInstrumentedTest` đạt trong lượt trước. Package QA `.sp022review` chạy 2/2 ca `MainActivityConnectionDeviceTest` bằng Gradle init script tạm thời.
