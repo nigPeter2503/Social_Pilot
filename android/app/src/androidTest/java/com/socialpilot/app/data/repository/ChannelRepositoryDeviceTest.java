@@ -14,7 +14,9 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 import com.socialpilot.app.data.local.AppDatabase;
 import com.socialpilot.app.data.local.ChannelSecretCleanup;
+import com.socialpilot.app.data.local.DraftEntity;
 import com.socialpilot.app.data.repository.ChannelRepository.ExpiredGrantException;
+import com.socialpilot.app.data.repository.ChannelRepository.DisconnectResult;
 import com.socialpilot.app.data.remote.instagram.ControlledInstagramGraph;
 import com.socialpilot.app.data.security.EncryptedOAuthStore;
 import com.socialpilot.app.data.security.EncryptedSecretStore;
@@ -29,12 +31,14 @@ import com.socialpilot.app.domain.contract.social.ChannelCapability;
 import com.socialpilot.app.domain.contract.social.ConnectionStatus;
 import com.socialpilot.app.domain.contract.social.Platform;
 import com.socialpilot.app.domain.contract.social.SocialOperation;
+import com.socialpilot.app.domain.editor.ContentVersion;
 import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import okhttp3.Protocol;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
@@ -66,6 +70,7 @@ public class ChannelRepositoryDeviceTest {
         context.deleteDatabase(databaseName);
         context.getSharedPreferences("oauth_secure_v1", Context.MODE_PRIVATE).edit().clear().commit();
         context.getSharedPreferences("secrets_social_v1", Context.MODE_PRIVATE).edit().clear().commit();
+        context.getSharedPreferences("instagram_feed_spike", Context.MODE_PRIVATE).edit().clear().commit();
     }
 
     @Test public void migrationPreservesDraftsAndImportsBothLegacyConnectionsOnce() {
@@ -380,6 +385,149 @@ public class ChannelRepositoryDeviceTest {
             resume.countDown();
             reconnect.get(10, TimeUnit.SECONDS);
         }
+    }
+
+    @Test public void disconnectFencesOldOAuthAndKeepsOtherChannelAndDraftAcrossReopen() {
+        ChannelRepository channels = open();
+        EncryptedOAuthStore store = new EncryptedOAuthStore(context, channels);
+        ChannelRepository.Snapshot page = channels.save(page("fb-a", "facebook-fake"));
+        ChannelRepository.Snapshot profile = channels.save(instagram("ig-a", "instagram-old"));
+        long draftId = database.drafts().insert(new DraftEntity("Shared draft", 42));
+        String verifier = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        store.savePending("ig-late", verifier, "INSTAGRAM");
+        EncryptedOAuthStore.Pending inFlight = store.takePending("ig-late");
+        store.savePending("fb-pending", verifier, "FACEBOOK");
+
+        assertEquals(DisconnectResult.DISCONNECTED, store.disconnect(profile.scope));
+        assertEquals(DisconnectResult.STALE, store.disconnect(profile.scope));
+        assertThrows(IllegalStateException.class, () -> store.saveConnected(inFlight, instagram("ig-late", "old")));
+        assertEquals("fb-pending", store.getPending().sessionId);
+        assertNull(channels.credential(profile.scope));
+        assertFalse(channels.requireReconnect(profile.scope));
+        assertEquals(SecretRead.Status.MISSING, secrets.read(SecretRef.parse(profile.info.tokenReference)).status);
+        database.close();
+
+        ChannelRepository reopened = open();
+        EncryptedOAuthStore restored = new EncryptedOAuthStore(context, reopened);
+        assertTrue(restored.restoreChannels().isEmpty());
+        assertNull(restored.selectedInstagramMetadata());
+        assertEquals("facebook-fake", reopened.credential(page.scope).accessToken);
+        try (android.database.Cursor drafts = database.getOpenHelper().getReadableDatabase()
+                .query("SELECT id, topic FROM drafts")) {
+            assertTrue(drafts.moveToFirst());
+            assertEquals(draftId, drafts.getLong(0));
+            assertEquals("Shared draft", drafts.getString(1));
+            assertFalse(drafts.moveToNext());
+        }
+        ChannelRepository.Snapshot reconnected = reopened.save(instagram("ig-new", "instagram-new"));
+        assertEquals(profile.scope.channelId, reconnected.scope.channelId);
+        assertEquals(profile.scope.connectionRevision + 1, reconnected.scope.connectionRevision);
+        assertEquals(DisconnectResult.STALE, reopened.disconnect(profile.scope));
+        assertEquals("instagram-new", reopened.credential(reconnected.scope).accessToken);
+    }
+
+    @Test public void cleanupCanResumeAndKeepsOnlyMinimalInstagramEvidence() {
+        open();
+        AtomicInteger cleanups = new AtomicInteger();
+        ChannelRepository channels = new ChannelRepository(database, secrets, (scope, account, retiredAt) -> {
+            if (cleanups.getAndIncrement() < 2) throw new IllegalStateException("fixture");
+            InstagramPublishRepository.retireAttempt(context, scope, account, retiredAt);
+        });
+        ChannelRepository.Snapshot profile = channels.save(instagram("ig-a", "instagram-old"));
+        SharedPreferences attempts = context.getSharedPreferences("instagram_feed_spike", Context.MODE_PRIVATE);
+        attempts.edit().putString(profile.info.externalAccountId,
+                "{\"versionId\":\"v1\",\"containerId\":\"private-container\",\"mediaId\":\"post-1\","
+                        + "\"permalink\":\"https://example.test/private-link\"}").commit();
+
+        assertEquals(DisconnectResult.CLEANUP_PENDING, channels.disconnect(profile.scope));
+        assertNull(channels.credential(profile.scope));
+        assertThrows(IllegalStateException.class, () -> channels.save(instagram("ig-too-early", "ig-new")));
+        assertNull(channels.selected(Platform.INSTAGRAM));
+        channels.restore();
+        assertEquals(3, cleanups.get());
+        assertNull(attempts.getString(profile.info.externalAccountId, null));
+        String evidence = attempts.getString("retained:" + profile.scope.channelId + ":v1", null);
+        assertNotNull(evidence);
+        assertTrue(evidence.contains("post-1"));
+        assertFalse(evidence.contains("private-container"));
+        assertFalse(evidence.contains("private-link"));
+        assertTrue(attempts.getBoolean("needs-check:" + profile.scope.channelId, false));
+        channels.restore();
+        assertEquals(3, cleanups.get());
+        ChannelRepository.Snapshot reconnected = channels.save(instagram("ig-new", "instagram-new"));
+        assertEquals(profile.scope.connectionRevision + 1, reconnected.scope.connectionRevision);
+        assertEquals("instagram-new", channels.credential(reconnected.scope).accessToken);
+    }
+
+    @Test public void choosingImmediateEraseKeepsOnlyTheManualCheckAfterReconnect() {
+        open();
+        ChannelRepository channels = new ChannelRepository(database, secrets, (scope, account, retiredAt) ->
+                InstagramPublishRepository.retireAttempt(context, scope, account, retiredAt));
+        EncryptedOAuthStore store = new EncryptedOAuthStore(context, channels);
+        InstagramPublishRepository publisher = new InstagramPublishRepository(context, store,
+                ControlledInstagramGraph.withResponse(chain -> {
+                    throw new AssertionError("Checking a retired attempt must not send a request");
+                }));
+        ChannelRepository.Snapshot initial = channels.save(instagram("ig-original", "instagram-old"));
+        SharedPreferences attempts = context.getSharedPreferences("instagram_feed_spike", Context.MODE_PRIVATE);
+        attempts.edit().putString(initial.info.externalAccountId,
+                "{\"versionId\":\"v1\",\"containerId\":\"private-container\"}").commit();
+        publisher.setDisconnectChoice(initial.scope, true);
+        assertEquals(DisconnectResult.DISCONNECTED, store.disconnect(initial.scope));
+        assertFalse(attempts.contains(initial.info.externalAccountId));
+        assertFalse(attempts.contains("retained:" + initial.scope.channelId + ":v1"));
+
+        channels.save(instagram("ig-new", "instagram-new"));
+        EncryptedOAuthStore.InstagramSession session = store.instagramSession();
+        assertEquals(InstagramPublishRepository.Status.CONFIRM_PRIOR_POST, publisher.reconcile(session).status);
+        assertTrue(publisher.confirmPriorPostChecked(session));
+        assertFalse(attempts.contains("needs-check:" + initial.scope.channelId));
+    }
+
+    @Test public void publishAtThirtyDaysRequiresFreshConfirmation() {
+        assertExpiryRequiresConfirmation(false);
+    }
+
+    @Test public void expirySweepOnStartAlsoRequiresFreshConfirmation() {
+        assertExpiryRequiresConfirmation(true);
+    }
+
+    private void assertExpiryRequiresConfirmation(boolean startupSweep) {
+        open();
+        AtomicLong disconnectedAt = new AtomicLong();
+        ChannelRepository channels = new ChannelRepository(database, secrets, (scope, account, retiredAt) -> {
+            disconnectedAt.set(retiredAt);
+            InstagramPublishRepository.retireAttempt(context, scope, account, retiredAt);
+        });
+        EncryptedOAuthStore store = new EncryptedOAuthStore(context, channels);
+        AtomicLong clock = new AtomicLong(System.currentTimeMillis());
+        InstagramPublishRepository publisher = new InstagramPublishRepository(context, store,
+                ControlledInstagramGraph.withResponse(chain -> {
+                    throw new AssertionError("Retained or expired evidence must block the Graph request");
+                }), clock::get);
+        ChannelRepository.Snapshot initial = channels.save(instagram("ig-original", "instagram-old"));
+        SharedPreferences attempts = context.getSharedPreferences("instagram_feed_spike", Context.MODE_PRIVATE);
+        String key = "retained:" + initial.scope.channelId + ":v1";
+        attempts.edit().putString(initial.info.externalAccountId,
+                "{\"versionId\":\"v1\",\"containerId\":\"private-container\"}").commit();
+        assertEquals(DisconnectResult.DISCONNECTED, store.disconnect(initial.scope));
+        assertTrue(attempts.contains(key));
+        channels.save(instagram("ig-reconnect", "instagram-new"));
+        EncryptedOAuthStore.InstagramSession session = store.instagramSession();
+        ContentVersion version = new ContentVersion("v1", "b1", session.accountId, null,
+                "Fixture post", "https://example.test/photo.jpg", clock.get());
+        assertTrue(publisher.confirmPriorPostChecked(session));
+
+        long boundary = disconnectedAt.get() + TimeUnit.DAYS.toMillis(30);
+        clock.set(boundary - 1);
+        assertEquals(InstagramPublishRepository.Status.PRIOR_VERSION_BLOCKED, publisher.publish(version, session).status);
+        assertTrue(attempts.contains(key));
+        clock.incrementAndGet();
+        if (startupSweep) publisher.purgeExpiredEvidence();
+        assertEquals(InstagramPublishRepository.Status.CONFIRM_PRIOR_POST, publisher.publish(version, session).status);
+        assertFalse(attempts.contains(key));
+        assertTrue(publisher.confirmPriorPostChecked(session));
+        assertFalse(attempts.contains("needs-check:" + initial.scope.channelId));
     }
 
     private ChannelRepository open() {

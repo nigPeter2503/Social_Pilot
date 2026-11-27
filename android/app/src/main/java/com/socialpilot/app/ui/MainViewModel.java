@@ -13,6 +13,7 @@ import com.socialpilot.app.core.AppContainer;
 import com.socialpilot.app.core.FacebookOAuthCoordinator;
 import com.socialpilot.app.data.local.DraftEntity;
 import com.socialpilot.app.data.repository.ChannelRepository;
+import com.socialpilot.app.data.repository.ChannelRepository.DisconnectResult;
 import com.socialpilot.app.data.repository.ChannelRepository.PageCheck;
 import com.socialpilot.app.data.repository.DraftRepository;
 import com.socialpilot.app.data.repository.InstagramPublishRepository;
@@ -36,6 +37,7 @@ import java.util.concurrent.Executor;
 public final class MainViewModel extends AndroidViewModel {
     public enum SaveState { IDLE, SAVING, SAVED, FAILED }
     public enum OAuthStatus { IDLE, STARTING, AUTHORIZATION_READY, EXCHANGING, CONNECTED, FAILED }
+    enum DisconnectState { IDLE, WORKING, DONE, CLEANUP_PENDING, FAILED }
     public static final class OAuthUiState {
         public final OAuthStatus status;
         public final String value;
@@ -72,6 +74,7 @@ public final class MainViewModel extends AndroidViewModel {
     private final MutableLiveData<Boolean> instagramApproved = new MutableLiveData<>(false);
     private final MutableLiveData<Set<Platform>> restoreFailures = new MutableLiveData<>();
     private final MutableLiveData<ScopedPageCheck> facebookPageCheck = new MutableLiveData<>();
+    private final MutableLiveData<DisconnectState> disconnectState = new MutableLiveData<>(DisconnectState.IDLE);
     private VersionApprovalState approval;
     private ContentVersion approvedVersion;
     private InstagramSession approvedSession;
@@ -114,6 +117,46 @@ public final class MainViewModel extends AndroidViewModel {
     public LiveData<OAuthUiState> oauthState() { return oauthState; }
     public String connectedPageSummary() { return facebookOAuth.connectedPageSummary(); }
     LiveData<?> facebookPageCheck() { return facebookPageCheck; }
+    LiveData<DisconnectState> disconnectState() { return disconnectState; }
+
+    ChannelRepository.Snapshot selectedChannel(Platform platform) {
+        return channels == null ? null : channels.selected(platform);
+    }
+
+    void disconnect(Scope scope, boolean erasePublishEvidence) {
+        if (disconnectState.getValue() == DisconnectState.WORKING) return;
+        disconnectState.setValue(DisconnectState.WORKING);
+        io.execute(() -> {
+            DisconnectState state;
+            try {
+                if (Platform.INSTAGRAM.name().equals(scope.platform)) {
+                    instagram.setDisconnectChoice(scope, erasePublishEvidence);
+                }
+                DisconnectResult result = connections.disconnect(scope);
+                switch (result) {
+                    case DISCONNECTED: state = DisconnectState.DONE; break;
+                    case CLEANUP_PENDING: state = DisconnectState.CLEANUP_PENDING; break;
+                    default: state = DisconnectState.FAILED;
+                }
+            } catch (RuntimeException failure) {
+                state = DisconnectState.FAILED;
+            }
+            DisconnectState completed = state;
+            main.post(() -> {
+                if (completed != DisconnectState.FAILED) {
+                    if (Platform.INSTAGRAM.name().equals(scope.platform)) {
+                        clearInstagramApproval();
+                        instagramResult.setValue(null);
+                    } else {
+                        facebookPageCheck.setValue(null);
+                    }
+                }
+                disconnectState.setValue(completed);
+            });
+        });
+    }
+
+    void acknowledgeDisconnect() { disconnectState.setValue(DisconnectState.IDLE); }
 
     PageCheck currentFacebookPageCheck() {
         ScopedPageCheck check = facebookPageCheck.getValue();
@@ -254,6 +297,12 @@ public final class MainViewModel extends AndroidViewModel {
         if (Boolean.TRUE.equals(instagramBusy.getValue())) return;
         InstagramSession session = connections.instagramSession();
         runInstagram(session, () -> instagram.reconcile(session));
+    }
+
+    void confirmPriorInstagramPostChecked() {
+        if (Boolean.TRUE.equals(instagramBusy.getValue())) return;
+        InstagramSession session = connections.instagramSession();
+        runInstagram(session, () -> instagram.confirmPriorPostChecked(session) ? null : instagram.reconcile(session));
     }
 
     private void runInstagram(InstagramSession session, Callable<InstagramPublishRepository.Result> operation) {

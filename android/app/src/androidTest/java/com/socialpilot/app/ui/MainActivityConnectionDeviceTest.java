@@ -1,12 +1,17 @@
 package com.socialpilot.app.ui;
 
 import static androidx.test.espresso.Espresso.onView;
+import static androidx.test.espresso.action.ViewActions.click;
 import static androidx.test.espresso.assertion.ViewAssertions.matches;
+import static androidx.test.espresso.matcher.ViewMatchers.Visibility.GONE;
 import static androidx.test.espresso.matcher.ViewMatchers.isEnabled;
+import static androidx.test.espresso.matcher.ViewMatchers.withEffectiveVisibility;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
 import static androidx.test.espresso.matcher.ViewMatchers.withText;
 import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeTrue;
 
@@ -16,12 +21,16 @@ import android.app.LocaleManager;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.SharedPreferences;
+import android.graphics.Bitmap;
+import android.graphics.Rect;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.LocaleList;
 import android.view.View;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
+import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModel;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.room.Room;
@@ -44,7 +53,11 @@ import com.socialpilot.app.domain.contract.oauth.OAuthContract.OAuthExchangeResp
 import com.socialpilot.app.domain.contract.secret.SecretNamespace;
 import com.socialpilot.app.domain.contract.secret.SecretRef;
 import com.socialpilot.app.domain.contract.social.Platform;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.Collections;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -61,6 +74,103 @@ import org.junit.runner.RunWith;
 @RunWith(AndroidJUnit4.class)
 public final class MainActivityConnectionDeviceTest {
     private static final String ACCOUNT = "9876543210";
+
+    @Test public void cancelDisconnectLeavesBothChannelsAndConfirmDisconnectKeepsFacebook() throws Exception {
+        assumeTrue(Build.VERSION.SDK_INT >= 29);
+        SocialPilotApplication app = (SocialPilotApplication) InstrumentationRegistry.getInstrumentation()
+                .getTargetContext().getApplicationContext();
+        String prefix = "sp024_ui_" + UUID.randomUUID() + "_";
+        Context isolated = new ContextWrapper(app) {
+            @Override public Context getApplicationContext() { return this; }
+            @Override public SharedPreferences getSharedPreferences(String name, int mode) {
+                return super.getSharedPreferences(prefix + name, mode);
+            }
+        };
+        AppDatabase database = Room.inMemoryDatabaseBuilder(app, AppDatabase.class).build();
+        ExecutorService worker = Executors.newSingleThreadExecutor();
+        EncryptedSecretStore secrets = new EncryptedSecretStore(isolated, SecretNamespace.SOCIAL_TOKEN);
+        ChannelRepository channels = new ChannelRepository(database, secrets);
+        EncryptedOAuthStore store = new EncryptedOAuthStore(isolated, channels);
+        InstagramPublishRepository repository = ControlledInstagramPublishRepository.create(isolated, store, chain -> {
+            throw new AssertionError("Disconnect must not send a provider request");
+        });
+        Application.ActivityLifecycleCallbacks installModel = installMainViewModel(() -> {
+            MainViewModel model = new MainViewModel(app, new DraftRepository(database.drafts(), worker),
+                        new FacebookOAuthCoordinator(store, worker, "https://127.0.0.1/"),
+                        store, repository, worker, channels);
+            // The isolated fixture preloads its connection registry before launching the Activity.
+            ((MutableLiveData<Set<Platform>>) model.restoreFailures()).setValue(Collections.emptySet());
+            return model;
+        });
+        app.registerActivityLifecycleCallbacks(installModel);
+        try {
+            Snapshot page = channels.save(new OAuthExchangeResponse("fixture-fb", "FACEBOOK", "1234567890", "PAGE",
+                    "Fixture Page", "fixture-token-fb", null, "bearer", null));
+            Snapshot instagram = channels.save(connection("fixture-ig", null));
+            try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
+                openInstagramDisconnectDialog(scenario);
+                captureSp024Evidence(app, "sp024-confirm-disconnect.png");
+                onView(withId(android.R.id.button2)).perform(click());
+                assertEquals(2, channels.list().size());
+                assertNotNull(channels.credential(page.scope));
+                assertNotNull(channels.credential(instagram.scope));
+
+                openInstagramDisconnectDialog(scenario);
+                onView(withId(android.R.id.button1)).perform(click());
+                worker.submit(() -> {}).get(5, TimeUnit.SECONDS);
+                onView(withId(R.id.disconnectInstagramButton)).check(matches(withEffectiveVisibility(GONE)));
+                onView(withId(R.id.instagramAccountStatus)).check(matches(withText(R.string.instagram_not_connected)));
+                assertNull(channels.credential(instagram.scope));
+                assertEquals("fixture-token-fb", channels.credential(page.scope).accessToken);
+                assertEquals(1, channels.list().size());
+                scenario.onActivity(activity -> scrollToChannelControl(activity, R.id.facebookPageStatus));
+                captureSp024Evidence(app, "sp024-after-disconnect.png");
+            }
+            try (ActivityScenario<MainActivity> reopened = ActivityScenario.launch(MainActivity.class)) {
+                onView(withId(R.id.instagramAccountStatus)).check(matches(withText(R.string.instagram_not_connected)));
+                onView(withId(R.id.disconnectInstagramButton)).check(matches(withEffectiveVisibility(GONE)));
+                reopened.onActivity(activity ->
+                        assertEquals(View.VISIBLE, activity.findViewById(R.id.disconnectFacebookButton).getVisibility()));
+            }
+        } finally {
+            app.unregisterActivityLifecycleCallbacks(installModel);
+            worker.shutdownNow();
+            database.close();
+            app.deleteSharedPreferences(prefix + "secrets_social_v1");
+            app.deleteSharedPreferences(prefix + "oauth_secure_v1");
+            app.deleteSharedPreferences(prefix + "instagram_feed_spike");
+        }
+    }
+
+    private static void openInstagramDisconnectDialog(ActivityScenario<MainActivity> scenario) {
+        scenario.onActivity(activity -> {
+            View button = scrollToChannelControl(activity, R.id.disconnectInstagramButton);
+            assertEquals(View.VISIBLE, button.getVisibility());
+            assertTrue(button.performClick());
+        });
+    }
+
+    private static View scrollToChannelControl(MainActivity activity, int viewId) {
+        ScrollView root = activity.findViewById(R.id.root);
+        View control = activity.findViewById(viewId);
+        Rect bounds = new Rect();
+        control.getDrawingRect(bounds);
+        root.offsetDescendantRectToMyCoords(control, bounds);
+        root.scrollTo(0, Math.max(0, bounds.centerY() - root.getHeight() / 2));
+        return control;
+    }
+
+    private static void captureSp024Evidence(Context context, String name) throws IOException {
+        if (!"true".equals(InstrumentationRegistry.getArguments().getString("captureSp024Evidence"))) return;
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+        Bitmap screenshot = InstrumentationRegistry.getInstrumentation().getUiAutomation().takeScreenshot();
+        assertNotNull(screenshot);
+        try (FileOutputStream output = new FileOutputStream(new File(context.getCacheDir(), name))) {
+            assertTrue(screenshot.compress(Bitmap.CompressFormat.PNG, 100, output));
+        } finally {
+            screenshot.recycle();
+        }
+    }
 
     @Test public void reconcilePermissionIsShownInVietnameseAndEnglishWithoutClearingApproval() throws Exception {
         SocialPilotApplication app = (SocialPilotApplication) InstrumentationRegistry.getInstrumentation()

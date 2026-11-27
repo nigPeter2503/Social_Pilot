@@ -32,6 +32,10 @@
         style="@style/Widget.MaterialComponents.Button.OutlinedButton"
         android:layout_width="match_parent" android:layout_height="wrap_content"
         android:text="@string/check_facebook" />
+    <com.google.android.material.button.MaterialButton android:id="@+id/disconnectFacebookButton"
+        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="@string/channel_disconnect" android:visibility="gone" />
     <com.google.android.material.button.MaterialButton android:id="@+id/openAiKeysButton"
         style="@style/Widget.MaterialComponents.Button.OutlinedButton"
         android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -42,6 +46,10 @@
     <TextView android:id="@+id/instagramAccountStatus" android:layout_width="match_parent"
         android:layout_height="wrap_content" android:layout_marginTop="8dp"
         android:text="@string/instagram_not_connected" />
+    <com.google.android.material.button.MaterialButton android:id="@+id/disconnectInstagramButton"
+        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="@string/channel_disconnect" android:visibility="gone" />
     <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
         android:layout_marginTop="24dp" android:text="@string/instagram_publish_title"
         android:textSize="20sp" android:textStyle="bold" />
@@ -68,6 +76,10 @@
     <com.google.android.material.button.MaterialButton android:id="@+id/instagramReconcile"
         android:layout_width="match_parent" android:layout_height="wrap_content"
         android:text="@string/instagram_reconcile" />
+    <com.google.android.material.button.MaterialButton android:id="@+id/instagramConfirmPrior"
+        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="@string/instagram_confirm_prior" android:visibility="gone" />
     <com.google.android.material.button.MaterialButton android:id="@+id/instagramOpen"
         android:layout_width="match_parent" android:layout_height="wrap_content"
         android:text="@string/instagram_open" />

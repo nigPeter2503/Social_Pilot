@@ -315,7 +315,7 @@ public final class ImageServiceTest {
         CountDownLatch resumeCommit = new CountDownLatch(1);
         AtomicInteger revisionChecks = new AtomicInteger();
         ImageService.RevisionCheck revisions = (channel, revision) -> {
-            if (revisionChecks.incrementAndGet() == 2) {
+            if (revisionChecks.incrementAndGet() == 3) {
                 fileSaved.countDown();
                 try {
                     if (!resumeCommit.await(5, TimeUnit.SECONDS)) throw new AssertionError("commit was not released");

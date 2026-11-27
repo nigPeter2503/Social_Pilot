@@ -4,6 +4,9 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.socialpilot.app.domain.contract.oauth.OAuthContract.OAuthExchangeResponse;
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
+import okhttp3.Call;
 import okhttp3.FormBody;
 import okhttp3.HttpUrl;
 import okhttp3.MediaType;
@@ -17,12 +20,27 @@ import okio.BufferedSink;
 public final class InstagramGraphClient {
     private static final String DEFAULT_PAGE_GRAPH_VERSION = "v27.0";
     private final OkHttpClient http;
+    private final GrantCheck grants;
+    private final Set<Call> inFlight = new HashSet<>();
+
+    public interface GrantCheck {
+        boolean current(OAuthExchangeResponse connection);
+    }
 
     public InstagramGraphClient() {
         this(new OkHttpClient());
     }
 
     InstagramGraphClient(OkHttpClient client) {
+        this(client, connection -> true);
+    }
+
+    public InstagramGraphClient(GrantCheck grants) {
+        this(new OkHttpClient(), grants);
+    }
+
+    private InstagramGraphClient(OkHttpClient client, GrantCheck grants) {
+        this.grants = grants;
         http = client.newBuilder()
                 .followRedirects(false)
                 .followSslRedirects(false)
@@ -31,17 +49,17 @@ public final class InstagramGraphClient {
     }
 
     public String createContainer(OAuthExchangeResponse connection, String imageUrl, String caption) throws IOException {
-        return id(call(connection.accessToken, url(connection, connection.externalAccountId).addPathSegment("media").build(),
+        return id(call(connection, url(connection, connection.externalAccountId).addPathSegment("media").build(),
                 new FormBody.Builder().add("image_url", imageUrl).add("caption", caption).build()));
     }
 
     public String publishContainer(OAuthExchangeResponse connection, String containerId) throws IOException {
-        return id(call(connection.accessToken, url(connection, connection.externalAccountId).addPathSegment("media_publish").build(),
+        return id(call(connection, url(connection, connection.externalAccountId).addPathSegment("media_publish").build(),
                 new FormBody.Builder().add("creation_id", containerId).build()));
     }
 
     public String containerStatus(OAuthExchangeResponse connection, String containerId) throws IOException {
-        JsonObject data = call(connection.accessToken,
+        JsonObject data = call(connection,
                 url(connection, containerId).addQueryParameter("fields", "status_code").build(), null);
         return data.has("status_code") ? data.get("status_code").getAsString() : "";
     }
@@ -61,12 +79,12 @@ public final class InstagramGraphClient {
     private void validateIdentity(OAuthExchangeResponse connection, String version) throws IOException {
         String accountId = connection.externalAccountId;
         HttpUrl identity = graphUrl(version, accountId).addQueryParameter("fields", "id").build();
-        JsonObject data = call(connection.accessToken, identity, null);
+        JsonObject data = call(connection, identity, null);
         if (!accountId.equals(id(data))) throw new IOException("Unexpected Graph account");
     }
 
     public String permalink(OAuthExchangeResponse connection, String mediaId) throws IOException {
-        JsonObject data = call(connection.accessToken,
+        JsonObject data = call(connection,
                 url(connection, mediaId).addQueryParameter("fields", "id,permalink").build(), null);
         if (!mediaId.equals(id(data)) || !data.has("permalink")) throw new IOException("Missing Instagram permalink");
         HttpUrl link = HttpUrl.parse(data.get("permalink").getAsString());
@@ -88,8 +106,19 @@ public final class InstagramGraphClient {
                 .addPathSegment(version).addPathSegment(id);
     }
 
-    private JsonObject call(String token, HttpUrl url, RequestBody body) throws IOException {
-        Request.Builder request = new Request.Builder().url(url).header("Authorization", "Bearer " + token);
+    public void cancelAccount(String provider, String accountId) {
+        String account = provider + ":" + accountId;
+        synchronized (inFlight) {
+            for (Call running : inFlight) {
+                if (account.equals(running.request().tag(String.class))) running.cancel();
+            }
+        }
+    }
+
+    private JsonObject call(OAuthExchangeResponse connection, HttpUrl url, RequestBody body) throws IOException {
+        Request.Builder request = new Request.Builder().url(url)
+                .tag(String.class, connection.provider + ":" + connection.externalAccountId)
+                .header("Authorization", "Bearer " + connection.accessToken);
         if (body != null) {
             request.post(new RequestBody() {
                 @Override public MediaType contentType() { return body.contentType(); }
@@ -98,7 +127,13 @@ public final class InstagramGraphClient {
                 @Override public void writeTo(BufferedSink sink) throws IOException { body.writeTo(sink); }
             });
         }
-        try (Response response = http.newCall(request.build()).execute()) {
+        Call call;
+        synchronized (inFlight) {
+            if (!grants.current(connection)) throw new IOException("Stale Graph connection");
+            call = http.newCall(request.build());
+            inFlight.add(call);
+        }
+        try (Response response = call.execute()) {
             if (response.code() == 401) throw new AuthorizationExpired();
             if (response.body() == null) throw new IOException("Missing Graph response");
             JsonObject data = JsonParser.parseString(response.body().string()).getAsJsonObject();
@@ -113,6 +148,10 @@ public final class InstagramGraphClient {
             return data;
         } catch (RuntimeException exception) {
             throw new IOException("Invalid Graph response");
+        } finally {
+            synchronized (inFlight) {
+                inFlight.remove(call);
+            }
         }
     }
 

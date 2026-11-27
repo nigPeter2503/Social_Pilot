@@ -49,8 +49,8 @@ Tổng chi tiêu của một kỳ = `settledMicros` của dòng `SETTLED` + `res
 
 | Việc | Trạng thái |
 |---|---|
-| Giữ aggregate chi phí sau khi ngắt kênh | **Đề xuất, chờ Minh (SP-024) duyệt:** khi ngắt kênh gọi `forgetChannel(channelId)`. Ledger giữ chi phí để trần và đối soát đúng, nhưng không còn định danh kênh/session. Chưa nối vào luồng ngắt kênh; chưa coi là policy đã chốt |
-| Thời gian giữ dòng ledger | Chưa có policy dọn; hiện giữ toàn bộ. Chờ cùng quyết định retention SP-024 |
+| Chi phí sau khi ngắt kênh | SP-024 gọi `forgetChannel(channelId, retiredRevision)`. Lượt đã phát sinh hoặc có thể đã phát sinh giữ số tiền phục vụ trần và đối soát, bỏ định danh kênh, session và bước. Lượt còn ở hàng chờ được giải phóng. Revision mới hơn giữ nguyên |
+| Thời gian giữ dòng quyết toán | Hiện giữ các dòng phục vụ giới hạn và đối soát qua request ID. TTL 30 ngày của SP-024 áp dụng cho dấu vết chống đăng trùng |
 | Currency khác USD | Chưa hỗ trợ: estimate khác currency bị `LIMIT_REACHED` |
 | Ảnh không tính theo token (SP-032) | Đi qua cùng `reserve/settle` với `AiCostEstimate` riêng của ảnh |
 

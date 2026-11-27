@@ -4,7 +4,7 @@ Ngày triển khai: 07/11/2026 (Asia/Bangkok). Người dùng đã duyệt bản
 Ngày 09/11/2026, Minh đã xác nhận bản sửa hai blocking và kết quả kiểm tra local
 (30 test đạt, Android build/lint và backend bootJar thành công).
 Đây là xác nhận của owner; hai approval reviewer trên bản sửa chưa được xác minh,
-chưa nghiệm thu API thật. N1 ở §7 chưa có quyết định chính sách cụ thể.
+chưa nghiệm thu API thật. Quyết định triển khai N1 được theo dõi ở SP-024, mục 7.
 
 - Ticket: [SP-009 / #11](https://github.com/nigPeter2503/Social_Pilot/issues/11).
 - Owner: Ngô Gia Minh. Reviewer: Nguyễn Đức Đạt, Tô Lãng Nghị.
@@ -257,18 +257,19 @@ bỏ kết quả revision cũ. Việc kiểm tra revision và ghi dữ liệu ph
 |---|---|---|
 | Token | Xóa kho bí mật/tham chiếu | Minh phối hợp phần lưu bí mật |
 | Job chưa gửi | Hủy | Minh |
-| Publish SUCCESS/PUBLISHED_URL_PENDING/UNKNOWN | Đề xuất giữ tombstone tối thiểu tối đa 30 ngày; UNKNOWN không retry, chờ N1 duyệt | Minh |
+| Publish SUCCESS/PUBLISHED_URL_PENDING/UNKNOWN | Giữ dấu vết tối thiểu tối đa 30 ngày. UNKNOWN cần đối soát trước khi gửi tiếp | Minh |
 | Comment/snapshot riêng kênh | Xóa cục bộ, chặn callback ghi lại | Nghị |
 | Tác vụ AI kênh | Hủy Future + HTTP, chặn callback | Đạt |
 | Bản nháp/nguồn chung | Giữ, gỡ liên kết kênh theo ownership | Thiện |
 | Kênh khác | Giữ nguyên | Mỗi owner |
 
-**Đề xuất N1 — CHỜ DUYỆT, chưa phải chính sách:** Khi ngắt kênh, vô hiệu revision
+**N1 — được duyệt để triển khai ngày 27/11/2026 tại [SP-024 / #26](https://github.com/nigPeter2503/Social_Pilot/issues/26).**
+Khi ngắt kênh, vô hiệu revision
 ngay, chặn và xóa job chưa gửi; xóa token/tham chiếu bí mật, OAuth state, comment,
 snapshot, cache và chi tiết lịch sử publish đã có kết quả cuối. Giữ bản nháp/phiên bản
 chung, nhưng gỡ liên kết kênh. Không xóa bài đã đăng trên provider.
 
-Để tránh gửi lại bài đã đăng, đề xuất giữ tombstone cục bộ tối đa 30 ngày tính từ lúc
+Để tránh gửi lại bài đã đăng, giữ tombstone cục bộ tối đa 30 ngày tính từ lúc
 ngắt kênh cho các request SUCCESS, PUBLISHED_URL_PENDING, đang gửi hoặc UNKNOWN;
 không giữ request REJECTED hoặc đã xác nhận chắc chắn không tạo bài. Giữ tombstone
 SUCCESS đến hết TTL dù đã đối soát; xóa sớm UNKNOWN/PUBLISHED_URL_PENDING chỉ khi
@@ -276,26 +277,35 @@ SUCCESS đến hết TTL dù đã đối soát; xóa sớm UNKNOWN/PUBLISHED_URL
 cảnh báo rằng thao tác đó bỏ mất bảo vệ dedupe cho request tương ứng. Tombstone chỉ gồm requestId, channelId nội bộ,
 approvedVersionId, revision, outcome và postId nếu đã biết; không gồm token, nội dung,
 media, comment, snapshot, response thô hay thông tin đăng nhập provider. Phải báo rõ
-phần giữ tạm này trong luồng ngắt kênh. Mốc 30 ngày là đề xuất để review, chưa được duyệt.
+phần giữ tạm này trong luồng ngắt kênh.
 
 Reconnect cùng channelId tạo revision mới, không khôi phục job cũ và không tự retry.
 Nếu còn tombstone SUCCESS, chặn enqueue cùng approvedVersionId; PUBLISHED_URL_PENDING
 và UNKNOWN cần đối soát tường minh, tuyệt đối không tự retry. Reconnect sang tài khoản
 khác tạo channelId mới và không nhận tombstone cũ. Sau khi tombstone hết hạn hoặc bị
 xóa ngay, không còn căn cứ tự động đối soát/chống trùng cho request đó; yêu cầu người
-dùng kiểm tra bài trên provider và xác nhận trước một lần gửi mới. Nếu Đạt/Nghị xác
-nhận F1.B4 không cho phép giữ tombstone sau ngắt kênh, phương án thay thế là xóa cả
-tombstone ngay và giữ cảnh báo/xác nhận người dùng như trên; không trình bày chế độ đó
-như tự động bảo đảm không đăng trùng.
+dùng kiểm tra bài trên provider và xác nhận trước một lần gửi mới.
+Khi dấu vết hết hạn, luồng Instagram xóa dấu vết và yêu cầu xác nhận lại trong cùng
+lần ghi, kể cả khi người dùng từng xác nhận lúc dấu vết còn hiệu lực.
 
-**N1 — còn mở, theo dõi tại SP-009 / issue #11:** Minh chịu trách nhiệm tổng hợp
-quyết định cùng Đạt và Nghị trước khi triển khai lưu/xóa hồ sơ trong adapter/queue.
-Phương án tombstone ở trên cần được cả ba xác nhận cụ thể theo F1.B4 và F5.B3; TTL
-hữu hạn hoặc bỏ token không tự tạo ngoại lệ cho yêu cầu xóa dữ liệu. Chưa cho phép
-triển khai lưu hồ sơ sau ngắt kênh như chính sách đã duyệt. Nếu PR #66 đóng issue #11 khi merge trước khi
-quyết định được ghi nhận, chuyển N1 sang ticket còn mở, giữ Minh làm owner và dẫn
-ticket mới từ mục này. Chưa ghi nhận quyết định chính sách hoặc xác nhận reviewer;
-trạng thái issue/project trực tuyến cần được kiểm tra riêng.
+**Ranh giới tích hợp SP-024.** Mỗi module nhận `Scope(platform, channelId, connectionRevision)`.
+Việc dọn chỉ áp dụng cho kênh đó và các revision tới revision bị ngắt. Mọi nơi nhận tác vụ
+hoặc ghi Room so sánh revision đang kết nối tại thời điểm thao tác. Cleanup ngoài Room
+có thể chạy lại sau khi khởi động và kiểm tra phạm vi trước khi tác động lên dữ liệu.
+Room giữ ID nội bộ, revision và dấu băm định danh để kết nối lại đúng kênh. Metadata
+kết nối bị dọn và secret được xóa theo tham chiếu cũ đã lưu trong transaction.
+
+| Phần | Điểm bàn giao |
+|---|---|
+| OAuth, Graph và màn hình hiện có | Minh. `EncryptedOAuthStore.disconnect` khóa phiên OAuth cũ, `ChannelRepository.disconnect` vô hiệu scope, dọn credential và yêu cầu hủy Graph của tài khoản. SP-023 dùng lại lối gọi này khi tích hợp màn hình Kênh của tôi |
+| Instagram feed hiện có | Minh. Giữ dấu vết tối thiểu cho lần gửi đã bắt đầu hoặc chưa rõ kết quả. Sau reconnect, người dùng kiểm tra bài trước khi gửi tiếp. Có chọn xóa dấu vết ngay và dọn bằng chứng hết hạn khi mở app |
+| Queue production | Minh, SP-025/026. Bàn giao nhận scope, kiểm admission/dispatch và xử lý đối soát theo approvedVersionId. Queue production còn phải nối |
+| AI, ảnh và checkpoint | Đạt. App hủy gateway và job ảnh theo revision, chặn reserve/giao ảnh cũ và gỡ định danh kênh khỏi ledger. Checkpoint Room và dọn ảnh đã gắn vào phiên bản chờ điểm tích hợp SP-033 và editor |
+| Editor và dữ liệu dùng chung | Thiện. Gỡ link/phiên bản độc quyền của A và tính mọi tham chiếu còn sống trước khi xóa ảnh, giữ B và bản nháp chung |
+| Sync và auto-reply | Nghị. Hủy theo scope và xóa comment, cursor, snapshot, goal, cache, lịch sử và luật riêng của kênh khi các repository được tích hợp |
+
+SP-052 kiểm lại F1.B4 với A/B trên bản đã tích hợp, gồm hủy xác nhận, callback trễ, restart
+và reconnect khi đợt dọn cũ còn dang dở. Đạt và Nghị review PR theo quy trình nhóm.
 
 ## 8. Ma trận kiểm chứng và bàn giao
 

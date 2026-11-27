@@ -4,7 +4,7 @@ import com.socialpilot.app.domain.contract.ai.AiCostEstimate;
 
 /** Shared attempt ledger contract. The production implementation is a separate task. */
 public interface BudgetManager {
-    enum Admission { RESERVED, LIMIT_REACHED, DUPLICATE_REQUEST }
+    enum Admission { RESERVED, LIMIT_REACHED, DUPLICATE_REQUEST, STALE_CHANNEL }
 
     /**
      * Atomically reserve against all applicable periods, pinned for this attempt. Duplicate

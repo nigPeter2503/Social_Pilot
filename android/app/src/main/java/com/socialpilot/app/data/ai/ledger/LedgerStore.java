@@ -31,7 +31,7 @@ public interface LedgerStore {
     int markInterrupted(String currentBootId, long now);
 
     /** Drops channel/session identity of a channel's attempts; cost, state and periods stay. */
-    int forgetChannel(String channelId, long now);
+    int forgetChannel(String channelId, long retiredRevision, long now);
 
     List<AttemptEntity> forMonth(String monthKey);
 }
