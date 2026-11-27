@@ -16,7 +16,7 @@ import javax.crypto.spec.GCMParameterSpec;
  * AES-256-GCM with a non-exportable Android Keystore key. Each alias protects one namespace, so
  * deleting or regenerating one namespace key never affects another namespace.
  */
-final class KeystoreRecordCipher implements RecordCipher {
+public final class KeystoreRecordCipher implements RecordCipher {
     private static final int IV_BYTES = 12;
     private static final int TAG_BITS = 128;
     private final String alias;
@@ -64,6 +64,15 @@ final class KeystoreRecordCipher implements RecordCipher {
         cipher.init(Cipher.DECRYPT_MODE, key(), new GCMParameterSpec(TAG_BITS, iv));
         cipher.updateAAD(name.getBytes(StandardCharsets.UTF_8));
         return new String(cipher.doFinal(encrypted), StandardCharsets.UTF_8);
+    }
+
+    public static synchronized com.socialpilot.app.data.remote.social.CommentCursorCodec commentCursors() {
+        try {
+            SecretKey key = new KeystoreRecordCipher("socialpilot.comments.cursor.v1", false).key();
+            return new com.socialpilot.app.data.remote.social.CommentCursorCodec(key);
+        } catch (Exception unavailable) {
+            throw new IllegalStateException("Comment cursor key unavailable", unavailable);
+        }
     }
 
     private SecretKey key() throws Exception {

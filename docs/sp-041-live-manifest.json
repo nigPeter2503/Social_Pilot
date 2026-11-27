@@ -1,0 +1,55 @@
+{
+  "ticket": "SP-041",
+  "owner": "Tô Lãng Nghị",
+  "assessedAt": "2026-11-27T12:00:57+07:00",
+  "status": "NOT_RUN",
+  "codeRevision": "6facb57279c20524aa09da1ab57dbec7c5df1a4f",
+  "baseRevision": "c49676e47bbe9ee72910150ef0516878b00d1053",
+  "remotePrHead": "ca77f6265f87d9cfc56242106072e7efc91b3cc7",
+  "appDatabaseVersion": 2,
+  "operation": "READ_COMMENTS",
+  "expected": "GET two owned post/media pages, terminal page, refresh with deduplication, then reopen Room offline and compare IDs and checkpoint.",
+  "actual": "0 app-live GETs. Room and WorkManager were exercised with intercepted GETs on the instrumentation-only candidate database.",
+  "reason": "Awaiting a production Room slot and an authorized current channel, revision, role, READ_COMMENTS grant and target per provider.",
+  "runs": [],
+  "providers": [
+    {
+      "platform": "FACEBOOK",
+      "accountType": "PAGE",
+      "status": "NOT_RUN",
+      "expectedApiVersion": "v27.0",
+      "historicalProviderEvidenceRevision": "230c2a6ebcd8785288e57764c4ebb5fb6bbd4afa",
+      "channelId": null,
+      "connectionRevision": null,
+      "grantEvidenceRef": null,
+      "publishedPostLocalId": null,
+      "requestAt": null,
+      "readbackAt": null,
+      "uniqueCommentCount": null,
+      "checkpoint": null,
+      "liveGetCount": 0
+    },
+    {
+      "platform": "INSTAGRAM",
+      "accountType": "PROFESSIONAL",
+      "status": "NOT_RUN",
+      "expectedApiVersion": "v27.0",
+      "historicalProviderEvidenceRevision": "eda55acd8fb95a0dba9853a35e16fe8754245600",
+      "channelId": null,
+      "connectionRevision": null,
+      "grantEvidenceRef": null,
+      "publishedPostLocalId": null,
+      "requestAt": null,
+      "readbackAt": null,
+      "uniqueCommentCount": null,
+      "checkpoint": null,
+      "liveGetCount": 0
+    }
+  ],
+  "blockerOwners": [
+    "Đạt/SP-012 (schema slot)",
+    "Minh/SP-022 (scoped grant and target)",
+    "Minh/SP-024 (disconnect policy/hook)"
+  ],
+  "evidence": "sp-041-verification-2026-11-27.md"
+}

@@ -1,0 +1,134 @@
+{
+  "ticket": "SP-041",
+  "verifiedAt": "2026-11-27T12:05:26+07:00",
+  "baselineHead": "ca77f6265f87d9cfc56242106072e7efc91b3cc7",
+  "head": "6facb57279c20524aa09da1ab57dbec7c5df1a4f",
+  "integratedMain": "c49676e47bbe9ee72910150ef0516878b00d1053",
+  "source": "MO_PHONG",
+  "tests": 469,
+  "suites": 35,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "lintErrors": 0,
+  "lintWarnings": 14,
+  "appDatabaseVersion": 2,
+  "draftSchemaUnchanged": true,
+  "existingUntrackedFiles": [
+    {
+      "path": "docs/linkedin-comments-metrics-verification.md",
+      "unchanged": true
+    },
+    {
+      "path": "docs/sp-041-android-check.txt",
+      "unchanged": true
+    },
+    {
+      "path": "docs/sp-041-comment-adapter-verification.md",
+      "unchanged": true
+    },
+    {
+      "path": "docs/sp-041-comment-disconnect-verification.md",
+      "unchanged": true
+    },
+    {
+      "path": "docs/sp-041-comment-storage-baseline.json",
+      "unchanged": true
+    },
+    {
+      "path": "docs/sp-041-comment-storage-gradle.txt",
+      "unchanged": true
+    },
+    {
+      "path": "docs/sp-041-comment-storage-verification.md",
+      "unchanged": true
+    },
+    {
+      "path": "docs/sp-041-comment-sync-worker-verification.md",
+      "unchanged": true
+    },
+    {
+      "path": "docs/sp-041-file-manifest.json",
+      "unchanged": true
+    },
+    {
+      "path": "docs/sp-041-plan-baseline.txt",
+      "unchanged": true
+    },
+    {
+      "path": "docs/sp-041-protected-baseline.json",
+      "unchanged": true
+    },
+    {
+      "path": "docs/sp-041-published-post-analytics-check.txt",
+      "unchanged": true
+    },
+    {
+      "path": "docs/sp-041-published-post-android-check.txt",
+      "unchanged": true
+    },
+    {
+      "path": "docs/sp-041-published-post-baseline.json",
+      "unchanged": true
+    },
+    {
+      "path": "docs/sp-041-published-post-facebook-check.txt",
+      "unchanged": true
+    },
+    {
+      "path": "docs/sp-041-published-post-file-manifest.json",
+      "unchanged": true
+    },
+    {
+      "path": "docs/sp-041-published-post-linkedin-check.txt",
+      "unchanged": true
+    },
+    {
+      "path": "docs/sp-041-published-post-plan-before.txt",
+      "unchanged": true
+    },
+    {
+      "path": "docs/sp-041-published-post-verification-results.json",
+      "unchanged": true
+    },
+    {
+      "path": "docs/sp-041-published-post-verification.md",
+      "unchanged": true
+    },
+    {
+      "path": "docs/sp-041-verification-results.json",
+      "unchanged": true
+    },
+    {
+      "path": "docs/verify-sp-041-published-post.cjs",
+      "unchanged": true
+    }
+  ],
+  "productionRoom": "NOT_RUN: SP-041 migration slot pending",
+  "productionLive": "NOT_RUN",
+  "deviceApi23And36": [
+    {
+      "api": 23,
+      "abi": "x86_64",
+      "channelV2Passed": 11,
+      "candidateRoomPassed": 4,
+      "legacyWorkerPassed": 4,
+      "queuedOfflinePassed": 1,
+      "resumeInNewProcessPassed": 1,
+      "failures": 0,
+      "skipped": 0
+    },
+    {
+      "api": 36,
+      "abi": "x86_64",
+      "channelV2Passed": 11,
+      "candidateRoomPassed": 4,
+      "legacyWorkerPassed": 4,
+      "queuedOfflinePassed": 1,
+      "resumeInNewProcessPassed": 1,
+      "failures": 0,
+      "skipped": 0
+    }
+  ],
+  "verification": "sp-041-verification-2026-11-27.md"
+}

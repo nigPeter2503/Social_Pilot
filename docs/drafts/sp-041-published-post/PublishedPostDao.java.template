@@ -1,0 +1,21 @@
+// DRAFT / NOT COMPILED. Internal persistence API; callers must use the scoped repository.
+package com.socialpilot.app.data.local;
+
+import androidx.room.Dao;
+import androidx.room.Insert;
+import androidx.room.OnConflictStrategy;
+import androidx.room.Query;
+import androidx.room.Update;
+
+@Dao
+public interface PublishedPostDao {
+    @Query("SELECT * FROM published_posts WHERE channelId = :channelId "
+            + "AND externalPostId = :externalPostId COLLATE BINARY LIMIT 1")
+    PublishedPostEntity byExternalId(String channelId, String externalPostId);
+
+    @Query("SELECT * FROM published_posts WHERE id = :id LIMIT 1")
+    PublishedPostEntity byLocalId(String id);
+
+    @Insert(onConflict = OnConflictStrategy.ABORT) void insert(PublishedPostEntity post);
+    @Update(onConflict = OnConflictStrategy.ABORT) int update(PublishedPostEntity post);
+}
