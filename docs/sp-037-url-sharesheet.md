@@ -11,3 +11,5 @@ Khi không có kết nối mạng đã xác thực, nút đọc link báo lỗi 
 Kiểm chứng với MockWebServer: chuyển hướng, metadata, login, HTML không có metadata và chặn URL nội bộ. UI instrumentation: Sharesheet điền nguồn và giữ qua tái tạo Activity. Build/JVM/lint và emulator được ghi trên PR. Chưa thử link có login/paywall thực tế, nhiều kiểu charset hoặc mọi site công khai; không tuyên bố trích toàn văn hay vượt hạn chế nguồn.
 
 Ngày 26/11/2026: đồng bộ SP-035 với ChannelRepository SP-022; giữ cả import URL và picker kênh trong MainActivity/MainViewModel. Android assemble/unit/lint/APK test đạt; 4/4 ca Sharesheet và brief trên AVD API 36 đạt. Bằng chứng site thật còn thiếu như giới hạn phía trên.
+
+Ngày 27/11/2026: sau khi đồng bộ `main` và bản sửa review SP-035, thêm ca thiết bị đi từ `ACTION_SEND` chứa URL công khai tới `brief_sources` đã lưu, so đúng loại `URL` và nguyên link; ca đóng form chưa lưu xác nhận không có brief. `SharedUrlInstrumentedTest` đạt 5/5 trên AVD API 36. Bằng chứng chia sẻ từ ứng dụng khác và site login/paywall thật vẫn cần ghi nhận riêng.
