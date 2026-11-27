@@ -7,6 +7,7 @@
   <string name="audience_hint">Audience</string>
   <string name="tone_hint">Tone of voice</string>
   <string name="content_language">Content language</string>
+  <string name="app_language">App language</string>
   <string name="language_vi">Vietnamese</string>
   <string name="language_en">English</string>
   <string name="source_hint">Source (optional)</string>

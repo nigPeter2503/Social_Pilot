@@ -6,6 +6,10 @@
       android:dataExtractionRules="@xml/data_extraction_rules"
       android:theme="@style/Theme.SocialPilot" android:allowBackup="false"
       android:supportsRtl="true" android:usesCleartextTraffic="false">
+    <service android:name="androidx.appcompat.app.AppLocalesMetadataHolderService"
+        android:enabled="false" android:exported="false">
+      <meta-data android:name="autoStoreLocales" android:value="true" />
+    </service>
     <activity android:name=".ui.PrototypeActivity" android:exported="false" />
     <activity android:name=".ui.MainActivity" android:exported="true" android:launchMode="singleTop">
       <intent-filter>
