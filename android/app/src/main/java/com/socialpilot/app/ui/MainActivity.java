@@ -36,6 +36,7 @@ import com.socialpilot.app.data.repository.ChannelRepository.PageCheck;
 import com.socialpilot.app.data.repository.ChannelRepository;
 import com.socialpilot.app.data.security.EncryptedOAuthStore.InstagramMetadata;
 import com.socialpilot.app.domain.contract.social.Platform;
+import com.socialpilot.app.domain.contract.social.ConnectionLifecycle.Scope;
 import com.socialpilot.app.domain.contract.secret.SecretRead;
 import java.util.EnumMap;
 import java.util.Map;
@@ -59,7 +60,10 @@ public final class MainActivity extends AppCompatActivity {
             };
     private final Map<Platform, ChannelRepository.Snapshot> selectedTargets =
             new EnumMap<>(Platform.class);
+    private final Map<Platform, Scope> pendingTargets = new EnumMap<>(Platform.class);
     private List<ChannelRepository.Snapshot> availableTargets = Collections.emptyList();
+    private boolean targetsLoaded;
+    private boolean savingBrief;
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -84,6 +88,15 @@ public final class MainActivity extends AppCompatActivity {
         });
         String page = model.connectedPageSummary();
         if (page != null) binding.facebookPageStatus.setText(getString(R.string.facebook_connected, page));
+        if (savedInstanceState != null) {
+            for (Platform platform : Platform.values()) {
+                String id = savedInstanceState.getString("target." + platform.name());
+                long revision = savedInstanceState.getLong("targetRevision." + platform.name(), 0);
+                if (id != null && revision > 0) {
+                    pendingTargets.put(platform, new Scope(platform.name(), id, revision));
+                }
+            }
+        }
         binding.connectFacebookButton.setOnClickListener(view -> model.connectFacebook());
         binding.checkFacebookButton.setOnClickListener(view -> model.checkFacebookPage());
         model.facebookPageCheck().observe(this, result -> {
@@ -98,7 +111,8 @@ public final class MainActivity extends AppCompatActivity {
             model.refreshChannelOptions();
         });
         model.channelOptions().observe(this, channels -> {
-            availableTargets = channels;
+            targetsLoaded = channels != null;
+            availableTargets = channels == null ? Collections.emptyList() : channels;
             renderTargetOptions();
         });
         model.oauthState().observe(this, state -> {
@@ -159,7 +173,9 @@ public final class MainActivity extends AppCompatActivity {
             binding.draftList.setText(text.length() == 0 ? getString(R.string.empty) : text.toString());
         });
         model.saveState().observe(this, state -> {
-            binding.saveButton.setEnabled(state != MainViewModel.SaveState.SAVING);
+            savingBrief = state == MainViewModel.SaveState.SAVING;
+            setBriefInputsEnabled(!savingBrief);
+            renderTargetOptions();
             if (state == MainViewModel.SaveState.SAVED) {
                 binding.topicInput.setText("");
                 binding.goalInput.setText("");
@@ -175,6 +191,32 @@ public final class MainActivity extends AppCompatActivity {
         binding.openPrototype.setOnClickListener(view ->
                 startActivity(new Intent(this, PrototypeActivity.class)));
         handleOAuthIntent(getIntent());
+    }
+
+    @Override protected void onSaveInstanceState(Bundle outState) {
+        for (Map.Entry<Platform, Scope> target : pendingTargets.entrySet()) {
+            outState.putString("target." + target.getKey().name(), target.getValue().channelId);
+            outState.putLong("targetRevision." + target.getKey().name(),
+                    target.getValue().connectionRevision);
+        }
+        for (Map.Entry<Platform, ChannelRepository.Snapshot> target : selectedTargets.entrySet()) {
+            outState.putString("target." + target.getKey().name(), target.getValue().scope.channelId);
+            outState.putLong("targetRevision." + target.getKey().name(),
+                    target.getValue().scope.connectionRevision);
+        }
+        super.onSaveInstanceState(outState);
+    }
+
+    private void setBriefInputsEnabled(boolean enabled) {
+        binding.topicInput.setEnabled(enabled);
+        binding.goalInput.setEnabled(enabled);
+        binding.audienceInput.setEnabled(enabled);
+        binding.toneInput.setEnabled(enabled);
+        binding.sourceInput.setEnabled(enabled);
+        binding.sourceUrlSwitch.setEnabled(enabled);
+        binding.contentLanguageVi.setEnabled(enabled);
+        binding.contentLanguageEn.setEnabled(enabled);
+        binding.saveButton.setEnabled(enabled && (targetsLoaded || pendingTargets.isEmpty()));
     }
 
     @Override protected void onNewIntent(Intent intent) {
@@ -267,6 +309,7 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private void saveBrief() {
+        if (!pendingTargets.isEmpty()) return;
         String sourceValue = String.valueOf(binding.sourceInput.getText()).trim();
         binding.sourceLayout.setError(null);
         List<Brief.Source> sources = new ArrayList<>();
@@ -310,6 +353,15 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private void renderTargetOptions() {
+        if (targetsLoaded && !pendingTargets.isEmpty()) {
+            for (ChannelRepository.Snapshot option : availableTargets) {
+                Scope pending = pendingTargets.get(option.info.platform);
+                if (pending != null && pending.matches(option.scope) && selectable(option)) {
+                    selectedTargets.put(option.info.platform, option);
+                }
+            }
+            pendingTargets.clear();
+        }
         for (Platform platform : new ArrayList<>(selectedTargets.keySet())) {
             ChannelRepository.Snapshot selected = selectedTargets.get(platform);
             boolean current = false;
@@ -323,11 +375,14 @@ public final class MainActivity extends AppCompatActivity {
         }
         binding.targetList.removeAllViews();
         binding.targetStatus.setVisibility(availableTargets.isEmpty() ? View.VISIBLE : View.GONE);
+        binding.targetStatus.setText(!targetsLoaded && !pendingTargets.isEmpty()
+                ? R.string.social_connections_loading : R.string.no_target_available);
+        binding.saveButton.setEnabled(!savingBrief && (targetsLoaded || pendingTargets.isEmpty()));
         for (ChannelRepository.Snapshot channel : availableTargets) {
             CheckBox option = new CheckBox(this);
             option.setText(channel.info.displayName + " · " + channel.info.platform.name()
                     + (selectable(channel) ? "" : " · " + getString(R.string.target_reconnect)));
-            option.setEnabled(selectable(channel));
+            option.setEnabled(selectable(channel) && !savingBrief);
             ChannelRepository.Snapshot selected = selectedTargets.get(channel.info.platform);
             option.setChecked(selected != null && selected.scope.matches(channel.scope));
             option.setOnCheckedChangeListener((button, checked) -> {
