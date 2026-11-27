@@ -33,6 +33,15 @@ public final class AiCostEstimate {
                 currency, priceRevision);
     }
 
+    /** Per-image pricing for providers that bill generated images by count, not tokens. */
+    public static AiCostEstimate image(int images, BigDecimal perImage, Currency currency, String priceRevision) {
+        if (images <= 0 || Objects.requireNonNull(perImage).signum() < 0) {
+            throw new IllegalArgumentException("Invalid image count or rate");
+        }
+        BigDecimal micros = perImage.multiply(BigDecimal.valueOf(images)).movePointRight(6);
+        return new AiCostEstimate(micros.setScale(0, RoundingMode.CEILING).longValueExact(), currency, priceRevision);
+    }
+
     private static BigDecimal price(long tokens, BigDecimal rate) {
         if (tokens < 0 || Objects.requireNonNull(rate).signum() < 0) {
             throw new IllegalArgumentException("Negative count or rate");
