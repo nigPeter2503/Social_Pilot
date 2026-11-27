@@ -162,6 +162,18 @@ public class CommentRoomDeviceTest {
         int sent = calls.get();
         assertEquals("POST_CONFLICT", pull(query(fb, "p")).reason());
         assertEquals(sent, calls.get());
+        String otherMedia = "0075";
+        reply(otherMedia, "fixture-ig", "{\"id\":\"0075\",\"owner\":{\"id\":\"00017\"}}");
+        assertEquals(PublishedPostRepository.Status.COMMITTED,
+                access.importPost(posts, PublishedPostScope.from(ig.info), otherMedia).status);
+        var wrongMedia = new CommentPageRequest(q.account, q.channelId, q.connectionRevision,
+                q.externalAccountId, otherMedia, CommentPageRequest.Target.COMMENT, "p", null,
+                q.query, q.pageSize, null, q.apiVersion, null);
+        assertEquals("POST_CONFLICT", pull(wrongMedia).reason());
+        var wrongVersion = new CommentPageRequest(q.account, q.channelId, q.connectionRevision,
+                q.externalAccountId, MEDIA, q.target, MEDIA, null, q.query, q.pageSize, null, "v26.0", null);
+        assertEquals("SCOPE_MISMATCH", pull(wrongVersion).reason());
+        assertEquals(sent + 1, calls.get());
         replies.add(new Reply(MEDIA + "/comments", "fixture-ig", 401, "{}", null));
         assertEquals(SocialError.Code.AUTH_REQUIRED, pull(q).error().code);
         assertEquals(ConnectionStatus.REAUTH_REQUIRED, channels.find(ig.info.channelId).info.connectionStatus);

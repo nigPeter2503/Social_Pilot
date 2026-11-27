@@ -46,12 +46,26 @@ public final class SimulatedCommentStore implements CommentStore {
         for (var entry : membership.entrySet())
             if (channel.equals(entry.getKey().channelId) && revision == entry.getKey().revision)
                 members += entry.getValue().size();
-        return new Counts(rows.values().stream().filter(r -> channel.equals(r.observation.scope.channelId)
-                        && r.observation.scope.connectionRevision == revision).count(), members,
-                progress.keySet().stream().filter(k -> channel.equals(k.channelId) && k.revision == revision).count(),
-                attempts.keySet().stream().filter(k -> channel.equals(k.channelId) && k.revision == revision).count(),
-                queries.values().stream().filter(q -> channel.equals(q.channelId) && q.connectionRevision == revision).count(),
-                handled.stream().filter(k -> channel.equals(k.channel()) && revision == k.revision()).count());
+        Match<CommentCheckpoint.Key> keyMatches = k -> channel.equals(k.channelId) && k.revision == revision;
+        return new Counts(count(rows.values(), r -> channel.equals(r.observation.scope.channelId)
+                        && r.observation.scope.connectionRevision == revision), members,
+                count(progress.keySet(), keyMatches), count(attempts.keySet(), keyMatches),
+                count(queries.values(), q -> channel.equals(q.channelId) && q.connectionRevision == revision),
+                count(handled, k -> channel.equals(k.channel()) && revision == k.revision()));
+    }
+
+    // This fixture is shared with instrumentation on minSdk 23.
+    private interface Match<T> { boolean matches(T item); }
+
+    private static <T> int count(Collection<T> items, Match<T> match) {
+        int count = 0;
+        for (T item : items) if (match.matches(item)) count++;
+        return count;
+    }
+
+    private static <T> void removeMatching(Collection<T> items, Match<T> match) {
+        for (Iterator<T> it = items.iterator(); it.hasNext(); )
+            if (match.matches(it.next())) it.remove();
     }
 
     public synchronized int size() { return rows.size(); }
@@ -131,14 +145,15 @@ public final class SimulatedCommentStore implements CommentStore {
                     return found;
                 }
                 public void deleteRevision(String channel, long revision) {
-                    nextRows.values().removeIf(row -> channel.equals(row.observation.scope.channelId)
+                    removeMatching(nextRows.values(), row -> channel.equals(row.observation.scope.channelId)
                             && row.observation.scope.connectionRevision == revision);
                     if (failCleanup) throw new IllegalStateException("interrupted comment cleanup");
-                    nextProgress.keySet().removeIf(key -> key.channelId.equals(channel) && key.revision == revision);
-                    nextMembership.keySet().removeIf(key -> key.channelId.equals(channel) && key.revision == revision);
-                    nextAttempts.keySet().removeIf(key -> key.channelId.equals(channel) && key.revision == revision);
-                    nextQueries.values().removeIf(q -> q.channelId.equals(channel) && q.connectionRevision == revision);
-                    nextHandled.removeIf(key -> channel.equals(key.channel()) && revision == key.revision());
+                    Match<CommentCheckpoint.Key> retired = key -> key.channelId.equals(channel) && key.revision == revision;
+                    removeMatching(nextProgress.keySet(), retired);
+                    removeMatching(nextMembership.keySet(), retired);
+                    removeMatching(nextAttempts.keySet(), retired);
+                    removeMatching(nextQueries.values(), q -> q.channelId.equals(channel) && q.connectionRevision == revision);
+                    removeMatching(nextHandled, key -> channel.equals(key.channel()) && revision == key.revision());
                 }
                 public void putCheckpoint(CommentCheckpoint checkpoint) {
                     if (failCheckpoint) throw new IllegalStateException("simulated IO failure");
