@@ -12,6 +12,9 @@
     <TextView android:id="@+id/networkStatus" android:layout_width="match_parent"
         android:layout_height="wrap_content" android:layout_marginTop="12dp"
         android:text="@string/offline_draft_ready" />
+    <com.google.android.material.button.MaterialButton android:id="@+id/openDashboardButton"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="12dp" android:text="@string/dashboard_open" />
     <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
         android:layout_marginTop="16dp" android:text="@string/app_language" />
     <RadioGroup android:id="@+id/appLanguageGroup" android:layout_width="match_parent"
