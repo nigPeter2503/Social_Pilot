@@ -31,6 +31,7 @@ import com.socialpilot.app.domain.editor.ContentVersion;
 import com.socialpilot.app.domain.editor.VersionApprovalState;
 import java.net.URI;
 import java.util.Collections;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -287,7 +288,9 @@ public final class MainViewModel extends AndroidViewModel {
                     return;
                 }
             }
-            briefRepository.saveDraft(form, (id, saved) -> new Handler(Looper.getMainLooper()).post(
+            List<Scope> scopes = new ArrayList<>();
+            for (ChannelRepository.Snapshot selected : selectedChannels) scopes.add(selected.scope);
+            briefRepository.saveDraft(form, scopes, (id, saved) -> new Handler(Looper.getMainLooper()).post(
                     () -> saveState.setValue(saved ? SaveState.SAVED : SaveState.FAILED)));
         });
     }
