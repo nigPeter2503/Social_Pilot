@@ -69,6 +69,8 @@ public final class ModelRegistryParser {
                 new BigDecimal(price.get("uncachedInputPerMillion").getAsString()),
                 new BigDecimal(price.get("cachedInputPerMillion").getAsString()),
                 new BigDecimal(price.get("outputPerMillion").getAsString()),
+                price.has("perImage") && !price.get("perImage").isJsonNull()
+                        ? new BigDecimal(price.get("perImage").getAsString()) : null,
                 price.get("priceRevision").getAsString(), price.get("source").getAsString(),
                 price.get("capturedAt").getAsString());
     }

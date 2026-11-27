@@ -52,7 +52,7 @@ public final class ModelEntry {
         if (support == ModelCapabilities.Support.UNKNOWN) return Block.CAPABILITY_UNKNOWN;
         if (verification != Verification.VERIFIED) return Block.UNVERIFIED;
         if (maxOutputTokens > capabilities.maxOutputTokens) return Block.OUTPUT_CAP_EXCEEDED;
-        if (price == null) return Block.PRICE_MISSING;
+        if (price == null || (task.task == AiRequest.Task.IMAGE && price.perImage == null)) return Block.PRICE_MISSING;
         return Block.NONE;
     }
 
