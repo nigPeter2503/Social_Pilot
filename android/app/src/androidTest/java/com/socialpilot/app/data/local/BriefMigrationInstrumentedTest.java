@@ -44,8 +44,9 @@ public final class BriefMigrationInstrumentedTest {
         old.execSQL("DELETE FROM drafts WHERE id = 50");
         old.close();
 
-        SupportSQLiteDatabase migrated = helper.runMigrationsAndValidate(name, 3, true,
-                AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3);
+        SupportSQLiteDatabase migrated = helper.runMigrationsAndValidate(name, 4, true,
+                AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3,
+                AppDatabase.MIGRATION_3_4);
         try (Cursor rows = migrated.query("SELECT id, topic, createdAt FROM drafts "
                 + "ORDER BY createdAt DESC, id DESC")) {
             assertEquals(3, rows.getCount());
@@ -62,7 +63,8 @@ public final class BriefMigrationInstrumentedTest {
         migrated.close();
 
         AppDatabase reopened = Room.databaseBuilder(context, AppDatabase.class, name)
-                .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3).build();
+                .addMigrations(AppDatabase.MIGRATION_1_2,
+                        AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4).build();
         try {
             assertTrue(reopened.drafts().insert(new DraftEntity("new", 400)) > 50);
             assertNull(reopened.briefs().get("missing"));
@@ -146,8 +148,8 @@ public final class BriefMigrationInstrumentedTest {
                 + "'session-1', 'bearer', '[]', '[]', 4, 1)");
         old.close();
 
-        SupportSQLiteDatabase migrated = helper.runMigrationsAndValidate(name, 3, true,
-                AppDatabase.MIGRATION_2_3);
+        SupportSQLiteDatabase migrated = helper.runMigrationsAndValidate(name, 4, true,
+                AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4);
         try (Cursor rows = migrated.query("SELECT channelId, connectionRevision "
                 + "FROM channels WHERE externalAccountId = 'page-1'")) {
             assertTrue(rows.moveToFirst());

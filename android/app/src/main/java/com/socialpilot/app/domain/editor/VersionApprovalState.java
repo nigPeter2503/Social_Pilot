@@ -32,9 +32,18 @@ public final class VersionApprovalState {
         saveVersion(version, expectedCurrentVersionId, false);
     }
 
-    /** An explicit restore may copy an older version, but must still observe the current head. */
-    public synchronized void restoreVersion(ContentVersion version, String expectedCurrentVersionId) {
-        saveVersion(version, expectedCurrentVersionId, true);
+    /** Copy the selected immutable version; the caller cannot substitute text or image. */
+    public synchronized ContentVersion restoreVersion(String channelId, String sourceVersionId,
+            String newVersionId, String expectedCurrentVersionId, long createdAtEpochMillis) {
+        requireTarget(channelId);
+        ContentVersion source = versions.get(sourceVersionId);
+        if (source == null || !channelId.equals(source.channelId())) {
+            throw new IllegalArgumentException("source must belong to this channel");
+        }
+        ContentVersion restored = new ContentVersion(newVersionId, briefId, channelId,
+                sourceVersionId, source.text(), source.imageReference(), createdAtEpochMillis);
+        saveVersion(restored, expectedCurrentVersionId, true);
+        return restored;
     }
 
     private void saveVersion(ContentVersion version, String expectedCurrentVersionId,

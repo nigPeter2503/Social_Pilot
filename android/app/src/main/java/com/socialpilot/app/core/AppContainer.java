@@ -73,7 +73,8 @@ public final class AppContainer {
     public AppContainer(Context context) {
         Context app = context.getApplicationContext();
         database = Room.databaseBuilder(app, AppDatabase.class, "socialpilot.db")
-                .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3).build();
+                .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3,
+                        AppDatabase.MIGRATION_3_4).build();
         drafts = new DraftRepository(database.drafts(), io);
         briefs = new BriefRepository(database.briefs(), io);
         prototypeDatabase = Room.databaseBuilder(app, PrototypeDatabase.class, "socialpilot-prototype.db")
