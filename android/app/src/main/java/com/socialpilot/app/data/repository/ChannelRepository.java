@@ -229,10 +229,20 @@ public final class ChannelRepository {
 
     /** Apply a result only to the same connected revision, preserving other operation results. */
     public synchronized boolean recordCapability(Scope scope, ChannelCapability capability) {
+        return recordCapability(scope, null, capability);
+    }
+
+    /** A concurrent permission check on this same revision can supersede an in-flight GET. */
+    public synchronized boolean recordCapability(Scope scope, ChannelCapability expected, ChannelCapability capability) {
         boolean changed = database.runInTransaction(() -> {
             ChannelEntity row = current(scope);
             if (!usable(row) || readCredential(row) == null) return false;
             EnumMap<SocialOperation, ChannelCapability> updated = capabilities(row);
+            ChannelCapability prior = updated.get(capability.operation);
+            if (expected != null && (prior == null || expected.operation != prior.operation
+                    || expected.availability != prior.availability
+                    || !java.util.Objects.equals(expected.reasonCode, prior.reasonCode)
+                    || !java.util.Objects.equals(expected.verifiedAt, prior.verifiedAt))) return false;
             updated.put(capability.operation, capability);
             return channels.saveCapabilities(scope.channelId, scope.platform, scope.connectionRevision,
                     gson.toJson(updated.values())) != 0;

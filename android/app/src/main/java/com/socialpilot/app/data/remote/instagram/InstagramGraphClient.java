@@ -22,7 +22,7 @@ public final class InstagramGraphClient {
         this(new OkHttpClient());
     }
 
-    InstagramGraphClient(OkHttpClient client) {
+    public InstagramGraphClient(OkHttpClient client) {
         http = client.newBuilder()
                 .followRedirects(false)
                 .followSslRedirects(false)
@@ -63,6 +63,21 @@ public final class InstagramGraphClient {
         HttpUrl identity = graphUrl(version, accountId).addQueryParameter("fields", "id").build();
         JsonObject data = call(connection.accessToken, identity, null);
         if (!accountId.equals(id(data))) throw new IOException("Unexpected Graph account");
+    }
+
+    /** Verify both returned IDs before importing an existing Page post or professional media. */
+    public void verifyPostOwner(OAuthExchangeResponse connection, String version, String postId) throws IOException {
+        String ownerField = "INSTAGRAM".equals(connection.provider) ? "owner" : "from";
+        HttpUrl target = graphUrl(version, postId).addQueryParameter("fields", "id," + ownerField + "{id}").build();
+        JsonObject payload = call(connection.accessToken, target, null);
+        if (!matchesId(payload, postId) || !payload.has(ownerField) || !payload.get(ownerField).isJsonObject()
+                || !matchesId(payload.getAsJsonObject(ownerField), connection.externalAccountId))
+            throw new IOException("Post ownership not verified");
+    }
+
+    private static boolean matchesId(JsonObject object, String expected) {
+        return object.has("id") && object.get("id").isJsonPrimitive()
+                && object.getAsJsonPrimitive("id").isString() && expected.equals(object.get("id").getAsString());
     }
 
     public String permalink(OAuthExchangeResponse connection, String mediaId) throws IOException {

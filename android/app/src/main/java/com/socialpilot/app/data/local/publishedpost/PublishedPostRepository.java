@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Unwired SP-041 logic; only a MO_PHONG transactional store exists until handoff. */
+/** Scoped upsert and lookup shared by the simulated store and the Room implementation. */
 public final class PublishedPostRepository {
     public enum Status {
         COMMITTED, FOUND, MISSING, CHANNEL_MISSING, SCOPE_MISMATCH, DISCONNECTED,

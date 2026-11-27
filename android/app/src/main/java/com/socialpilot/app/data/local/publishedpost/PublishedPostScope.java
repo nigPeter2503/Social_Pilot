@@ -25,6 +25,11 @@ public final class PublishedPostScope {
         this.connectionRevision = connectionRevision;
     }
 
+    public static PublishedPostScope from(com.socialpilot.app.domain.contract.social.ChannelInfo info) {
+        return new PublishedPostScope(info.platform, info.accountType, info.channelId,
+                info.connectionRevision, info.externalAccountId);
+    }
+
     public boolean same(PublishedPostScope other) {
         return other != null && platform == other.platform && accountType == other.accountType
                 && channelId.equals(other.channelId) && connectionRevision == other.connectionRevision

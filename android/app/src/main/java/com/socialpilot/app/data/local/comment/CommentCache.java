@@ -85,7 +85,9 @@ public final class CommentCache {
 
     public void record(CommentPageWriter.Attempt attempt, CommentAttempt value) {
         writer.transaction(tx -> {
-            writer.current(tx, attempt);
+            boolean authFailure = value.error() != null
+                    && value.error().code == com.socialpilot.app.domain.contract.social.SocialError.Code.AUTH_REQUIRED;
+            writer.current(tx, attempt, !authFailure);
             tx.putAttempt(new CommentCheckpoint.Key(attempt.request), value);
             return null;
         });

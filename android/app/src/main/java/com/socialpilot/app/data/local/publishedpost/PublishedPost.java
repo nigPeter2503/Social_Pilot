@@ -1,6 +1,6 @@
 package com.socialpilot.app.data.local.publishedpost;
 
-/** Immutable logical row. Not a Room entity; persistence is gated on HO-CHANNEL/HO-SCHEMA. */
+/** Normalized provider post with stable local identity and per-field provenance. */
 public final class PublishedPost {
     public final String id;
     public final PublishedPostScope scope;

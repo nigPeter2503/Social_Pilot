@@ -14,7 +14,10 @@ import static com.socialpilot.app.data.remote.social.CommentPageResult.Failure;
 
 /** Shared lifecycle only; provider mapping and continuation rules remain separate. */
 public abstract class CommentAdapter {
-    public interface ConnectionSource { Binding current(String channelId); }
+    public interface ConnectionSource {
+        Binding current(String channelId);
+        default void observed(Binding sent, CommentPageResult result) {}
+    }
     /** Resolve only this exact immutable channel subject/revision/token reference. */
     public interface CredentialSource { String accessToken(ChannelInfo channel); }
     public interface Clock { long nowMillis(); }
@@ -184,7 +187,8 @@ public abstract class CommentAdapter {
             }
             // Check after body read AND mapping, immediately before terminal delivery.
             denied = guard(r, sent);
-            p.deliver(denied == null ? result : denied);
+            if (denied != null) p.deliver(denied);
+            else p.deliverObserved(connections, sent, result);
         } catch (RuntimeException ignored) {
             // Never retain exception text, URL, credential or provider body.
             p.deliver(fail(Failure.LOCAL_ERROR));
@@ -196,7 +200,7 @@ public abstract class CommentAdapter {
         if (platform == Platform.INSTAGRAM) {
             String edge = r.target == CommentPageRequest.Target.POST ? "comments" : "replies";
             url.addPathSegment(r.apiVersion).addPathSegment(r.targetId).addPathSegment(edge)
-                    .addQueryParameter("fields", "id,text,timestamp,username")
+                    .addQueryParameter("fields", "id,text,timestamp")
                     .addQueryParameter("limit", String.valueOf(r.pageSize));
             if (continuation != null) url.addQueryParameter("after", continuation);
         } else if (platform == Platform.FACEBOOK) {
@@ -264,7 +268,9 @@ public abstract class CommentAdapter {
 
     private static boolean sameCapability(ChannelCapability a, ChannelCapability b) {
         return a.operation == b.operation && a.availability == b.availability
-                && Objects.equals(a.reasonCode, b.reasonCode) && Objects.equals(a.verifiedAt, b.verifiedAt);
+                && Objects.equals(a.reasonCode, b.reasonCode)
+                && (a.operation == SocialOperation.READ_COMMENTS && a.availability == CapabilityAvailability.AVAILABLE
+                    || Objects.equals(a.verifiedAt, b.verifiedAt));
     }
     static CommentPageResult fail(Failure failure) { return CommentPageResult.failure(failure, null, null, null); }
     static CommentPageResult fail(Failure failure, SocialError.Code code, SocialError.NextAction action) {
@@ -284,6 +290,11 @@ public abstract class CommentAdapter {
         synchronized void deliver(CommentPageResult result) {
             if (stopped) return;
             stopped = true; callback.complete(result);
+        }
+        synchronized void deliverObserved(ConnectionSource connections, Binding sent, CommentPageResult result) {
+            if (stopped) return;
+            connections.observed(sent, result);
+            deliver(result);
         }
         @Override public synchronized void cancel() {
             stopped = true;

@@ -256,7 +256,7 @@ public final class CommentWorkDeviceTest {
         report("online pid=" + android.os.Process.myPid() + " work=" + id + " requests=1 rows=1 state=COMPLETE");
     }
 
-    private static void shell(String command) throws Exception {
+    static void shell(String command) throws Exception {
         ParcelFileDescriptor fd = InstrumentationRegistry.getInstrumentation().getUiAutomation().executeShellCommand(command);
         try (InputStream in = new ParcelFileDescriptor.AutoCloseInputStream(fd)) { while (in.read() != -1) {} }
     }

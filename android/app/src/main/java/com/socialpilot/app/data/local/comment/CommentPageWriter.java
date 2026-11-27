@@ -74,6 +74,7 @@ public final class CommentPageWriter {
         if (!CommentContinuation.isFirstPage(first)) throw new Rejected(Failure.INVALID_CURSOR);
         return transaction(tx -> {
             PublishedPost post = requirePost(tx, first);
+            if (source == CommentRecord.Source.API_THAT) tx.remember(first);
             CommentCheckpoint previous = tx.checkpoint(new CommentCheckpoint.Key(first));
             if (previous != null && !post.id.equals(previous.localPostId)) throw new Rejected(Failure.POST_CONFLICT);
             return new Attempt(first, post.id, previous);
@@ -121,6 +122,8 @@ public final class CommentPageWriter {
                 StoredComment prior = tx.comment(query.platform, query.channelId, item.commentId);
                 // The logical key survives reconnect. A retired payload has no authority
                 // over the new revision, including its merge fields and handled state.
+                if (prior != null && !query.postId.equals(prior.observation.postId))
+                    throw new Rejected(Failure.POST_CONFLICT);
                 if (prior != null && prior.observation.scope.connectionRevision < query.connectionRevision)
                     prior = null;
                 if (prior != null && (!attempt.localPostId.equals(prior.localPostId)
@@ -157,7 +160,12 @@ public final class CommentPageWriter {
     }
 
     CommentCheckpoint current(CommentStore.Transaction tx, Attempt attempt) {
-        checkPost(tx, attempt);
+        return current(tx, attempt, true);
+    }
+
+    CommentCheckpoint current(CommentStore.Transaction tx, Attempt attempt, boolean writing) {
+        if (!attempt.localPostId.equals(requirePost(tx, attempt.first, writing).id))
+            throw new Rejected(Failure.POST_CONFLICT);
         CommentCheckpoint actual = tx.checkpoint(new CommentCheckpoint.Key(attempt.first));
         String generation = actual == null ? null : actual.generation;
         if (!Objects.equals(generation, attempt.previous == null ? null : attempt.previous.generation))
@@ -188,7 +196,20 @@ public final class CommentPageWriter {
         if (!expected.same(post.scope) || !q.postId.equals(post.externalPostId))
             throw new Rejected(Failure.POST_CONFLICT);
         if (post.source != postSource) throw new Rejected(Failure.SOURCE);
+        // Legacy adapters can carry external parent evidence. Production replies use the cached parent.
+        if (writing && source == CommentRecord.Source.API_THAT && q.target == CommentPageRequest.Target.COMMENT) {
+            StoredComment parent = tx.comment(q.platform, q.channelId, q.targetId);
+            if (parent == null || !post.id.equals(parent.localPostId)
+                    || parent.observation.source != source || !q.targetId.equals(parent.observation.commentId)
+                    || !matches(q, parent.observation.scope, parent.observation.postId))
+                throw new Rejected(Failure.POST_CONFLICT);
+        }
         return post;
+    }
+
+    /** Re-read the trusted root on every adapter admission and again inside the page commit. */
+    public PublishedPost ownedTarget(CommentPageRequest query) {
+        return transaction(tx -> requirePost(tx, query));
     }
 
     private static boolean matches(CommentPageRequest q, CommentRecord.Scope s, String postId) {

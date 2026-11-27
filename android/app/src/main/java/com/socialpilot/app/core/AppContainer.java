@@ -12,6 +12,12 @@ import com.socialpilot.app.data.ai.ByokKeyVerifier;
 import com.socialpilot.app.data.ai.ModelRegistryParser;
 import com.socialpilot.app.data.ai.ModelSelectionStore;
 import com.socialpilot.app.data.local.AppDatabase;
+import com.socialpilot.app.data.local.commentsync.CommentRoomStore;
+import com.socialpilot.app.data.local.publishedpost.PublishedPostRepository;
+import com.socialpilot.app.data.remote.social.ChannelCommentAccess;
+import com.socialpilot.app.data.repository.comment.CommentRepository;
+import com.socialpilot.app.data.security.KeystoreRecordCipher;
+import okhttp3.OkHttpClient;
 import com.socialpilot.app.data.prototype.PrototypeDatabase;
 import com.socialpilot.app.data.prototype.SampleRepository;
 import com.socialpilot.app.data.repository.DraftRepository;
@@ -44,6 +50,11 @@ public final class AppContainer {
     /** Social-token namespace for SP-022; separate file and Keystore key from AI keys. */
     public final SecretStore socialSecrets;
     public final ChannelRepository channels;
+    public final ChannelCommentAccess commentAccess;
+    private final CommentRoomStore commentStore;
+    private final NetworkStatus commentNetwork;
+    @androidx.annotation.Nullable public final PublishedPostRepository publishedPosts;
+    private CommentRepository comments;
     public final AiKeyRepository aiKeys;
     public final ModelRegistry modelRegistry;
     public final ModelSelectionStore modelSelections;
@@ -68,6 +79,10 @@ public final class AppContainer {
         sampleResults.reconcileWorkOnOpen(WorkManager.getInstance(app));
         socialSecrets = new EncryptedSecretStore(app, SecretNamespace.SOCIAL_TOKEN);
         channels = new ChannelRepository(database, socialSecrets);
+        commentAccess = new ChannelCommentAccess(channels, new OkHttpClient());
+        commentNetwork = NetworkStatus.of(app);
+        commentStore = database instanceof CommentRoomStore.Schema ? new CommentRoomStore(database) : null;
+        publishedPosts = commentStore == null ? null : PublishedPostRepository.forProduction(commentStore.posts);
         oauthStore = new EncryptedOAuthStore(app, channels);
         instagram = new InstagramPublishRepository(app, oauthStore);
         facebookOAuth = new FacebookOAuthCoordinator(oauthStore, Executors.newSingleThreadExecutor(),
@@ -81,6 +96,14 @@ public final class AppContainer {
         ai = new AiGateway(modelSelections, AiGateway.adapters(aiKeys, modelRegistry),
                 provider -> aiKeys.status(provider).usable(), null, usageLog, io,
                 System::currentTimeMillis, () -> TimeZone.getDefault().getID());
+    }
+
+    /** IO only. The v2 database has no comment tables. The assigned schema supplies the DAO. */
+    @androidx.annotation.Nullable public synchronized CommentRepository comments() {
+        if (commentStore != null && comments == null)
+            comments = commentAccess.repository(commentStore.comments, KeystoreRecordCipher.commentCursors(),
+                    commentNetwork::isOnline, io, java.util.concurrent.TimeUnit.MINUTES.toMillis(5));
+        return comments;
     }
 
     private static ModelRegistry loadRegistry(Context context) {

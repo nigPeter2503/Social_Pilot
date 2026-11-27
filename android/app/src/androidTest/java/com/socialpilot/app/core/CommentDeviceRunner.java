@@ -21,6 +21,9 @@ public final class CommentDeviceRunner extends AndroidJUnitRunner {
             if (fixture == null) fixture = new DeviceCommentFixture(() -> net.getActiveNetwork() != null);
             return fixture;
         }
-        @Override public CommentRepository comments() { return fixture().repo; }
+        volatile CommentRepository roomRepository;
+        @Override public CommentRepository comments() {
+            return roomRepository != null ? roomRepository : fixture().repo;
+        }
     }
 }
