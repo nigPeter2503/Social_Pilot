@@ -1,0 +1,57 @@
+{
+  "ticket": "SP-045",
+  "owner": "Tô Lãng Nghị",
+  "assessmentDate": "2026-11-23",
+  "timezone": "Asia/Saigon",
+  "status": "NOT_RUN",
+  "codeRevision": "88f76494f722ebd00128b745e1b43c88fd110636",
+  "baseRevision": "a351435b2b9f93ae245bd15c8400e753147c2043",
+  "apiEvidenceRevision": "eda55acd8fb95a0dba9853a35e16fe8754245600",
+  "appDatabaseVersion": 1,
+  "platform": "INSTAGRAM",
+  "channelId": null,
+  "connectionRevision": null,
+  "publishedPostLocalId": null,
+  "grantEvidenceRef": null,
+  "metrics": [
+    {
+      "metric": "FOLLOWER_COUNT",
+      "subject": "CHANNEL",
+      "providerMetric": "followers_count",
+      "window": "GAUGE",
+      "operation": "READ_FOLLOWER_COUNT",
+      "status": "NOT_RUN",
+      "T1": null,
+      "T2": null,
+      "reason": "Missing production Channel/revision/grant and assigned Room slot"
+    },
+    {
+      "metric": "REACH_COUNT",
+      "subject": "POST",
+      "providerMetric": "reach",
+      "window": "LIFETIME",
+      "operation": "READ_POST_METRICS",
+      "status": "NOT_RUN",
+      "T1": null,
+      "T2": null,
+      "reason": "Missing production Channel/revision/grant, scoped PublishedPost local ID from SP-041 and assigned Room slot"
+    },
+    {
+      "metric": "IMPRESSION_COUNT",
+      "status": "NOT_RUN",
+      "eligibleForCollection": false,
+      "value": null,
+      "missingReason": "UNSUPPORTED",
+      "evidenceRef": "SP-066/IG-11",
+      "appCapabilityBound": false,
+      "reason": "Unsupported for the IG-11 media/version; no reach/views substitution"
+    }
+  ],
+  "snapshotIds": [],
+  "collectionIds": [],
+  "readbackAt": null,
+  "expected": "Two compatible production collections per eligible metric with persisted IDs, observedAt/basis, collectedAt, source/API version and Room readback",
+  "actual": "No production collection; sanitized Explorer payload replay remains MO_PHONG",
+  "blockerOwners": ["Minh/SP-022", "Minh/SP-024", "Đạt/SP-012", "Nghị/SP-041"],
+  "evidence": "sp-045-production-readiness-2026-11-23.md"
+}

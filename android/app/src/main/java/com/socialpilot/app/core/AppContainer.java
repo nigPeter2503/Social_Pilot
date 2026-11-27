@@ -25,6 +25,7 @@ import com.socialpilot.app.data.prototype.SampleRepository;
 import com.socialpilot.app.data.repository.DraftRepository;
 import com.socialpilot.app.data.repository.ChannelRepository;
 import com.socialpilot.app.data.repository.InstagramPublishRepository;
+import com.socialpilot.app.data.repository.metrics.MetricCollectionCoordinator;
 import com.socialpilot.app.data.security.EncryptedOAuthStore;
 import com.socialpilot.app.data.security.EncryptedSecretStore;
 import com.socialpilot.app.domain.contract.ai.AiRequest;
@@ -46,6 +47,7 @@ public final class AppContainer {
     public final ExecutorService io = Executors.newFixedThreadPool(4);
     public final AppDatabase database;
     public final DraftRepository drafts;
+    public final MetricCollectionWork metrics;
     public final PrototypeDatabase prototypeDatabase;
     public final SampleRepository sampleResults;
     public final DemoStreamCoordinator sampleStreams;
@@ -68,11 +70,15 @@ public final class AppContainer {
     /** Channel images and template fallback (SP-032); same selection, BYOK and ledger as text. */
     public final ImageService images;
 
-    public AppContainer(Context context) {
+    public AppContainer(Context context) { this(context, null); }
+
+    public AppContainer(Context context, MetricCollectionCoordinator collector) {
         Context app = context.getApplicationContext();
         database = Room.databaseBuilder(app, AppDatabase.class, "socialpilot.db")
                 .addMigrations(AppDatabase.MIGRATION_1_2).build();
         drafts = new DraftRepository(database.drafts(), io);
+        // Wire the production coordinator once the Channel and Snapshot Room ports are available.
+        metrics = new MetricCollectionWork(app, collector, System::currentTimeMillis);
         prototypeDatabase = Room.databaseBuilder(app, PrototypeDatabase.class, "socialpilot-prototype.db")
                 .addMigrations(PrototypeDatabase.MIGRATION_1_2,
                         PrototypeDatabase.MIGRATION_2_3,

@@ -1,0 +1,37 @@
+[
+  {
+    "path": "android/app/src/main/java/com/socialpilot/app/domain/contract/analytics/AnalyticsRepository.java",
+    "sha256": "463754e50b3483bf44d7cc73c2d9d40ac5e8eb4faec92fe98d5ba6af10efc42a",
+    "blob": "1c59d6c3f7b118111f45f3dfec5dfbc8483c7288"
+  },
+  {
+    "path": "android/app/src/main/java/com/socialpilot/app/domain/contract/analytics/AnalyticsTypes.java",
+    "sha256": "5af4af16a7458891eac0d1ec93c702ce63219d02f8df3219498401af04c16969",
+    "blob": "7df905ca32aa8c9888287daf26e5d09012e66e8f"
+  },
+  {
+    "path": "android/app/src/main/java/com/socialpilot/app/domain/contract/analytics/DashboardData.java",
+    "sha256": "9b8edbd143c23f6b77261611a5de5a5374c888fcdfa25c1c689302c019e23433",
+    "blob": "7f9b45ec5f7c05fb8161968842573ac5b7f79288"
+  },
+  {
+    "path": "android/app/src/main/java/com/socialpilot/app/domain/contract/analytics/DashboardQuery.java",
+    "sha256": "08a487f09aab5c9b4cfc66d6921e45e28d76b10e1843f3095c24e330381178f3",
+    "blob": "ec977976d4e8010b3258923854543eba6a6927f2"
+  },
+  {
+    "path": "android/app/src/test/java/com/socialpilot/app/domain/contract/analytics/AnalyticsConsumerContractTest.java",
+    "sha256": "fc1ad0b828cc43e4d4f339d1c114a4f8802f67992e405a32ffe108cd3c4ee1d9",
+    "blob": "91840980707de52fe88350db3cb60092f550622a"
+  },
+  {
+    "path": "docs/handoffs/sp-045-analytics-input.md",
+    "sha256": "ee0807691d786c2c7f208cc31744effb2b624954451f02b6b3dfdf03e6978f8d",
+    "blob": "a34ce21e3920485e1a656335c382fce0fc45601d"
+  },
+  {
+    "path": "docs/handoffs/sp-046-dashboard-contract.md",
+    "sha256": "ae9e7a2336a003a3b522e678fee9b3137f42a2ad4b2bf7bc93b855f80c89ee28",
+    "blob": "d23e93bfa3974837a4d061de71783027a901228a"
+  }
+]

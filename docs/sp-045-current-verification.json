@@ -1,0 +1,31 @@
+{
+  "ticket": "SP045",
+  "verifiedAt": "2026-11-23T21:10:43.764104+07:00",
+  "baselineHead": "bc35f6dbd657eb61413078bb610b48b6d396cc80",
+  "head": "88f76494f722ebd00128b745e1b43c88fd110636",
+  "integratedMain": "a351435b2b9f93ae245bd15c8400e753147c2043",
+  "source": "MO_PHONG",
+  "tests": 173.0,
+  "suites": 14,
+  "failures": 0.0,
+  "errors": 0.0,
+  "skipped": 0.0,
+  "lintErrors": 0,
+  "lintWarnings": 6,
+  "appDatabaseVersion": 1,
+  "draftSchemaUnchanged": true,
+  "existingUntrackedFiles": [],
+  "productionRoom": "NOT_RUN",
+  "productionLive": "NOT_RUN",
+  "deviceApi23And36": "NOT_RUN",
+  "deviceWorker": {
+    "api": 37,
+    "emulator": "Pixel_9 read-only",
+    "source": "MO_PHONG",
+    "uniqueTestsPassed": 4,
+    "uniqueTestsFailedFinal": 0,
+    "transientExit": "LOW_MEMORY before TestRunner; queue case rerun passed twice",
+    "productionRoomReadback": false,
+    "processDeathTest": "NOT_RUN"
+  }
+}
