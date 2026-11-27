@@ -1,5 +1,24 @@
 # SP-041 · Mở inbox, lọc cache và chọn comment để reply
 
+## Bàn giao ngày 27/11/2026 cho SP-042/043, SP-051, SP-045 và SP-025
+
+Base tích hợp `c49676e`, sau SP-022 và PR #107. `socialpilot.db` v2 đã có Draft và Channel. Trong APK phát hành ở base này, `container.publishedPosts` và `container.comments()` trả `null` vì chưa có slot migration cho bốn bảng của SP-041. UI hiển thị chức năng chưa khả dụng khi gặp giá trị này. Bản instrumentation đăng ký cùng DAO trên database riêng để kiểm persistence. [Báo cáo kiểm thử](../sp-041-verification-2026-11-27.md) · [Manifest live](../sp-041-live-manifest.json)
+
+| Người nhận | Cách dùng trên schema có DAO |
+|---|---|
+| Minh/SP-025 và SP-045 | Trên luồng IO lấy `channel = container.channels.find(channelId)`, tạo `scope = PublishedPostScope.from(channel.info)`. Gọi `container.commentAccess.importPost(posts, scope, externalId)` cho bài đã có. Facebook GET kiểm `id` và `from.id`, Instagram GET kiểm `id` và `owner.id`. Phải có READ_COMMENTS đã xác nhận trên đúng revision. Dùng `posts.lookupByExternalId(scope, externalId)` để tra `result.post.id` sau `FOUND`. Chiều ngược lại dùng `lookupByLocalId`. Một ID lặp trong cùng kênh trả lại local ID ban đầu. |
+| SP-042 và Thiện/SP-051 | Lấy repository qua `container.comments()` trên luồng IO. Gọi `loadCached(query, ALL/HANDLED/UNHANDLED)`, `refresh(query, callback)`, và `cancel()` trên handle khi rời màn hình. Query đầu truyền cursor null. Mốc fresh của container là 5 phút kể từ trang terminal. Render rows cùng lỗi hoặc trạng thái offline, đọc lại sau callback. |
+| SP-043 | Giữ `row.localPostId`, `row.observation.scope` (platform/channelId/revision), `row.observation.postId/commentId` và `row.parentCommentId` khi KNOWN. Kiểm lại revision và REPLY_COMMENT khi thao tác ở SP-043. Với GET replies, adapter cần comment cha đã lưu đúng kênh, revision và local post. |
+| WorkManager | `CommentSyncWorker.enqueue(context, repo, query)` dùng network constraint, unique fingerprint và revision. Sau cold start, Application cung cấp cùng repository qua AppContainer. Chỉ gọi `afterInvalidation` sau khi owner xác nhận policy và đã commit revision mới. |
+
+**Query Meta.** API `v27.0`, Facebook Page dùng Page ID và `FB_TOPLEVEL/FB_STREAM` (pageSize tối đa 2 theo cấu hình đợt này). Instagram Professional dùng IG user ID, media ID và `IG_COMMENTS` (pageSize 1 theo IG-03). Revision Facebook legacy thiếu version dùng mặc định Page v27.0 của SP-022. Version tường minh khác trả lỗi scope. Grant, target và role phải gắn với lần nghiệm thu thực.
+
+**Ví dụ fixture trên thiết bị.** Trang đầu chứa `c1`, trang hai bị 403 chưa phân loại. Kỳ vọng cache có 1 row, paging MORE, chưa có `lastCompleteSyncAt`. Sau mở lại Room, Worker dùng lại cursor, nhận `c1,c2` và trang terminal. Kỳ vọng đọc offline được 2 row và mốc hoàn tất. Kết quả từng môi trường nằm trong báo cáo. Payload omitted, deleted và parent UNKNOWN vẫn có trạng thái riêng.
+
+## Hồ sơ lịch sử ở các SHA trước SP-022
+
+Các mô tả AppDatabase v1, store RAM và những phụ thuộc của ngày 23/11 dưới đây chỉ áp dụng cho SHA ghi trong mỗi mục.
+
 **Cập nhật 23/11/2026:** mã `f57cf55`, base main `a351435`, chạy mới **244/244** JVM, assemble/lint đạt (0 lỗi, 6 cảnh báo). Đã nhận payload SP-066 từ `eda55ac` và kiểm replay comment/parent/terminal/rollback. Store vẫn RAM; AppDatabase production v1. **Chưa có PublishedPost local ID production để SP-045 ghi snapshot POST.** Minh giao Channel DAO/revision/grant và policy SP-024; Đạt giao slot sau khi đối chiếu v2/v3 của Thiện. [Báo cáo/gate](../sp-041-production-readiness-2026-11-23.md) · [Manifest live NOT_RUN](../sp-041-live-manifest.json). Các kết quả 239 test bên dưới là lịch sử của revision cũ.
 
 Nghị bàn giao API cho SP-042/043 và Thiện/SP-051. Các chữ ký và ca kiểm bên dưới áp dụng cho mã `a192d58003b2f7f6886587ac2adcfd7c133e24d1` của PR #87. JVM và thiết bị dùng store giao dịch **trong RAM** (`MO_PHONG`). Ứng dụng còn chờ Channel/DAO, Room và manifest đối chiếu provider thật để nghiệm thu dữ liệu. [Evidence Worker/cache](../sp-041-worker-cache-ig-fb.md)

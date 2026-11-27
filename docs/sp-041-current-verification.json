@@ -1,18 +1,18 @@
 {
-  "ticket": "SP041",
-  "verifiedAt": "2026-11-23T20:44:37.1033538+07:00",
-  "baselineHead": "00108ab246c91ab41aff36dd5e320a2ce2f51eb2",
-  "head": "f57cf554cd81a4b95f8fae369417eeabfbdc0ebc",
-  "integratedMain": "a351435b2b9f93ae245bd15c8400e753147c2043",
+  "ticket": "SP-041",
+  "verifiedAt": "2026-11-27T12:05:26+07:00",
+  "baselineHead": "ca77f6265f87d9cfc56242106072e7efc91b3cc7",
+  "head": "6facb57279c20524aa09da1ab57dbec7c5df1a4f",
+  "integratedMain": "c49676e47bbe9ee72910150ef0516878b00d1053",
   "source": "MO_PHONG",
-  "tests": 244.0,
-  "suites": 14,
-  "failures": 0.0,
-  "errors": 0.0,
-  "skipped": 0.0,
+  "tests": 469,
+  "suites": 35,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
   "lintErrors": 0,
-  "lintWarnings": 6,
-  "appDatabaseVersion": 1,
+  "lintWarnings": 14,
+  "appDatabaseVersion": 2,
   "draftSchemaUnchanged": true,
   "existingUntrackedFiles": [
     {
@@ -104,7 +104,31 @@
       "unchanged": true
     }
   ],
-  "productionRoom": "NOT_RUN",
+  "productionRoom": "NOT_RUN: SP-041 migration slot pending",
   "productionLive": "NOT_RUN",
-  "deviceApi23And36": "NOT_RUN"
+  "deviceApi23And36": [
+    {
+      "api": 23,
+      "abi": "x86_64",
+      "channelV2Passed": 11,
+      "candidateRoomPassed": 4,
+      "legacyWorkerPassed": 4,
+      "queuedOfflinePassed": 1,
+      "resumeInNewProcessPassed": 1,
+      "failures": 0,
+      "skipped": 0
+    },
+    {
+      "api": 36,
+      "abi": "x86_64",
+      "channelV2Passed": 11,
+      "candidateRoomPassed": 4,
+      "legacyWorkerPassed": 4,
+      "queuedOfflinePassed": 1,
+      "resumeInNewProcessPassed": 1,
+      "failures": 0,
+      "skipped": 0
+    }
+  ],
+  "verification": "sp-041-verification-2026-11-27.md"
 }
