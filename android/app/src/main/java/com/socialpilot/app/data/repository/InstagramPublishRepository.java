@@ -58,15 +58,25 @@ public final class InstagramPublishRepository {
     private final EncryptedOAuthStore connections;
     private final SharedPreferences attempts;
     private final InstagramGraphClient graph;
+    private final Clock clock;
     private final Gson gson = new Gson();
+
+    interface Clock {
+        long nowMillis();
+    }
 
     public InstagramPublishRepository(Context context, EncryptedOAuthStore connections) {
         this(context, connections, new InstagramGraphClient());
     }
 
     public InstagramPublishRepository(Context context, EncryptedOAuthStore connections, InstagramGraphClient graph) {
+        this(context, connections, graph, System::currentTimeMillis);
+    }
+
+    InstagramPublishRepository(Context context, EncryptedOAuthStore connections, InstagramGraphClient graph, Clock clock) {
         this.connections = connections;
         this.graph = graph;
+        this.clock = clock;
         attempts = preferences(context);
     }
 
@@ -134,14 +144,26 @@ public final class InstagramPublishRepository {
 
     public void purgeExpiredEvidence() {
         synchronized (attempts) {
-            SharedPreferences.Editor edit = attempts.edit();
-            for (String key : attempts.getAll().keySet()) {
-                if (!key.startsWith(RETAINED)) continue;
-                RetainedAttempt evidence = readRetained(key);
-                if (evidence == null || System.currentTimeMillis() >= evidence.expiresAtMillis) edit.remove(key);
-            }
-            edit.apply();
+            expireEvidenceLocked();
         }
+    }
+
+    private boolean expireEvidenceLocked() {
+        long now = clock.nowMillis();
+        SharedPreferences.Editor edit = null;
+        for (String key : attempts.getAll().keySet()) {
+            if (!key.startsWith(RETAINED)) continue;
+            RetainedAttempt evidence = readRetained(key);
+            if (evidence != null && now < evidence.expiresAtMillis) continue;
+            if (edit == null) edit = attempts.edit();
+            edit.remove(key);
+            int separator = key.indexOf(':', RETAINED.length());
+            if (separator > RETAINED.length()) {
+                // The earlier acknowledgement does not cover a newly expired record.
+                edit.putBoolean(NEEDS_CHECK + key.substring(RETAINED.length(), separator), true);
+            }
+        }
+        return edit == null || edit.commit();
     }
 
     public boolean confirmPriorPostChecked(InstagramSession session) {
@@ -149,7 +171,7 @@ public final class InstagramPublishRepository {
         synchronized (connections) {
             if (scope == null || !connections.isCurrentInstagramSession(session)) return false;
             synchronized (attempts) {
-                return attempts.edit().remove(NEEDS_CHECK + scope.channelId).commit();
+                return expireEvidenceLocked() && attempts.edit().remove(NEEDS_CHECK + scope.channelId).commit();
             }
         }
     }
@@ -285,16 +307,10 @@ public final class InstagramPublishRepository {
         Scope scope = session.scope();
         if (scope == null) return null;
         synchronized (attempts) {
+            if (!expireEvidenceLocked()) return Status.ERROR;
             if (attempts.getBoolean(NEEDS_CHECK + scope.channelId, false)) return Status.CONFIRM_PRIOR_POST;
             if (versionId == null) return null;
-            String key = retainedKey(scope, versionId);
-            RetainedAttempt evidence = readRetained(key);
-            if (evidence == null) return null;
-            if (System.currentTimeMillis() >= evidence.expiresAtMillis) {
-                attempts.edit().remove(key).apply();
-                return null;
-            }
-            return Status.PRIOR_VERSION_BLOCKED;
+            return attempts.contains(retainedKey(scope, versionId)) ? Status.PRIOR_VERSION_BLOCKED : null;
         }
     }
 

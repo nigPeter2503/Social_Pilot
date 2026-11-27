@@ -285,6 +285,8 @@ và UNKNOWN cần đối soát tường minh, tuyệt đối không tự retry. 
 khác tạo channelId mới và không nhận tombstone cũ. Sau khi tombstone hết hạn hoặc bị
 xóa ngay, không còn căn cứ tự động đối soát/chống trùng cho request đó; yêu cầu người
 dùng kiểm tra bài trên provider và xác nhận trước một lần gửi mới.
+Khi dấu vết hết hạn, luồng Instagram xóa dấu vết và yêu cầu xác nhận lại trong cùng
+lần ghi, kể cả khi người dùng từng xác nhận lúc dấu vết còn hiệu lực.
 
 **Ranh giới tích hợp SP-024.** Mỗi module nhận `Scope(platform, channelId, connectionRevision)`.
 Việc dọn chỉ áp dụng cho kênh đó và các revision tới revision bị ngắt. Mọi nơi nhận tác vụ
